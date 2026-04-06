@@ -1,0 +1,56 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ecppp_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_NAME: ecppp_test
+      DATABASE_USER: test_user
+      DATABASE_PASSWORD: test_pass
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DJANGO_SECRET_KEY: test-secret-key-ci-only
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: flake8 .
+
+      - name: Check formatting with black
+        run: black --check .
+
+      - name: Run migrations
+        run: python manage.py migrate
+
+      - name: Run tests with coverage
+        run: coverage run -m pytest
+
+      - name: Check coverage threshold
+        run: coverage report --fail-under=70
