@@ -1,0 +1,80 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.12.x, Django 5.1.x, PostgreSQL 16.x
+  Architecture: Monolithic DDD (presentation, application, domain, infrastructure)
+  Deployment: Nginx + Gunicorn + systemd (prod), venv + pip (dev)
+  CI/CD: GitHub Actions
+  Frontend: Django templates + Tailwind CSS 3.4.17 (CDN) + Alpine.js 3.15.9 (CDN)
+  Testing: pytest + pytest-django + coverage.py + factory-boy
+  Style: flake8 (linting), black (formatting)
+  Team: 2 devs, Scrum, Jira, 30h/week
+  Branching: main / develop / feature/* / hotfix/*
+
+strict_tdd: true
+
+testing:
+  strict_tdd_mode: true
+  detected: "2026-04-05"
+  note: "Test runner not yet installed — Sprint 0 will bootstrap pytest"
+  test_runner:
+    command: "pytest"
+    framework: "pytest + pytest-django"
+    status: "planned"
+  layers:
+    unit:
+      available: true
+      tool: "pytest"
+      status: "planned"
+    integration:
+      available: true
+      tool: "pytest + factory-boy"
+      status: "planned"
+    e2e:
+      available: false
+      tool: null
+      status: "not planned"
+  coverage:
+    available: true
+    command: "coverage run -m pytest && coverage report"
+    status: "planned"
+  quality:
+    linter:
+      available: true
+      command: "flake8"
+      status: "planned"
+    type_checker:
+      available: false
+      command: null
+      status: "not planned"
+    formatter:
+      available: true
+      command: "black ."
+      status: "planned"
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages
+    - Reference Jira tickets when applicable
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Follow DDD layer boundaries (presentation, application, domain, infrastructure)
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing code patterns and conventions
+    - Load relevant coding skills for the project stack (pytest, django-drf)
+    - Use conventional commits only — no AI attribution
+  verify:
+    - Run tests if test infrastructure exists
+    - Compare implementation against every spec scenario
+  archive:
+    - Warn before merging destructive deltas (large removals)
