@@ -353,7 +353,7 @@ Las siguientes decisiones fueron confirmadas por el equipo de desarrollo y compl
 |----------|---------|--------|
 | Version de Python | 3.12.x | Decision de equipo |
 | Version de Django | 5.1.x | Decision de equipo |
-| Version de PostgreSQL | 16.x | Decision de equipo |
+| Version de PostgreSQL | 18.x | Decision de equipo |
 | Entorno de desarrollo | venv + pip freeze (`requirements.txt`) | Decision de equipo |
 | Produccion | Nginx + Gunicorn + systemd | Decision de equipo |
 | CI/CD | GitHub Actions | Decision de equipo |
@@ -450,7 +450,7 @@ proyecto-ecpp/
 
 > **Fuente:** Requerimientos_ECPPP.docx — RR029: "Variables de entorno para gestion de configuraciones sensibles (credenciales de BD, claves API, SMTP) sin almacenamiento en repositorio."
 
-**TODO: confirmar valores especificos con el equipo.** Las siguientes variables son derivadas de los requerimientos y el stack confirmado (Python 3.12.x, Django 5.1.x, PostgreSQL 16.x):
+**TODO: confirmar valores especificos con el equipo.** Las siguientes variables son derivadas de los requerimientos y el stack confirmado (Python 3.12.x, Django 5.1.x, PostgreSQL 18.x):
 
 ```env
 # Base de datos (Fuente: RR029)
@@ -486,7 +486,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_DB: ecppp_test
           POSTGRES_USER: test_user

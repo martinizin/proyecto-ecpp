@@ -5,7 +5,7 @@ Sistema de gestion academica para el control de calificaciones, asistencia y sol
 ## Requisitos Previos
 
 - Python 3.12.x
-- PostgreSQL 16.x
+- PostgreSQL 18.x
 - Git
 
 ## Instalacion
