@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="text-center py-12">
+        <h1 class="text-4xl font-bold text-primary mb-4">
+            Bienvenido a ECPPP
+        </h1>
+        <p class="text-lg text-gray-600 mb-8">
+            Plataforma de Evaluacion, Calificaciones y Procesos Pedagogicos
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <!-- Card: Calificaciones -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-primary">
+            <div class="text-primary mb-3">
+                <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+            <h3 class="font-semibold text-lg text-gray-800 mb-2">Calificaciones</h3>
+            <p class="text-gray-500 text-sm">Gestion de evaluaciones, parciales y proyectos academicos.</p>
+        </div>
+
+        <!-- Card: Asistencia -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-secondary">
+            <div class="text-secondary mb-3">
+                <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h3 class="font-semibold text-lg text-gray-800 mb-2">Asistencia</h3>
+            <p class="text-gray-500 text-sm">Registro y seguimiento de asistencia estudiantil.</p>
+        </div>
+
+        <!-- Card: Solicitudes -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-accent">
+            <div class="text-accent mb-3">
+                <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                </svg>
+            </div>
+            <h3 class="font-semibold text-lg text-gray-800 mb-2">Solicitudes</h3>
+            <p class="text-gray-500 text-sm">Rectificaciones y justificaciones de manera digital.</p>
+        </div>
+    </div>
+
+    {% if not user.is_authenticated %}
+    <div class="text-center">
+        <a href="{% url 'login' %}"
+           class="inline-block bg-primary text-white px-8 py-3 rounded-md font-semibold hover:bg-secondary transition-colors">
+            Iniciar Sesion
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

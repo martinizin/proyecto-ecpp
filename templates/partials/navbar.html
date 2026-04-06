@@ -1,0 +1,81 @@
+<!-- Navbar with Alpine.js hamburger toggle -->
+<nav class="bg-primary shadow-md" x-data="{ open: false }">
+    <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between h-16">
+            <!-- Brand -->
+            <a href="{% url 'home' %}" class="flex items-center space-x-2">
+                <span class="text-white font-bold text-xl tracking-tight">ECPPP</span>
+                <span class="hidden sm:inline text-accent text-sm font-medium">Plataforma Academica</span>
+            </a>
+
+            <!-- Desktop menu -->
+            <div class="hidden md:flex items-center space-x-4">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'home' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Inicio</a>
+
+                    {% if user.rol == 'estudiante' %}
+                        <span class="text-secondary text-xs px-2 py-1 bg-white/10 rounded">Estudiante</span>
+                    {% elif user.rol == 'docente' %}
+                        <span class="text-accent text-xs px-2 py-1 bg-white/10 rounded">Docente</span>
+                    {% elif user.rol == 'inspector' %}
+                        <span class="text-accent text-xs px-2 py-1 bg-white/10 rounded">Inspector</span>
+                    {% endif %}
+
+                    <span class="text-white/70 text-sm">{{ user.get_full_name|default:user.username }}</span>
+                    <a href="{% url 'logout' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Salir</a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors">
+                        Iniciar Sesion
+                    </a>
+                {% endif %}
+            </div>
+
+            <!-- Mobile hamburger button -->
+            <button
+                @click="open = !open"
+                class="md:hidden text-white hover:text-accent focus:outline-none"
+                aria-label="Toggle menu"
+            >
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                        x-show="!open"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 6h16M4 12h16M4 18h16"
+                    />
+                    <path
+                        x-show="open"
+                        x-cloak
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12"
+                    />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mobile menu -->
+        <div x-show="open" x-cloak x-transition class="md:hidden pb-4 border-t border-white/20 mt-2 pt-3 space-y-2">
+            {% if user.is_authenticated %}
+                <a href="{% url 'home' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Inicio</a>
+
+                {% if user.rol == 'estudiante' %}
+                    <span class="block text-secondary text-xs px-2 py-1 bg-white/10 rounded w-fit">Estudiante</span>
+                {% elif user.rol == 'docente' %}
+                    <span class="block text-accent text-xs px-2 py-1 bg-white/10 rounded w-fit">Docente</span>
+                {% elif user.rol == 'inspector' %}
+                    <span class="block text-accent text-xs px-2 py-1 bg-white/10 rounded w-fit">Inspector</span>
+                {% endif %}
+
+                <span class="block text-white/70 text-sm py-1">{{ user.get_full_name|default:user.username }}</span>
+                <a href="{% url 'logout' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Salir</a>
+            {% else %}
+                <a href="{% url 'login' %}" class="block bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors w-fit">
+                    Iniciar Sesion
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</nav>

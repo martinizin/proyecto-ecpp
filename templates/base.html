@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ECPPP{% endblock %} | Plataforma Academica</title>
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS 3.4.17 CDN -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2D5016',
+                        secondary: '#4A7C2F',
+                        accent: '#D4B942',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Alpine.js 3.15.9 CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.9/dist/cdn.min.js"></script>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
+
+    {% include "partials/navbar.html" %}
+
+    <main class="flex-1 container mx-auto px-4 py-8">
+        {% if messages %}
+        <div class="mb-4 space-y-2">
+            {% for message in messages %}
+            <div class="p-3 rounded-md text-sm
+                {% if message.tags == 'error' %}bg-red-100 text-red-800 border border-red-300
+                {% elif message.tags == 'success' %}bg-green-100 text-green-800 border border-green-300
+                {% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+                {% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-primary text-white text-center py-4 text-sm">
+        <p>&copy; {% now "Y" %} ECPPP &mdash; Plataforma Academica</p>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
