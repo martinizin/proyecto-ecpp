@@ -1,0 +1,5 @@
+"""
+Views for the Usuarios bounded context.
+
+Sprint 0: Placeholder structure. Views come in Sprint 1+.
+"""
