@@ -53,7 +53,7 @@
 ## Phase 8: Presentation — Profile (HU04)
 
 - [x] 8.1 **[S]** Add `DatosPersonalesForm`, `CambiarContrasenaForm` to `apps/usuarios/presentation/forms.py`. Refs: AC-PROF-03, AC-PROF-05
-- [ ] 8.2 **[M]** Add `PerfilView`, `CambiarContrasenaView` to `apps/usuarios/presentation/views.py`. Refs: SCN-PROF-01→08
+- [x] 8.2 **[M]** Add `PerfilView`, `CambiarContrasenaView` to `apps/usuarios/presentation/views.py`. Refs: SCN-PROF-01→08
 - [ ] 8.3 **[S]** Create templates `templates/usuarios/perfil.html`, `templates/usuarios/cambiar_contrasena.html`. Ref: AC-PROF-01
 
 ## Phase 9: Presentation — Academic CRUD (HU05-HU06)

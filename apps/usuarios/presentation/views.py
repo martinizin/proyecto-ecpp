@@ -1,6 +1,7 @@
 """
 Views for the Usuarios bounded context.
 Auth views (HU01-HU03): registration, OTP verification, login, logout, dashboard.
+Profile views (HU04): personal data update, password change.
 Password recovery wires Django's built-in views with custom templates.
 """
 
@@ -18,7 +19,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import RedirectView
 
-from apps.usuarios.application.services import LoginAppService, RegistroAppService
+from apps.usuarios.application.services import LoginAppService, PerfilAppService, RegistroAppService
 from apps.usuarios.domain.exceptions import (
     CedulaDuplicadaError,
     CorreoDuplicadoError,
@@ -27,7 +28,7 @@ from apps.usuarios.domain.exceptions import (
     OTPInvalidoError,
 )
 
-from .forms import LoginForm, RegistroForm, VerificacionOTPForm
+from .forms import CambiarContrasenaForm, DatosPersonalesForm, LoginForm, RegistroForm, VerificacionOTPForm
 
 
 def _get_client_ip(request) -> str:
@@ -180,6 +181,78 @@ class DashboardRedirectView(RedirectView):
         else:
             # Estudiante — redirect to home for now (enrollment comes in Sprint 2)
             return "/"
+
+
+# =============================================================================
+# Profile Views (HU04)
+# =============================================================================
+
+
+@method_decorator(login_required, name="dispatch")
+class PerfilView(View):
+    """Profile view — display and update personal data."""
+
+    template_name = "usuarios/perfil.html"
+
+    def get(self, request):
+        form = DatosPersonalesForm(
+            initial={
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
+                "telefono": request.user.telefono,
+                "direccion": request.user.direccion,
+            }
+        )
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        form = DatosPersonalesForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        service = PerfilAppService()
+        service.actualizar_datos(
+            user_id=request.user.pk,
+            first_name=form.cleaned_data["first_name"],
+            last_name=form.cleaned_data["last_name"],
+            telefono=form.cleaned_data["telefono"],
+            direccion=form.cleaned_data["direccion"],
+        )
+
+        messages.success(request, "Datos personales actualizados correctamente.")
+        return redirect("usuarios:perfil")
+
+
+@method_decorator(login_required, name="dispatch")
+class CambiarContrasenaView(View):
+    """Password change view — validates old password, sets new one."""
+
+    template_name = "usuarios/cambiar_contrasena.html"
+
+    def get(self, request):
+        form = CambiarContrasenaForm()
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        form = CambiarContrasenaForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        service = PerfilAppService()
+        success = service.cambiar_contrasena(
+            user_id=request.user.pk,
+            old_password=form.cleaned_data["old_password"],
+            new_password=form.cleaned_data["new_password1"],
+        )
+
+        if not success:
+            form.add_error("old_password", "La contraseña actual es incorrecta.")
+            return render(request, self.template_name, {"form": form})
+
+        # Re-login to update session hash
+        login(request, request.user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        messages.success(request, "Contraseña cambiada exitosamente.")
+        return redirect("usuarios:perfil")
 
 
 # =============================================================================
