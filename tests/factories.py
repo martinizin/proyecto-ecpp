@@ -110,6 +110,7 @@ class AsignaturaFactory(factory.django.DjangoModelFactory):
 
     class Meta:
         model = Asignatura
+        skip_postgeneration_save = True
 
     nombre = factory.Sequence(lambda n: f"Asignatura {n}")
     codigo = factory.Sequence(lambda n: f"ASG-{n:03d}")

@@ -39,6 +39,7 @@ class TipoLicencia(models.Model):
     class Meta:
         verbose_name = "Tipo de Licencia"
         verbose_name_plural = "Tipos de Licencia"
+        ordering = ["codigo"]
 
     def __str__(self):
         return f"{self.codigo} — {self.nombre}"
@@ -98,6 +99,7 @@ class Paralelo(models.Model):
         verbose_name = "Paralelo"
         verbose_name_plural = "Paralelos"
         unique_together = ["periodo", "tipo_licencia", "asignatura", "nombre"]
+        ordering = ["periodo", "asignatura__codigo", "nombre"]
 
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
