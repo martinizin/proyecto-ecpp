@@ -1,13 +1,11 @@
 """
 Domain entities for the Academico bounded context.
 Pure Python — NO Django imports allowed in this layer.
-
-Sprint 0: Placeholder structure. Full domain logic comes in Sprint 1+.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -18,6 +16,18 @@ class PeriodoEntity:
     fecha_inicio: date
     fecha_fin: date
     activo: bool = False
+    creado_por_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class TipoLicenciaEntity:
+    """Domain representation of a license type (C, E, EC)."""
+
+    nombre: str
+    codigo: str
+    duracion_meses: int
+    num_asignaturas: int
+    activo: bool = True
 
 
 @dataclass(frozen=True)
@@ -27,6 +37,8 @@ class AsignaturaEntity:
     nombre: str
     codigo: str
     descripcion: str = ""
+    horas_lectivas: int = 40
+    tipos_licencia_ids: List[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -38,3 +50,5 @@ class ParaleloEntity:
     docente_username: str
     nombre: str
     horario: str = ""
+    tipo_licencia_id: Optional[int] = None
+    capacidad_maxima: int = 30
