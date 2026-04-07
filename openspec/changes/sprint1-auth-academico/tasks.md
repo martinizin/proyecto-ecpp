@@ -81,6 +81,6 @@
 - [x] 11.5 **[M]** Create `tests/usuarios/test_auth_backend.py` — test `ECPPPAuthBackend`: success, wrong password, wrong tipo, inactive user. Ref: AC-AUTH-07
 - [x] 11.6 **[L]** Create `tests/usuarios/test_services.py` — integration tests for `RegistroAppService`, `LoginAppService`, `PerfilAppService` with DB. Mock email. Refs: SCN-AUTH-01, SCN-AUTH-06, SCN-PROF-05
 - [x] 11.7 **[L]** Create `tests/usuarios/test_views.py` — view tests: registration flow, OTP verification, login+redirect, logout, profile update, password change, password recovery. Use Django `Client`. Refs: SCN-AUTH-01→14, SCN-PROF-01→08
-- [ ] 11.8 **[L]** Create `tests/academico/test_domain.py` — unit tests for `PeriodoService` (single-active invariant, date validation), `AsignaturaService`, `ParaleloService` (docente check). Refs: SCN-PER-05→08, SCN-CAT-08→10
+- [x] 11.8 **[L]** Create `tests/academico/test_domain.py` — unit tests for `PeriodoService` (single-active invariant, date validation), `AsignaturaService`, `ParaleloService` (docente check). Refs: SCN-PER-05→08, SCN-CAT-08→10
 - [ ] 11.9 **[L]** Create `tests/academico/test_api.py` — DRF `APIClient` tests: CRUD all endpoints, `IsInspector` permission, filters, pagination, `/api/periodos/activo/`. Refs: SCN-PER-10→11, SCN-CAT-11→14
 - [ ] 11.10 **[M]** Create `tests/academico/test_views.py` — view tests: period list/create/update, subject CRUD, parallel CRUD, TipoLicencia list. Role enforcement (403 for non-inspector). Refs: SCN-PER-01→04, SCN-CAT-03→07
