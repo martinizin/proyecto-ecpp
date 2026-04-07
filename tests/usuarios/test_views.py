@@ -68,7 +68,7 @@ class TestRegistroView:
             "first_name": "Ana",
             "last_name": "Torres",
             "email": "ana@test.com",
-            "cedula": "0102030405",
+            "cedula": "1710034065",
             "telefono": "0991234567",
             "rol": "estudiante",
             "password1": PASSWORD,
@@ -250,7 +250,7 @@ class TestLoginView:
     def test_get_login_authenticated_redirect(self):
         """GET when already logged in → redirects to dashboard."""
         user = _create_active_user("logged@test.com", rol="inspector")
-        self.client.login(username="logged@test.com", password=PASSWORD)
+        self.client.force_login(user)
 
         response = self.client.get(self.url)
 
@@ -314,7 +314,7 @@ class TestLogoutView:
     def test_logout(self):
         """GET /usuarios/logout/ → redirects to login, user no longer authenticated."""
         user = _create_active_user("logout@test.com", rol="estudiante")
-        self.client.login(username="logout@test.com", password=PASSWORD)
+        self.client.force_login(user)
 
         url = reverse("usuarios:logout")
         response = self.client.get(url)
@@ -344,7 +344,7 @@ class TestDashboardRedirectView:
     def test_dashboard_inspector_redirect(self):
         """Inspector → /academico/periodos/."""
         user = _create_active_user("insp@test.com", rol="inspector")
-        self.client.login(username="insp@test.com", password=PASSWORD)
+        self.client.force_login(user)
 
         response = self.client.get(self.url)
 
@@ -354,7 +354,7 @@ class TestDashboardRedirectView:
     def test_dashboard_docente_redirect(self):
         """Docente → /academico/paralelos/."""
         user = _create_active_user("doc@test.com", rol="docente")
-        self.client.login(username="doc@test.com", password=PASSWORD)
+        self.client.force_login(user)
 
         response = self.client.get(self.url)
 
@@ -364,7 +364,7 @@ class TestDashboardRedirectView:
     def test_dashboard_estudiante_redirect(self):
         """Estudiante → /."""
         user = _create_active_user("est@test.com", rol="estudiante")
-        self.client.login(username="est@test.com", password=PASSWORD)
+        self.client.force_login(user)
 
         response = self.client.get(self.url)
 
@@ -400,7 +400,7 @@ class TestPerfilView:
             telefono="0991111111",
             direccion="Guayaquil",
         )
-        self.client.login(username="perfil@test.com", password=PASSWORD)
+        self.client.force_login(self.user)
 
     def test_get_perfil(self):
         """GET returns 200 with user data in form."""
@@ -459,7 +459,7 @@ class TestCambiarContrasenaView:
         self.client = Client()
         self.url = reverse("usuarios:cambiar_contrasena")
         self.user = _create_active_user("cambio@test.com", rol="estudiante")
-        self.client.login(username="cambio@test.com", password=PASSWORD)
+        self.client.force_login(self.user)
 
     def test_cambiar_contrasena_exitoso(self):
         """POST old + new → password changed, redirects to perfil."""

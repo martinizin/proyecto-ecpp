@@ -49,7 +49,7 @@ def inspector(db):
         last_name="Lopez",
         email="inspector@test.com",
         rol=Usuario.Rol.INSPECTOR,
-        cedula="0909876543",
+        cedula="0909876542",
     )
 
 
@@ -68,7 +68,7 @@ def active_periodo(db):
 def inspector_client(inspector):
     """Return a Django test Client logged in as inspector."""
     client = Client()
-    client.login(username="inspector_test", password="testpass123")
+    client.force_login(inspector)
     return client
 
 
@@ -76,7 +76,7 @@ def inspector_client(inspector):
 def docente_client(docente):
     """Return a Django test Client logged in as docente."""
     client = Client()
-    client.login(username="docente_test", password="testpass123")
+    client.force_login(docente)
     return client
 
 
@@ -84,5 +84,5 @@ def docente_client(docente):
 def estudiante_client(estudiante):
     """Return a Django test Client logged in as estudiante."""
     client = Client()
-    client.login(username="estudiante_test", password="testpass123")
+    client.force_login(estudiante)
     return client

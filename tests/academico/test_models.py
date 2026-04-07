@@ -93,12 +93,13 @@ class TestParalelo:
         assert str(paralelo) == expected
 
     def test_unique_together(self):
-        """Same asignatura + periodo + nombre should be rejected."""
+        """Same periodo + tipo_licencia + asignatura + nombre should be rejected."""
         paralelo = ParaleloFactory(nombre="A")
         with pytest.raises(IntegrityError):
             ParaleloFactory(
                 asignatura=paralelo.asignatura,
                 periodo=paralelo.periodo,
+                tipo_licencia=paralelo.tipo_licencia,
                 nombre="A",
             )
 

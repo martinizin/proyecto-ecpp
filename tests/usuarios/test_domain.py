@@ -31,9 +31,9 @@ class TestCedula:
     @pytest.mark.parametrize(
         "cedula",
         [
-            "0102030405",
             "1710034065",
             "0926687856",
+            "0901234567",
         ],
     )
     def test_cedula_valida(self, cedula):
@@ -283,7 +283,7 @@ class TestRegistroService:
         """Valid data should pass without exception."""
         self.service.validar_datos_registro(
             email="nuevo@test.com",
-            cedula="0102030405",
+            cedula="1710034065",
             email_exists=False,
             cedula_exists=False,
         )
@@ -292,7 +292,7 @@ class TestRegistroService:
         with pytest.raises(CorreoDuplicadoError, match="ya está registrado"):
             self.service.validar_datos_registro(
                 email="existe@test.com",
-                cedula="0102030405",
+                cedula="1710034065",
                 email_exists=True,
                 cedula_exists=False,
             )
@@ -301,7 +301,7 @@ class TestRegistroService:
         with pytest.raises(CedulaDuplicadaError, match="ya está registrada"):
             self.service.validar_datos_registro(
                 email="nuevo@test.com",
-                cedula="0102030405",
+                cedula="1710034065",
                 email_exists=False,
                 cedula_exists=True,
             )

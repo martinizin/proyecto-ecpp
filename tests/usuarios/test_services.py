@@ -52,7 +52,7 @@ class TestRegistroAppService:
             first_name="Ana",
             last_name="Torres",
             rol="estudiante",
-            cedula="0102030405",
+            cedula="1710034065",
             telefono="0991234567",
             direccion="Quito, Ecuador",
         )
@@ -64,7 +64,7 @@ class TestRegistroAppService:
         assert user.first_name == "Ana"
         assert user.last_name == "Torres"
         assert user.rol == "estudiante"
-        assert user.cedula == "0102030405"
+        assert user.cedula == "1710034065"
         assert user.telefono == "0991234567"
         assert user.direccion == "Quito, Ecuador"
         assert user.is_active is False
@@ -110,7 +110,7 @@ class TestRegistroAppService:
             email="existente@test.com",
             password="TestPass123!",
             rol="estudiante",
-            cedula="0102030405",
+            cedula="1710034065",
         )
 
         with pytest.raises(CedulaDuplicadaError, match="ya está registrada"):
@@ -121,7 +121,7 @@ class TestRegistroAppService:
                 first_name="Pedro",
                 last_name="Lopez",
                 rol="docente",
-                cedula="0102030405",
+                cedula="1710034065",
             )
 
         mock_send_otp.assert_not_called()

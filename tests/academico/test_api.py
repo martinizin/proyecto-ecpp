@@ -68,7 +68,15 @@ def _make_tipo_licencia(**kwargs):
         "activo": True,
     }
     defaults.update(kwargs)
-    return TipoLicencia.objects.create(**defaults)
+    codigo = defaults.pop("codigo")
+    obj, _ = TipoLicencia.objects.get_or_create(
+        codigo=codigo, defaults=defaults,
+    )
+    # Apply overrides if the object already existed
+    for key, val in defaults.items():
+        setattr(obj, key, val)
+    obj.save()
+    return obj
 
 
 def _make_periodo(creado_por=None, **kwargs):
