@@ -39,7 +39,7 @@
 
 ## Phase 6: Application Layer
 
-- [ ] 6.1 **[L]** Implement `apps/usuarios/application/services.py` — `RegistroAppService` (validate→create inactive→OTP→email), `LoginAppService` (lockout→auth→audit→session), `PerfilAppService` (update data, change password), `PasswordRecoveryAppService`. Refs: SCN-AUTH-01, SCN-AUTH-06, SCN-PROF-03, SCN-PROF-05
+- [x] 6.1 **[L]** Implement `apps/usuarios/application/services.py` — `RegistroAppService` (validate→create inactive→OTP→email), `LoginAppService` (lockout→auth→audit→session), `PerfilAppService` (update data, change password), `PasswordRecoveryAppService`. Refs: SCN-AUTH-01, SCN-AUTH-06, SCN-PROF-03, SCN-PROF-05
 - [ ] 6.2 **[L]** Implement `apps/academico/application/services.py` — `PeriodoAppService` (CRUD+activation+audit), `AsignaturaAppService` (CRUD+validation), `ParaleloAppService` (CRUD+docente check+active period). Refs: SCN-PER-01, SCN-CAT-03, SCN-CAT-07
 
 ## Phase 7: Presentation — Auth (HU01-HU03)
