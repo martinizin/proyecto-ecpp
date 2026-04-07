@@ -79,7 +79,7 @@
 - [x] 11.3 **[L]** Create `tests/usuarios/test_domain.py` — unit tests for `OTPService` (generate, verify, expired, used), `LoginService` (lockout, reset), `RegistroService` (uniqueness), `Cedula` modulo-10. Parametrize. Refs: SCN-AUTH-01→10
 - [x] 11.4 **[M]** Create `tests/usuarios/test_validators.py` — unit tests for `SymbolValidator`, `UppercaseValidator` with valid/invalid passwords. Ref: AC-AUTH-03
 - [x] 11.5 **[M]** Create `tests/usuarios/test_auth_backend.py` — test `ECPPPAuthBackend`: success, wrong password, wrong tipo, inactive user. Ref: AC-AUTH-07
-- [ ] 11.6 **[L]** Create `tests/usuarios/test_services.py` — integration tests for `RegistroAppService`, `LoginAppService`, `PerfilAppService` with DB. Mock email. Refs: SCN-AUTH-01, SCN-AUTH-06, SCN-PROF-05
+- [x] 11.6 **[L]** Create `tests/usuarios/test_services.py` — integration tests for `RegistroAppService`, `LoginAppService`, `PerfilAppService` with DB. Mock email. Refs: SCN-AUTH-01, SCN-AUTH-06, SCN-PROF-05
 - [ ] 11.7 **[L]** Create `tests/usuarios/test_views.py` — view tests: registration flow, OTP verification, login+redirect, logout, profile update, password change, password recovery. Use Django `Client`. Refs: SCN-AUTH-01→14, SCN-PROF-01→08
 - [ ] 11.8 **[L]** Create `tests/academico/test_domain.py` — unit tests for `PeriodoService` (single-active invariant, date validation), `AsignaturaService`, `ParaleloService` (docente check). Refs: SCN-PER-05→08, SCN-CAT-08→10
 - [ ] 11.9 **[L]** Create `tests/academico/test_api.py` — DRF `APIClient` tests: CRUD all endpoints, `IsInspector` permission, filters, pagination, `/api/periodos/activo/`. Refs: SCN-PER-10→11, SCN-CAT-11→14
