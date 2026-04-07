@@ -1,6 +1,6 @@
 """
 Forms for the Usuarios bounded context.
-Registration, OTP verification, login forms.
+Registration, OTP verification, login, profile, and password change forms.
 """
 
 from django import forms
@@ -122,3 +122,60 @@ class LoginForm(forms.Form):
         label="Tipo de usuario",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+
+
+class DatosPersonalesForm(forms.Form):
+    """Profile form — update personal data (read-only: email, cedula, rol)."""
+
+    first_name = forms.CharField(
+        max_length=150,
+        label="Nombres",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        label="Apellidos",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    telefono = forms.CharField(
+        max_length=15,
+        required=False,
+        label="Teléfono",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    direccion = forms.CharField(
+        required=False,
+        label="Dirección",
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+    )
+
+
+class CambiarContrasenaForm(forms.Form):
+    """Password change form — old password + new password x2."""
+
+    old_password = forms.CharField(
+        label="Contraseña actual",
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
+    )
+    new_password1 = forms.CharField(
+        label="Nueva contraseña",
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
+    )
+    new_password2 = forms.CharField(
+        label="Confirmar nueva contraseña",
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
+    )
+
+    def clean_new_password2(self):
+        password1 = self.cleaned_data.get("new_password1")
+        password2 = self.cleaned_data.get("new_password2")
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("Las contraseñas no coinciden.")
+        return password2
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_password1 = cleaned_data.get("new_password1")
+        if new_password1:
+            validate_password(new_password1)
+        return cleaned_data
