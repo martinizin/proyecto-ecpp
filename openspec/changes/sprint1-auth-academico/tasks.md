@@ -9,7 +9,7 @@
 
 - [x] 2.1 **[M]** Modify `apps/usuarios/infrastructure/models.py` — add `direccion`, `intentos_fallidos`, `bloqueado_hasta` fields to `Usuario`. Generate migration `usuarios/0002`. Refs: AC-PROF-03, AC-AUTH-10
 - [x] 2.2 **[M]** Create `OTPToken` and `RegistroAuditoria` models in `apps/usuarios/infrastructure/models.py`. Generate migration `usuarios/0003`. Refs: AC-AUTH-04, AC-AUTH-05, AC-AUTH-15
-- [ ] 2.3 **[M]** Create `TipoLicencia` model in `apps/academico/infrastructure/models.py`. Add `horas_lectivas` + `tipos_licencia` M2M to `Asignatura`. Add `creado_por` + `modificado_en` to `Periodo`. Generate migration `academico/0003`. Refs: AC-CAT-01, AC-CAT-02, AC-PER-05
+- [x] 2.3 **[M]** Create `TipoLicencia` model in `apps/academico/infrastructure/models.py`. Add `horas_lectivas` + `tipos_licencia` M2M to `Asignatura`. Add `creado_por` + `modificado_en` to `Periodo`. Generate migration `academico/0003`. Refs: AC-CAT-01, AC-CAT-02, AC-PER-05
 - [ ] 2.4 **[M]** Add `tipo_licencia` FK + `capacidad_maxima` to `Paralelo`. Alter `unique_together` to `['periodo','tipo_licencia','asignatura','nombre']`. Generate migration `academico/0004`. Refs: AC-CAT-03, AC-CAT-08, SCN-CAT-10
 - [ ] 2.5 **[S]** Data migration `academico/0005` — seed 3 `TipoLicencia` rows (C, E, EC). `duracion_meses` for EC = 0 with TODO. Ref: AC-CAT-01, NFR-CAT-03
 - [ ] 2.6 **[S]** Update `apps/usuarios/models.py` and `apps/academico/models.py` re-exports to include new models (`OTPToken`, `RegistroAuditoria`, `TipoLicencia`).

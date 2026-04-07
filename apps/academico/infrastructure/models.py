@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -8,6 +9,14 @@ class Periodo(models.Model):
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     activo = models.BooleanField(default=False)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodos_creados",
+    )
+    modificado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Periodo Academico"
@@ -18,12 +27,35 @@ class Periodo(models.Model):
         return self.nombre
 
 
+class TipoLicencia(models.Model):
+    """License type: Conducción (C), Educación (E), Educación Convalidada (EC)."""
+
+    nombre = models.CharField(max_length=100)
+    codigo = models.CharField(max_length=5, unique=True)
+    duracion_meses = models.PositiveIntegerField()
+    num_asignaturas = models.PositiveIntegerField()
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Tipo de Licencia"
+        verbose_name_plural = "Tipos de Licencia"
+
+    def __str__(self):
+        return f"{self.codigo} — {self.nombre}"
+
+
 class Asignatura(models.Model):
     """Course/subject in the curriculum."""
 
     nombre = models.CharField(max_length=200)
     codigo = models.CharField(max_length=20, unique=True)
     descripcion = models.TextField(blank=True)
+    horas_lectivas = models.PositiveIntegerField(default=40)
+    tipos_licencia = models.ManyToManyField(
+        TipoLicencia,
+        related_name="asignaturas",
+        blank=True,
+    )
 
     class Meta:
         verbose_name = "Asignatura"
