@@ -13,6 +13,15 @@
                 {% if user.is_authenticated %}
                     <a href="{% url 'home' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Inicio</a>
 
+                    {% if user.rol == 'inspector' %}
+                        <a href="{% url 'academico:periodo_list' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Periodos</a>
+                        <a href="{% url 'academico:asignatura_list' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Asignaturas</a>
+                        <a href="{% url 'academico:paralelo_list' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Paralelos</a>
+                        <a href="{% url 'academico:tipo_licencia_list' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Licencias</a>
+                    {% endif %}
+
+                    <div class="h-5 w-px bg-white/30"></div>
+
                     {% if user.rol == 'estudiante' %}
                         <span class="text-secondary text-xs px-2 py-1 bg-white/10 rounded">Estudiante</span>
                     {% elif user.rol == 'docente' %}
@@ -21,10 +30,10 @@
                         <span class="text-accent text-xs px-2 py-1 bg-white/10 rounded">Inspector</span>
                     {% endif %}
 
-                    <span class="text-white/70 text-sm">{{ user.get_full_name|default:user.username }}</span>
-                    <a href="{% url 'logout' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Salir</a>
+                    <a href="{% url 'usuarios:perfil' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">{{ user.get_full_name|default:user.username }}</a>
+                    <a href="{% url 'usuarios:logout' %}" class="text-white hover:text-accent transition-colors text-sm font-medium">Salir</a>
                 {% else %}
-                    <a href="{% url 'login' %}" class="bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors">
+                    <a href="{% url 'usuarios:login' %}" class="bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors">
                         Iniciar Sesion
                     </a>
                 {% endif %}
@@ -61,6 +70,15 @@
             {% if user.is_authenticated %}
                 <a href="{% url 'home' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Inicio</a>
 
+                {% if user.rol == 'inspector' %}
+                    <a href="{% url 'academico:periodo_list' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Periodos</a>
+                    <a href="{% url 'academico:asignatura_list' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Asignaturas</a>
+                    <a href="{% url 'academico:paralelo_list' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Paralelos</a>
+                    <a href="{% url 'academico:tipo_licencia_list' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Licencias</a>
+                {% endif %}
+
+                <div class="border-t border-white/20 my-2"></div>
+
                 {% if user.rol == 'estudiante' %}
                     <span class="block text-secondary text-xs px-2 py-1 bg-white/10 rounded w-fit">Estudiante</span>
                 {% elif user.rol == 'docente' %}
@@ -69,10 +87,10 @@
                     <span class="block text-accent text-xs px-2 py-1 bg-white/10 rounded w-fit">Inspector</span>
                 {% endif %}
 
-                <span class="block text-white/70 text-sm py-1">{{ user.get_full_name|default:user.username }}</span>
-                <a href="{% url 'logout' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Salir</a>
+                <a href="{% url 'usuarios:perfil' %}" class="block text-white hover:text-accent text-sm font-medium py-1">{{ user.get_full_name|default:user.username }}</a>
+                <a href="{% url 'usuarios:logout' %}" class="block text-white hover:text-accent text-sm font-medium py-1">Salir</a>
             {% else %}
-                <a href="{% url 'login' %}" class="block bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors w-fit">
+                <a href="{% url 'usuarios:login' %}" class="block bg-accent text-primary px-4 py-2 rounded-md text-sm font-semibold hover:bg-yellow-400 transition-colors w-fit">
                     Iniciar Sesion
                 </a>
             {% endif %}
