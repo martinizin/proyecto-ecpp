@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Verificar OTP{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8 text-center">
+        <div class="mb-6">
+            <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-primary mb-2">Verificación de cuenta</h1>
+            <p class="text-gray-600 text-sm">Ingresá el código de 6 dígitos que enviamos a tu correo electrónico.</p>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-6">
+                {{ form.codigo }}
+                {% if form.codigo.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ form.codigo.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-4 rounded-md transition-colors">
+                Verificar código
+            </button>
+        </form>
+
+        <p class="mt-4 text-sm text-gray-500">
+            ¿No recibiste el código? Revisá tu carpeta de spam o
+            <a href="{% url 'usuarios:registro' %}" class="text-primary hover:text-secondary font-medium">registrate nuevamente</a>.
+        </p>
+    </div>
+</div>
+{% endblock %}
