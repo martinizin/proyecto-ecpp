@@ -79,6 +79,16 @@ DATABASES = {
 # Custom user model — MUST be set before first migration
 AUTH_USER_MODEL = "usuarios.Usuario"
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    "apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend",
+]
+
+# Login / Logout URLs
+LOGIN_URL = "/usuarios/login/"
+LOGIN_REDIRECT_URL = "/usuarios/dashboard/"
+LOGOUT_REDIRECT_URL = "/usuarios/login/"
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -86,6 +96,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 8},
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -93,7 +104,26 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
+    {
+        "NAME": "apps.usuarios.infrastructure.password_validators.UppercaseValidator",
+    },
+    {
+        "NAME": "apps.usuarios.infrastructure.password_validators.SymbolValidator",
+    },
 ]
+
+# Session security
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 3600  # 1 hora
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Password reset
+PASSWORD_RESET_TIMEOUT = 1800  # 30 minutos
+
+# App-specific constants — Auth & OTP
+OTP_EXPIRATION_MINUTES = 10
+ACCOUNT_LOCKOUT_MINUTES = 15
+MAX_LOGIN_ATTEMPTS = 5
 
 # Internationalization
 LANGUAGE_CODE = "es-ec"
@@ -107,3 +137,28 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Email configuration (production — overridden in development.py)
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "noreply@ecppp.edu.ec"
+)
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+}
