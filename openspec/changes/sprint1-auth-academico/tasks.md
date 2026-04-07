@@ -18,7 +18,7 @@
 
 - [x] 3.1 **[M]** Extend `apps/usuarios/domain/entities.py` — add `direccion`, `is_active` to `UsuarioEntity`. Add `OTPTokenEntity`, `RegistroAuditoriaEntity` dataclasses.
 - [x] 3.2 **[S]** Extend `apps/usuarios/domain/value_objects.py` — implement modulo-10 Cedula validation. Add `Email` value object with format validation.
-- [ ] 3.3 **[M]** Extend `apps/usuarios/domain/exceptions.py` — add `CorreoDuplicadoError`, `CuentaBloqueadaError`, `OTPExpiradoError`, `OTPInvalidoError`.
+- [x] 3.3 **[M]** Extend `apps/usuarios/domain/exceptions.py` — add `CorreoDuplicadoError`, `CuentaBloqueadaError`, `OTPExpiradoError`, `OTPInvalidoError`.
 - [ ] 3.4 **[M]** Extend `apps/usuarios/domain/repositories.py` — add `OTPTokenRepository(ABC)` and `AuditoriaRepository(ABC)` with abstract methods. Add `get_by_email` to `UsuarioRepository`.
 - [ ] 3.5 **[L]** Create `apps/usuarios/domain/services.py` — implement `RegistroService` (cedula/email uniqueness, password policy check), `LoginService` (lockout check, attempt counting), `OTPService` (generate 6-digit, verify expiry/usage). Pure Python, no Django. Refs: SCN-AUTH-01→05, SCN-AUTH-06→10
 
