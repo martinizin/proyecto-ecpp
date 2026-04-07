@@ -7,12 +7,13 @@ import datetime
 from decimal import Decimal
 
 import factory
+from django.utils import timezone
 
-from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo
+from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
 from apps.solicitudes.infrastructure.models import Solicitud
-from apps.usuarios.infrastructure.models import Usuario
+from apps.usuarios.infrastructure.models import OTPToken, RegistroAuditoria, Usuario
 
 
 class UsuarioFactory(factory.django.DjangoModelFactory):
@@ -26,7 +27,9 @@ class UsuarioFactory(factory.django.DjangoModelFactory):
     first_name = factory.Faker("first_name", locale="es")
     last_name = factory.Faker("last_name", locale="es")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@test.com")
+    cedula = factory.Sequence(lambda n: f"{1700000000 + n}")
     rol = Usuario.Rol.ESTUDIANTE
+    is_active = True
     password = factory.PostGenerationMethodCall("set_password", "testpass123")
 
 
@@ -51,6 +54,45 @@ class InspectorFactory(UsuarioFactory):
     username = factory.Sequence(lambda n: f"inspector{n}")
 
 
+class OTPTokenFactory(factory.django.DjangoModelFactory):
+    """Factory for OTPToken model."""
+
+    class Meta:
+        model = OTPToken
+
+    usuario = factory.SubFactory(UsuarioFactory)
+    codigo = factory.Sequence(lambda n: f"{100000 + n}")
+    expira_en = factory.LazyFunction(
+        lambda: timezone.now() + datetime.timedelta(minutes=10)
+    )
+    usado = False
+
+
+class RegistroAuditoriaFactory(factory.django.DjangoModelFactory):
+    """Factory for RegistroAuditoria model."""
+
+    class Meta:
+        model = RegistroAuditoria
+
+    usuario = factory.SubFactory(UsuarioFactory)
+    accion = "login_exitoso"
+    ip = "127.0.0.1"
+    detalle = ""
+
+
+class TipoLicenciaFactory(factory.django.DjangoModelFactory):
+    """Factory for TipoLicencia model."""
+
+    class Meta:
+        model = TipoLicencia
+
+    nombre = factory.Sequence(lambda n: f"Tipo Licencia {n}")
+    codigo = factory.Sequence(lambda n: f"T{n}")
+    duracion_meses = 6
+    num_asignaturas = 10
+    activo = True
+
+
 class PeriodoFactory(factory.django.DjangoModelFactory):
     """Factory for Periodo model."""
 
@@ -72,6 +114,14 @@ class AsignaturaFactory(factory.django.DjangoModelFactory):
     nombre = factory.Sequence(lambda n: f"Asignatura {n}")
     codigo = factory.Sequence(lambda n: f"ASG-{n:03d}")
     descripcion = "Descripcion de prueba"
+    horas_lectivas = 40
+
+    @factory.post_generation
+    def tipos_licencia(self, create, extracted, **kwargs):
+        if not create:
+            return
+        if extracted:
+            self.tipos_licencia.set(extracted)
 
 
 class ParaleloFactory(factory.django.DjangoModelFactory):
@@ -82,9 +132,11 @@ class ParaleloFactory(factory.django.DjangoModelFactory):
 
     asignatura = factory.SubFactory(AsignaturaFactory)
     periodo = factory.SubFactory(PeriodoFactory)
+    tipo_licencia = factory.SubFactory(TipoLicenciaFactory)
     docente = factory.SubFactory(DocenteFactory)
     nombre = factory.Sequence(lambda n: chr(65 + (n % 26)))  # A, B, C, ...
     horario = "Lunes 08:00 - 10:00"
+    capacidad_maxima = 30
 
 
 class EvaluacionFactory(factory.django.DjangoModelFactory):
