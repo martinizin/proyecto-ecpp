@@ -2,8 +2,12 @@
 Shared pytest fixtures for ECPPP test suite.
 """
 
-import pytest
+import datetime
 
+import pytest
+from django.test import Client
+
+from apps.academico.infrastructure.models import Periodo
 from apps.usuarios.infrastructure.models import Usuario
 
 
@@ -47,3 +51,38 @@ def inspector(db):
         rol=Usuario.Rol.INSPECTOR,
         cedula="0909876543",
     )
+
+
+@pytest.fixture
+def active_periodo(db):
+    """Create an active academic period."""
+    return Periodo.objects.create(
+        nombre="2026-A",
+        fecha_inicio=datetime.date(2026, 3, 1),
+        fecha_fin=datetime.date(2026, 7, 31),
+        activo=True,
+    )
+
+
+@pytest.fixture
+def inspector_client(inspector):
+    """Return a Django test Client logged in as inspector."""
+    client = Client()
+    client.login(username="inspector_test", password="testpass123")
+    return client
+
+
+@pytest.fixture
+def docente_client(docente):
+    """Return a Django test Client logged in as docente."""
+    client = Client()
+    client.login(username="docente_test", password="testpass123")
+    return client
+
+
+@pytest.fixture
+def estudiante_client(estudiante):
+    """Return a Django test Client logged in as estudiante."""
+    client = Client()
+    client.login(username="estudiante_test", password="testpass123")
+    return client
