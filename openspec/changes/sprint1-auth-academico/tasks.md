@@ -48,7 +48,7 @@
 - [x] 7.2 **[M]** Implement `apps/usuarios/presentation/forms.py` — add `RegistroForm`, `VerificacionOTPForm`, `LoginForm` (email+password+tipo_usuario). Refs: AC-AUTH-01, AC-AUTH-03
 - [x] 7.3 **[L]** Implement `apps/usuarios/presentation/views.py` — `RegistroView`, `VerificacionOTPView`, `LoginView`, `LogoutView`, `DashboardRedirectView` + password recovery wiring (Django built-in views with custom templates). Refs: SCN-AUTH-01→14
 - [x] 7.4 **[M]** Create templates `templates/usuarios/registro.html`, `templates/usuarios/verificar_otp.html`, `templates/usuarios/login.html`, `templates/usuarios/dashboard.html`. Ref: AC-AUTH-01, AC-AUTH-06
-- [ ] 7.5 **[M]** Create templates `templates/registration/password_reset_form.html`, `password_reset_done.html`, `password_reset_confirm.html`, `password_reset_complete.html`, `password_reset_email.html`. Ref: AC-AUTH-13
+- [x] 7.5 **[M]** Create templates `templates/registration/password_reset_form.html`, `password_reset_done.html`, `password_reset_confirm.html`, `password_reset_complete.html`, `password_reset_email.html`. Ref: AC-AUTH-13
 
 ## Phase 8: Presentation — Profile (HU04)
 
