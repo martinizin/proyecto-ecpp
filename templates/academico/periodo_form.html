@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editing %}Editar Periodo{% else %}Nuevo Periodo{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <h1 class="text-2xl font-bold text-primary mb-6">{% if editing %}Editar Periodo{% else %}Nuevo Periodo{% endif %}</h1>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label for="id_nombre" class="block text-sm font-medium text-gray-700 mb-1">{{ form.nombre.label }}</label>
+                {{ form.nombre }}
+                {% if form.nombre.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.nombre.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_fecha_inicio" class="block text-sm font-medium text-gray-700 mb-1">{{ form.fecha_inicio.label }}</label>
+                {{ form.fecha_inicio }}
+                {% if form.fecha_inicio.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.fecha_inicio.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_fecha_fin" class="block text-sm font-medium text-gray-700 mb-1">{{ form.fecha_fin.label }}</label>
+                {{ form.fecha_fin }}
+                {% if form.fecha_fin.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.fecha_fin.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-4 mt-6">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 rounded-md transition-colors">
+                    Guardar
+                </button>
+                {% if editing and not periodo.activo %}
+                    <button type="submit" name="activar" value="1" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-6 rounded-md transition-colors">
+                        Activar periodo
+                    </button>
+                {% endif %}
+                <a href="{% url 'academico:periodo_list' %}" class="text-primary hover:text-secondary font-medium text-sm">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if confirmation_needed %}
+<div x-data="{ open: true }">
+    <div x-show="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h2 class="text-lg font-bold text-gray-800 mb-3">Confirmar activacion</h2>
+            <p class="text-sm text-gray-600 mb-6">{{ confirmation_message }}</p>
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="activar" value="1">
+                <input type="hidden" name="confirmar_desactivacion" value="1">
+                <input type="hidden" name="nombre" value="{{ periodo.nombre }}">
+                <input type="hidden" name="fecha_inicio" value="{{ periodo.fecha_inicio|date:'Y-m-d' }}">
+                <input type="hidden" name="fecha_fin" value="{{ periodo.fecha_fin|date:'Y-m-d' }}">
+                <div class="flex items-center gap-4 justify-end">
+                    <button type="button" @click="open = false" class="text-gray-600 hover:text-gray-800 font-medium text-sm">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm">
+                        Confirmar activacion
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

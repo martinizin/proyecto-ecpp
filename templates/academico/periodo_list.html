@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Periodos Academicos{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-primary">Periodos Academicos</h1>
+            <a href="{% url 'academico:periodo_create' %}" class="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm">
+                + Nuevo Periodo
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                    <tr>
+                        <th class="px-4 py-3">Nombre</th>
+                        <th class="px-4 py-3">Fecha Inicio</th>
+                        <th class="px-4 py-3">Fecha Fin</th>
+                        <th class="px-4 py-3">Estado</th>
+                        <th class="px-4 py-3">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for periodo in periodos %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">{{ periodo.nombre }}</td>
+                        <td class="px-4 py-3">{{ periodo.fecha_inicio }}</td>
+                        <td class="px-4 py-3">{{ periodo.fecha_fin }}</td>
+                        <td class="px-4 py-3">
+                            {% if periodo.activo %}
+                                <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium">Activo</span>
+                            {% else %}
+                                <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'academico:periodo_update' periodo.pk %}" class="text-primary hover:text-secondary font-medium text-sm">Editar</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-6 text-center text-gray-500">No hay periodos registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

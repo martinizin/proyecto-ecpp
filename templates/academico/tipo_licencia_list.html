@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Tipos de Licencia{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <h1 class="text-2xl font-bold text-primary mb-6">Tipos de Licencia</h1>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                    <tr>
+                        <th class="px-4 py-3">Codigo</th>
+                        <th class="px-4 py-3">Nombre</th>
+                        <th class="px-4 py-3">Duracion (meses)</th>
+                        <th class="px-4 py-3">Num. Asignaturas</th>
+                        <th class="px-4 py-3">Estado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for tipo in tipos_licencia %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium">{{ tipo.codigo }}</td>
+                        <td class="px-4 py-3">{{ tipo.nombre }}</td>
+                        <td class="px-4 py-3">{{ tipo.duracion_meses }}</td>
+                        <td class="px-4 py-3">{{ tipo.num_asignaturas }}</td>
+                        <td class="px-4 py-3">
+                            {% if tipo.activo %}
+                                <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium">Activo</span>
+                            {% else %}
+                                <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Inactivo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-6 text-center text-gray-500">No hay tipos de licencia registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

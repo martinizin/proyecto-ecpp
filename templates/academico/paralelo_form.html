@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <h1 class="text-2xl font-bold text-primary mb-6">{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}</h1>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label for="id_periodo" class="block text-sm font-medium text-gray-700 mb-1">{{ form.periodo.label }}</label>
+                {{ form.periodo }}
+                {% if form.periodo.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.periodo.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_tipo_licencia" class="block text-sm font-medium text-gray-700 mb-1">{{ form.tipo_licencia.label }}</label>
+                {{ form.tipo_licencia }}
+                {% if form.tipo_licencia.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.tipo_licencia.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_asignatura" class="block text-sm font-medium text-gray-700 mb-1">{{ form.asignatura.label }}</label>
+                {{ form.asignatura }}
+                {% if form.asignatura.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.asignatura.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_nombre" class="block text-sm font-medium text-gray-700 mb-1">{{ form.nombre.label }}</label>
+                {{ form.nombre }}
+                {% if form.nombre.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.nombre.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_docente" class="block text-sm font-medium text-gray-700 mb-1">{{ form.docente.label }}</label>
+                {{ form.docente }}
+                {% if form.docente.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.docente.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_horario" class="block text-sm font-medium text-gray-700 mb-1">{{ form.horario.label }}</label>
+                {{ form.horario }}
+                {% if form.horario.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.horario.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_capacidad_maxima" class="block text-sm font-medium text-gray-700 mb-1">{{ form.capacidad_maxima.label }}</label>
+                {{ form.capacidad_maxima }}
+                {% if form.capacidad_maxima.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.capacidad_maxima.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-4 mt-6">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 rounded-md transition-colors">
+                    Guardar
+                </button>
+                <a href="{% url 'academico:paralelo_list' %}" class="text-primary hover:text-secondary font-medium text-sm">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

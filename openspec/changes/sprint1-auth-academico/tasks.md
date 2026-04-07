@@ -63,7 +63,7 @@
 - [x] 9.3 **[M]** Create `apps/academico/presentation/serializers.py` — `PeriodoSerializer`, `AsignaturaSerializer`, `ParaleloSerializer`, `TipoLicenciaSerializer`. Ref: AC-PER-06, AC-CAT-07
 - [x] 9.4 **[M]** Create `apps/academico/presentation/filters.py` — `ParaleloFilter` (periodo, tipo_licencia), `AsignaturaFilter` (tipo_licencia). Ref: AC-CAT-05
 - [x] 9.5 **[M]** Create `apps/academico/presentation/api_views.py` — `PeriodoViewSet` (with `@action activo`), `AsignaturaViewSet`, `ParaleloViewSet`, `TipoLicenciaViewSet`. `IsInspector` for writes, `IsAuthenticated` for reads. Refs: AC-PER-06, AC-PER-07, AC-CAT-07
-- [ ] 9.6 **[M]** Create templates: `templates/academico/periodo_list.html`, `periodo_form.html`, `asignatura_list.html`, `asignatura_form.html`, `paralelo_list.html`, `paralelo_form.html`, `tipo_licencia_list.html`. Ref: AC-PER-04
+- [x] 9.6 **[M]** Create templates: `templates/academico/periodo_list.html`, `periodo_form.html`, `asignatura_list.html`, `asignatura_form.html`, `paralelo_list.html`, `paralelo_form.html`, `tipo_licencia_list.html`. Ref: AC-PER-04
 
 ## Phase 10: URL Wiring & Navigation
 

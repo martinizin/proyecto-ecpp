@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Asignaturas{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-primary">Asignaturas</h1>
+            <a href="{% url 'academico:asignatura_create' %}" class="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm">
+                + Nueva Asignatura
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                    <tr>
+                        <th class="px-4 py-3">Codigo</th>
+                        <th class="px-4 py-3">Nombre</th>
+                        <th class="px-4 py-3">Horas Lectivas</th>
+                        <th class="px-4 py-3">Tipos Licencia</th>
+                        <th class="px-4 py-3">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for asignatura in asignaturas %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium">{{ asignatura.codigo }}</td>
+                        <td class="px-4 py-3">{{ asignatura.nombre }}</td>
+                        <td class="px-4 py-3">{{ asignatura.horas_lectivas }}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap gap-1">
+                                {% for tipo in asignatura.tipos_licencia.all %}
+                                    <span class="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-medium">{{ tipo.codigo }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'academico:asignatura_update' asignatura.pk %}" class="text-primary hover:text-secondary font-medium text-sm">Editar</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-6 text-center text-gray-500">No hay asignaturas registradas.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
