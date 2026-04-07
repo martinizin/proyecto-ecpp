@@ -31,7 +31,7 @@
 
 ## Phase 5: Infrastructure Layer
 
-- [ ] 5.1 **[M]** Create `apps/usuarios/infrastructure/auth_backend.py` — `ECPPPAuthBackend(ModelBackend)` with `authenticate(request, email, password, tipo_usuario)`. Ref: AC-AUTH-07, AD1
+- [x] 5.1 **[M]** Create `apps/usuarios/infrastructure/auth_backend.py` — `ECPPPAuthBackend(ModelBackend)` with `authenticate(request, email, password, tipo_usuario)`. Ref: AC-AUTH-07, AD1
 - [ ] 5.2 **[S]** Create `apps/usuarios/infrastructure/password_validators.py` — `SymbolValidator` + `UppercaseValidator` with `validate()` and `get_help_text()`. Ref: AC-AUTH-03, AD6
 - [ ] 5.3 **[M]** Create `apps/usuarios/infrastructure/email_service.py` — `send_otp_email(usuario, codigo)` + `send_lockout_notification(usuario)`. Ref: AC-AUTH-05, AC-AUTH-11
 - [ ] 5.4 **[M]** Create `apps/usuarios/infrastructure/repositories.py` — implement `DjangoUsuarioRepository`, `DjangoOTPTokenRepository`, `DjangoAuditoriaRepository` (concrete ORM implementations). Note: file exists as placeholder, replace content.
