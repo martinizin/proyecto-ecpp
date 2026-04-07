@@ -3,7 +3,7 @@
 ## Phase 1: Settings & Configuration
 
 - [x] 1.1 **[S]** Update `config/settings/base.py` — add `AUTHENTICATION_BACKENDS`, `LOGIN_URL`/`LOGIN_REDIRECT_URL`/`LOGOUT_REDIRECT_URL`, `SESSION_COOKIE_*` settings, `PASSWORD_RESET_TIMEOUT`, `OTP_EXPIRATION_MINUTES`/`ACCOUNT_LOCKOUT_MINUTES`/`MAX_LOGIN_ATTEMPTS` constants, `REST_FRAMEWORK` dict. Update `AUTH_PASSWORD_VALIDATORS` to include `SymbolValidator`+`UppercaseValidator` (paths only — classes in 2.5). Refs: AC-AUTH-16, NFR-AUTH-02, NFR-AUTH-05
-- [ ] 1.2 **[S]** Update `config/settings/development.py` — add `EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'`. Ref: NFR-AUTH-03
+- [x] 1.2 **[S]** Update `config/settings/development.py` — add `EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'`. Ref: NFR-AUTH-03
 
 ## Phase 2: Models & Migrations
 
