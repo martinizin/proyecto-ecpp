@@ -67,13 +67,16 @@ class Asignatura(models.Model):
 
 
 class Paralelo(models.Model):
-    """Class section — links a subject, period, teacher, and students."""
+    """Class section — links a subject, period, license type, teacher, and students."""
 
     asignatura = models.ForeignKey(
         Asignatura, on_delete=models.CASCADE, related_name="paralelos"
     )
     periodo = models.ForeignKey(
         Periodo, on_delete=models.CASCADE, related_name="paralelos"
+    )
+    tipo_licencia = models.ForeignKey(
+        TipoLicencia, on_delete=models.CASCADE, related_name="paralelos"
     )
     docente = models.ForeignKey(
         "usuarios.Usuario",
@@ -83,6 +86,7 @@ class Paralelo(models.Model):
     )
     nombre = models.CharField(max_length=10)  # e.g. "A", "B", "GR1"
     horario = models.TextField(blank=True)
+    capacidad_maxima = models.PositiveIntegerField(default=30)
     estudiantes = models.ManyToManyField(
         "usuarios.Usuario",
         related_name="paralelos_matriculados",
@@ -93,7 +97,7 @@ class Paralelo(models.Model):
     class Meta:
         verbose_name = "Paralelo"
         verbose_name_plural = "Paralelos"
-        unique_together = ["asignatura", "periodo", "nombre"]
+        unique_together = ["periodo", "tipo_licencia", "asignatura", "nombre"]
 
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
