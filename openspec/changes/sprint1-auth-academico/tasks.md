@@ -67,7 +67,7 @@
 
 ## Phase 10: URL Wiring & Navigation
 
-- [ ] 10.1 **[M]** Update `apps/usuarios/presentation/urls.py` — all auth, profile, password-recovery URL patterns per design. Ref: design URL Patterns
+- [x] 10.1 **[M]** Update `apps/usuarios/presentation/urls.py` — all auth, profile, password-recovery URL patterns per design. Ref: design URL Patterns
 - [ ] 10.2 **[M]** Update `apps/academico/presentation/urls.py` — web views + DRF `DefaultRouter` for API. Ref: design URL Patterns
 - [ ] 10.3 **[S]** Update `config/urls.py` — include `usuarios` and `academico` URL confs.
 - [ ] 10.4 **[S]** Update `templates/partials/navbar.html` — role-based menu items (Inspector: academic CRUD links; all: profile, logout).
