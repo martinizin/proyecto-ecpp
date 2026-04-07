@@ -59,7 +59,7 @@
 ## Phase 9: Presentation — Academic CRUD (HU05-HU06)
 
 - [x] 9.1 **[M]** Implement `apps/academico/presentation/forms.py` — `PeriodoForm`, `AsignaturaForm`, `ParaleloForm`. Refs: AC-PER-02, AC-CAT-02, AC-CAT-03
-- [ ] 9.2 **[L]** Implement `apps/academico/presentation/views.py` — `PeriodoListView`, `PeriodoCreateView`, `PeriodoUpdateView`, `AsignaturaListView`, `AsignaturaCreateView`, `AsignaturaUpdateView`, `ParaleloListView`, `ParaleloCreateView`, `ParaleloUpdateView`, `TipoLicenciaListView`. All with `RolRequeridoMixin(inspector)`. Refs: AC-PER-01, AC-CAT-09
+- [x] 9.2 **[L]** Implement `apps/academico/presentation/views.py` — `PeriodoListView`, `PeriodoCreateView`, `PeriodoUpdateView`, `AsignaturaListView`, `AsignaturaCreateView`, `AsignaturaUpdateView`, `ParaleloListView`, `ParaleloCreateView`, `ParaleloUpdateView`, `TipoLicenciaListView`. All with `RolRequeridoMixin(inspector)`. Refs: AC-PER-01, AC-CAT-09
 - [ ] 9.3 **[M]** Create `apps/academico/presentation/serializers.py` — `PeriodoSerializer`, `AsignaturaSerializer`, `ParaleloSerializer`, `TipoLicenciaSerializer`. Ref: AC-PER-06, AC-CAT-07
 - [ ] 9.4 **[M]** Create `apps/academico/presentation/filters.py` — `ParaleloFilter` (periodo, tipo_licencia), `AsignaturaFilter` (tipo_licencia). Ref: AC-CAT-05
 - [ ] 9.5 **[M]** Create `apps/academico/presentation/api_views.py` — `PeriodoViewSet` (with `@action activo`), `AsignaturaViewSet`, `ParaleloViewSet`, `TipoLicenciaViewSet`. `IsInspector` for writes, `IsAuthenticated` for reads. Refs: AC-PER-06, AC-PER-07, AC-CAT-07
