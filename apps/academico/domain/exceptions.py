@@ -12,5 +12,21 @@ class PeriodoSolapadoError(AcademicoError):
     """Raised when a new period overlaps with an existing one."""
 
 
+class PeriodoActivoExistenteError(AcademicoError):
+    """Raised when trying to activate a period while another is already active."""
+
+
+class PeriodoInactivoError(AcademicoError):
+    """Raised when an operation requires an active period but none is found."""
+
+
+class AsignaturaCodigoDuplicadoError(AcademicoError):
+    """Raised when a duplicate subject code is detected."""
+
+
+class DocenteInvalidoError(AcademicoError):
+    """Raised when a user assigned as docente does not have the docente role."""
+
+
 class ParaleloDuplicadoError(AcademicoError):
     """Raised when a duplicate paralelo is detected."""

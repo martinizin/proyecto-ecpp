@@ -25,7 +25,7 @@
 ## Phase 4: Domain Layer — Academico
 
 - [x] 4.1 **[M]** Extend `apps/academico/domain/entities.py` — add `creado_por` to `PeriodoEntity`. Add `TipoLicenciaEntity`. Extend `AsignaturaEntity` (+horas_lectivas). Extend `ParaleloEntity` (+tipo_licencia, +capacidad_maxima).
-- [ ] 4.2 **[S]** Extend `apps/academico/domain/exceptions.py` — add `PeriodoActivoExistenteError`, `AsignaturaCodigoDuplicadoError`, `DocenteInvalidoError`, `PeriodoInactivoError`.
+- [x] 4.2 **[S]** Extend `apps/academico/domain/exceptions.py` — add `PeriodoActivoExistenteError`, `AsignaturaCodigoDuplicadoError`, `DocenteInvalidoError`, `PeriodoInactivoError`.
 - [ ] 4.3 **[M]** Extend `apps/academico/domain/repositories.py` — add `TipoLicenciaRepository(ABC)`. Add CRUD methods to `PeriodoRepository`, `AsignaturaRepository`, `ParaleloRepository`.
 - [ ] 4.4 **[L]** Create `apps/academico/domain/services.py` — implement `PeriodoService` (single-active invariant), `AsignaturaService` (codigo unique, horas>0, >=1 tipo), `ParaleloService` (docente role, active period, unique combo). Refs: SCN-PER-05→08, SCN-CAT-03→10
 
