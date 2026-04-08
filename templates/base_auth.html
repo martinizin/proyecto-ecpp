@@ -1,0 +1,235 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ECPPP{% endblock %} | Plataforma Academica</title>
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS 3.4.17 CDN -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Brand
+                        primary: '#2D5016',
+                        'primary-dark': '#1E3A0E',
+                        secondary: '#4A7C2F',
+                        accent: '#D4B942',
+                        'accent-light': '#F5EDD1',
+                        sidebar: '#2D5016',
+                        silver: '#B8BDC4',
+                        // State
+                        success: '#4A7C2F',
+                        warning: '#D4B942',
+                        error: '#C92A2A',
+                        info: '#4C6EF5',
+                        // Gray scale (Bootstrap-derived — matches prototype)
+                        gray: {
+                            50: '#F8F9FA',
+                            100: '#F1F3F5',
+                            200: '#E9ECEF',
+                            300: '#DEE2E6',
+                            400: '#ADB5BD',
+                            500: '#6C757D',
+                            600: '#495057',
+                            700: '#343A40',
+                            800: '#212529',
+                            900: '#1A1D20',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        sm: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                        DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                        md: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                        lg: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                        xl: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- Alpine.js 3.15.9 CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.9/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+
+        /* ═══════ Form Controls — matches prototype design tokens ═══════ */
+
+        /* Base input/textarea styling */
+        .form-control {
+            display: block;
+            width: 100%;
+            height: 2.5rem; /* 40px = h-10 */
+            padding: 0.5rem 0.75rem; /* py-2 px-3 */
+            font-size: 0.875rem; /* text-sm = 14px */
+            line-height: 1.25rem; /* leading-5 */
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #212529; /* gray-800 */
+            background-color: #ffffff;
+            border: 1px solid #DEE2E6; /* gray-300 */
+            border-radius: 0.5rem; /* rounded-lg = 8px */
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+            outline: none;
+        }
+
+        .form-control::placeholder {
+            color: #ADB5BD; /* gray-400 */
+        }
+
+        .form-control:focus {
+            border-color: #2D5016; /* primary-green */
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15); /* ring-primary/15 */
+        }
+
+        .form-control:disabled,
+        .form-control[readonly] {
+            background-color: #F1F3F5; /* gray-100 */
+            color: #6C757D; /* gray-500 */
+            cursor: not-allowed;
+        }
+
+        /* Textarea — auto height, vertical resize only */
+        textarea.form-control {
+            height: auto;
+            min-height: 2.5rem;
+            resize: vertical;
+        }
+
+        /* OTP input special case (text-center added as additional class) */
+        .form-control.text-center {
+            text-align: center;
+            font-size: 1.5rem; /* text-2xl */
+            letter-spacing: 0.5rem;
+            font-weight: 600;
+        }
+
+        /* Select styling */
+        .form-select {
+            display: block;
+            width: 100%;
+            height: 2.5rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem; /* extra right for chevron */
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #212529;
+            background-color: #ffffff;
+            border: 1px solid #DEE2E6;
+            border-radius: 0.5rem;
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23ADB5BD' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+        }
+
+        .form-select:focus {
+            border-color: #2D5016;
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15);
+        }
+
+        .form-select:disabled {
+            background-color: #F1F3F5;
+            color: #6C757D;
+            cursor: not-allowed;
+        }
+
+        /* Checkbox styling (for CheckboxSelectMultiple) */
+        .form-check-input {
+            width: 1rem;
+            height: 1rem;
+            border: 1px solid #DEE2E6;
+            border-radius: 0.25rem; /* rounded */
+            appearance: none;
+            -webkit-appearance: none;
+            background-color: #ffffff;
+            transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        .form-check-input:checked {
+            background-color: #2D5016; /* primary */
+            border-color: #2D5016;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3e%3cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 0 1 0 1.414l-8 8a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L8 12.586l7.293-7.293a1 1 0 0 1 1.414 0z' clip-rule='evenodd'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 0.75rem;
+        }
+
+        .form-check-input:focus {
+            border-color: #2D5016;
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15);
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 font-sans text-gray-800">
+
+    <div class="min-h-screen flex items-center justify-center px-4 py-8 sm:py-12">
+        <div class="w-full {% block auth_card_width %}max-w-md{% endblock %}">
+
+            {# ═══════ Logo / Brand header ═══════ #}
+            <div class="text-center mb-6">
+                <div class="w-14 h-14 rounded-xl bg-primary flex items-center justify-center mx-auto mb-3 shadow-md">
+                    <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">ECPPP</h2>
+                <p class="text-sm text-gray-500">Plataforma Academica</p>
+            </div>
+
+            {# ═══════ Auth card ═══════ #}
+            <div class="bg-white rounded-xl shadow-lg">
+
+                {% if messages %}
+                <div class="px-6 sm:px-8 pt-6 sm:pt-8 space-y-2">
+                    {% for message in messages %}
+                    <div class="p-3 rounded-lg text-sm
+                        {% if message.tags == 'error' %}bg-red-100 text-red-800 border border-red-300
+                        {% elif message.tags == 'success' %}bg-green-100 text-green-800 border border-green-300
+                        {% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+                        {% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="px-6 sm:px-8 py-6 sm:py-8">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+
+            {# ═══════ Footer links (optional, per page) ═══════ #}
+            {% block auth_footer %}{% endblock %}
+
+            {# ═══════ Copyright ═══════ #}
+            <p class="text-center text-xs text-gray-400 mt-6">
+                &copy; {% now "Y" %} ECPPP &mdash; Plataforma Academica
+            </p>
+        </div>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

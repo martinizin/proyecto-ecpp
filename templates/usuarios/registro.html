@@ -1,98 +1,96 @@
-{% extends "base.html" %}
+{% extends "base_auth.html" %}
 
 {% block title %}Registro{% endblock %}
 
+{% block auth_card_width %}max-w-lg{% endblock %}
+
 {% block content %}
-<div class="max-w-lg mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-8">
-        <h1 class="text-2xl font-bold text-primary mb-6 text-center">Crear cuenta</h1>
+<h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Crear cuenta</h1>
 
-        {% if form.non_field_errors %}
-        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
-            {% for error in form.non_field_errors %}
-                <p>{{ error }}</p>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <form method="post" novalidate>
-            {% csrf_token %}
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label for="id_first_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.first_name.label }}</label>
-                    {{ form.first_name }}
-                    {% if form.first_name.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    <label for="id_last_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.last_name.label }}</label>
-                    {{ form.last_name }}
-                    {% if form.last_name.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <label for="id_email" class="block text-sm font-medium text-gray-700 mb-1">{{ form.email.label }}</label>
-                {{ form.email }}
-                {% if form.email.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label for="id_cedula" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cedula.label }}</label>
-                    {{ form.cedula }}
-                    {% if form.cedula.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.cedula.errors.0 }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    <label for="id_telefono" class="block text-sm font-medium text-gray-700 mb-1">{{ form.telefono.label }}</label>
-                    {{ form.telefono }}
-                    {% if form.telefono.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.telefono.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <label for="id_rol" class="block text-sm font-medium text-gray-700 mb-1">{{ form.rol.label }}</label>
-                {{ form.rol }}
-                {% if form.rol.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.rol.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label for="id_password1" class="block text-sm font-medium text-gray-700 mb-1">{{ form.password1.label }}</label>
-                    {{ form.password1 }}
-                    {% if form.password1.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.password1.errors.0 }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    <label for="id_password2" class="block text-sm font-medium text-gray-700 mb-1">{{ form.password2.label }}</label>
-                    {{ form.password2 }}
-                    {% if form.password2.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.password2.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-4 rounded-md transition-colors">
-                Registrarse
-            </button>
-        </form>
-
-        <p class="mt-4 text-center text-sm text-gray-600">
-            ¿Ya tenés cuenta? <a href="{% url 'usuarios:login' %}" class="text-primary hover:text-secondary font-medium">Iniciar sesión</a>
-        </p>
-    </div>
+{% if form.non_field_errors %}
+<div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
+    {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+    {% endfor %}
 </div>
+{% endif %}
+
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+            <label for="id_first_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.first_name.label }}</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+        <div>
+            <label for="id_last_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.last_name.label }}</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <label for="id_email" class="block text-sm font-medium text-gray-700 mb-1">{{ form.email.label }}</label>
+        {{ form.email }}
+        {% if form.email.errors %}
+            <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+            <label for="id_cedula" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cedula.label }}</label>
+            {{ form.cedula }}
+            {% if form.cedula.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.cedula.errors.0 }}</p>
+            {% endif %}
+        </div>
+        <div>
+            <label for="id_telefono" class="block text-sm font-medium text-gray-700 mb-1">{{ form.telefono.label }}</label>
+            {{ form.telefono }}
+            {% if form.telefono.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.telefono.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <label for="id_rol" class="block text-sm font-medium text-gray-700 mb-1">{{ form.rol.label }}</label>
+        {{ form.rol }}
+        {% if form.rol.errors %}
+            <p class="mt-1 text-sm text-red-600">{{ form.rol.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+            <label for="id_password1" class="block text-sm font-medium text-gray-700 mb-1">{{ form.password1.label }}</label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.password1.errors.0 }}</p>
+            {% endif %}
+        </div>
+        <div>
+            <label for="id_password2" class="block text-sm font-medium text-gray-700 mb-1">{{ form.password2.label }}</label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.password2.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-4 rounded-lg transition-colors">
+        Registrarse
+    </button>
+</form>
+
+<p class="mt-4 text-center text-sm text-gray-600">
+    ¿Ya tenes cuenta? <a href="{% url 'usuarios:login' %}" class="text-primary hover:text-secondary font-medium">Iniciar sesion</a>
+</p>
 {% endblock %}
