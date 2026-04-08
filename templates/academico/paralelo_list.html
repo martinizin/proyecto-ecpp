@@ -3,49 +3,71 @@
 {% block title %}Paralelos{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-8">
-        <div class="flex items-center justify-between mb-6">
-            <h1 class="text-2xl font-bold text-primary">Paralelos</h1>
-            <a href="{% url 'academico:paralelo_create' %}" class="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm">
-                + Nuevo Paralelo
-            </a>
-        </div>
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Paralelos</li>
+    </ol>
+</nav>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
-                    <tr>
-                        <th class="px-4 py-3">Asignatura</th>
-                        <th class="px-4 py-3">Paralelo</th>
-                        <th class="px-4 py-3">Periodo</th>
-                        <th class="px-4 py-3">Tipo Licencia</th>
-                        <th class="px-4 py-3">Docente</th>
-                        <th class="px-4 py-3">Capacidad</th>
-                        <th class="px-4 py-3">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    {% for paralelo in paralelos %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3">{{ paralelo.asignatura.codigo }}</td>
-                        <td class="px-4 py-3 font-medium">{{ paralelo.nombre }}</td>
-                        <td class="px-4 py-3">{{ paralelo.periodo.nombre }}</td>
-                        <td class="px-4 py-3">{{ paralelo.tipo_licencia.codigo }}</td>
-                        <td class="px-4 py-3">{{ paralelo.docente.get_full_name }}</td>
-                        <td class="px-4 py-3">{{ paralelo.capacidad_maxima }}</td>
-                        <td class="px-4 py-3">
-                            <a href="{% url 'academico:paralelo_update' paralelo.pk %}" class="text-primary hover:text-secondary font-medium text-sm">Editar</a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="7" class="px-4 py-6 text-center text-gray-500">No hay paralelos registrados.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+<div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <!-- Card Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h1 class="text-xl font-semibold text-gray-800">Paralelos</h1>
+        <a href="{% url 'academico:paralelo_create' %}" class="inline-flex items-center gap-1.5 bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            Nuevo Paralelo
+        </a>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-semibold tracking-wider">
+                <tr>
+                    <th class="px-6 py-3">Asignatura</th>
+                    <th class="px-6 py-3">Paralelo</th>
+                    <th class="px-6 py-3">Periodo</th>
+                    <th class="px-6 py-3">Tipo Licencia</th>
+                    <th class="px-6 py-3">Docente</th>
+                    <th class="px-6 py-3">Capacidad</th>
+                    <th class="px-6 py-3">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for paralelo in paralelos %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 text-gray-600">{{ paralelo.asignatura.codigo }}</td>
+                    <td class="px-6 py-4 font-medium text-gray-800">{{ paralelo.nombre }}</td>
+                    <td class="px-6 py-4 text-gray-600">{{ paralelo.periodo.nombre }}</td>
+                    <td class="px-6 py-4">
+                        <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ paralelo.tipo_licencia.codigo }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">{{ paralelo.docente.get_full_name }}</td>
+                    <td class="px-6 py-4 text-gray-600">{{ paralelo.capacidad_maxima }}</td>
+                    <td class="px-6 py-4">
+                        <a href="{% url 'academico:paralelo_update' paralelo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center">
+                        <div class="flex flex-col items-center gap-2">
+                            <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
+                            </svg>
+                            <p class="text-gray-500 font-medium">No hay paralelos registrados</p>
+                            <p class="text-gray-400 text-xs">Crea un nuevo paralelo para comenzar</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

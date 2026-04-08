@@ -3,30 +3,48 @@
 {% block title %}Mi Perfil{% endblock %}
 
 {% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Mi Perfil</li>
+    </ol>
+</nav>
+
 <div class="max-w-2xl mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-8">
-        <h1 class="text-2xl font-bold text-primary mb-6">Mi Perfil</h1>
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <!-- Avatar + Name header -->
+        <div class="flex items-center gap-4 mb-6">
+            <div class="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <span class="text-primary text-xl font-bold">{{ user.first_name|first|default:user.username|first }}</span>
+            </div>
+            <div>
+                <h1 class="text-xl font-semibold text-gray-800">{{ user.get_full_name|default:user.username }}</h1>
+                <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ user.get_rol_display }}</span>
+            </div>
+        </div>
 
         <!-- Read-only info -->
-        <div class="mb-6 p-4 bg-gray-50 rounded-md">
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                    <span class="text-gray-500 block">Correo electrónico</span>
+                    <span class="text-gray-500 block mb-0.5">Correo electrónico</span>
                     <span class="font-medium text-gray-800">{{ user.email }}</span>
                 </div>
                 <div>
-                    <span class="text-gray-500 block">Cédula</span>
+                    <span class="text-gray-500 block mb-0.5">Cédula</span>
                     <span class="font-medium text-gray-800">{{ user.cedula|default:"No registrada" }}</span>
                 </div>
                 <div>
-                    <span class="text-gray-500 block">Rol</span>
-                    <span class="inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-sm font-medium">{{ user.get_rol_display }}</span>
+                    <span class="text-gray-500 block mb-0.5">Rol</span>
+                    <span class="inline-block bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ user.get_rol_display }}</span>
                 </div>
             </div>
         </div>
 
         {% if form.non_field_errors %}
-        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
             {% for error in form.non_field_errors %}
                 <p>{{ error }}</p>
             {% endfor %}
@@ -70,10 +88,10 @@
             </div>
 
             <div class="flex items-center justify-between">
-                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 rounded-md transition-colors">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                     Guardar cambios
                 </button>
-                <a href="{% url 'usuarios:cambiar_contrasena' %}" class="text-primary hover:text-secondary font-medium text-sm">
+                <a href="{% url 'usuarios:cambiar_contrasena' %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">
                     Cambiar contraseña →
                 </a>
             </div>

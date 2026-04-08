@@ -3,12 +3,23 @@
 {% block title %}Cambiar contraseña{% endblock %}
 
 {% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'usuarios:perfil' %}" class="hover:text-primary transition-colors">Mi Perfil</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Cambiar Contraseña</li>
+    </ol>
+</nav>
+
 <div class="max-w-md mx-auto">
-    <div class="bg-white rounded-xl shadow-lg p-8">
-        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Cambiar contraseña</h1>
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <h1 class="text-xl font-semibold text-gray-800 mb-6 text-center">Cambiar contraseña</h1>
 
         {% if form.non_field_errors %}
-        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
             {% for error in form.non_field_errors %}
                 <p>{{ error }}</p>
             {% endfor %}
@@ -42,13 +53,13 @@
                 {% endif %}
             </div>
 
-            <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-4 rounded-lg transition-colors">
+            <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                 Cambiar contraseña
             </button>
         </form>
 
         <p class="mt-4 text-center text-sm text-gray-600">
-            <a href="{% url 'usuarios:perfil' %}" class="text-primary hover:text-secondary font-medium">← Volver al perfil</a>
+            <a href="{% url 'usuarios:perfil' %}" class="text-primary hover:text-secondary font-medium transition-colors">← Volver al perfil</a>
         </p>
     </div>
 </div>

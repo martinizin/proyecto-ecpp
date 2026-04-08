@@ -3,12 +3,23 @@
 {% block title %}{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}{% endblock %}
 
 {% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'academico:paralelo_list' %}" class="hover:text-primary transition-colors">Paralelos</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}</li>
+    </ol>
+</nav>
+
 <div class="max-w-2xl mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-8">
-        <h1 class="text-2xl font-bold text-primary mb-6">{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}</h1>
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <h1 class="text-xl font-semibold text-gray-800 mb-6">{% if editing %}Editar Paralelo{% else %}Nuevo Paralelo{% endif %}</h1>
 
         {% if form.non_field_errors %}
-        <div class="mb-4 p-3 rounded-md bg-red-100 text-red-800 border border-red-300 text-sm">
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
             {% for error in form.non_field_errors %}
                 <p>{{ error }}</p>
             {% endfor %}
@@ -75,10 +86,10 @@
             </div>
 
             <div class="flex items-center gap-4 mt-6">
-                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 rounded-md transition-colors">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                     Guardar
                 </button>
-                <a href="{% url 'academico:paralelo_list' %}" class="text-primary hover:text-secondary font-medium text-sm">Cancelar</a>
+                <a href="{% url 'academico:paralelo_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>
             </div>
         </form>
     </div>
