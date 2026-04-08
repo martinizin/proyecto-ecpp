@@ -9,7 +9,7 @@
     <!-- Inter Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS 3.4.17 CDN -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -18,14 +18,42 @@
             theme: {
                 extend: {
                     colors: {
+                        // Brand
                         primary: '#2D5016',
                         'primary-dark': '#1E3A0E',
                         secondary: '#4A7C2F',
                         accent: '#D4B942',
+                        'accent-light': '#F5EDD1',
                         sidebar: '#2D5016',
+                        silver: '#B8BDC4',
+                        // State
+                        success: '#4A7C2F',
+                        warning: '#D4B942',
+                        error: '#C92A2A',
+                        info: '#4C6EF5',
+                        // Gray scale (Bootstrap-derived — matches prototype)
+                        gray: {
+                            50: '#F8F9FA',
+                            100: '#F1F3F5',
+                            200: '#E9ECEF',
+                            300: '#DEE2E6',
+                            400: '#ADB5BD',
+                            500: '#6C757D',
+                            600: '#495057',
+                            700: '#343A40',
+                            800: '#212529',
+                            900: '#1A1D20',
+                        },
                     },
                     fontFamily: {
                         sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        sm: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                        DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                        md: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                        lg: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                        xl: '0 8px 32px rgba(0, 0, 0, 0.1)',
                     },
                 },
             },
