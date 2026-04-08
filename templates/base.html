@@ -65,6 +65,118 @@
 
     <style>
         [x-cloak] { display: none !important; }
+
+        /* ═══════ Form Controls — matches prototype design tokens ═══════ */
+
+        /* Base input/textarea styling */
+        .form-control {
+            display: block;
+            width: 100%;
+            height: 2.5rem; /* 40px = h-10 */
+            padding: 0.5rem 0.75rem; /* py-2 px-3 */
+            font-size: 0.875rem; /* text-sm = 14px */
+            line-height: 1.25rem; /* leading-5 */
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #212529; /* gray-800 */
+            background-color: #ffffff;
+            border: 1px solid #DEE2E6; /* gray-300 */
+            border-radius: 0.5rem; /* rounded-lg = 8px */
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+            outline: none;
+        }
+
+        .form-control::placeholder {
+            color: #ADB5BD; /* gray-400 */
+        }
+
+        .form-control:focus {
+            border-color: #2D5016; /* primary-green */
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15); /* ring-primary/15 */
+        }
+
+        .form-control:disabled,
+        .form-control[readonly] {
+            background-color: #F1F3F5; /* gray-100 */
+            color: #6C757D; /* gray-500 */
+            cursor: not-allowed;
+        }
+
+        /* Textarea — auto height, vertical resize only */
+        textarea.form-control {
+            height: auto;
+            min-height: 2.5rem;
+            resize: vertical;
+        }
+
+        /* OTP input special case (text-center added as additional class) */
+        .form-control.text-center {
+            text-align: center;
+            font-size: 1.5rem; /* text-2xl */
+            letter-spacing: 0.5rem;
+            font-weight: 600;
+        }
+
+        /* Select styling */
+        .form-select {
+            display: block;
+            width: 100%;
+            height: 2.5rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem; /* extra right for chevron */
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #212529;
+            background-color: #ffffff;
+            border: 1px solid #DEE2E6;
+            border-radius: 0.5rem;
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23ADB5BD' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+        }
+
+        .form-select:focus {
+            border-color: #2D5016;
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15);
+        }
+
+        .form-select:disabled {
+            background-color: #F1F3F5;
+            color: #6C757D;
+            cursor: not-allowed;
+        }
+
+        /* Checkbox styling (for CheckboxSelectMultiple) */
+        .form-check-input {
+            width: 1rem;
+            height: 1rem;
+            border: 1px solid #DEE2E6;
+            border-radius: 0.25rem; /* rounded */
+            appearance: none;
+            -webkit-appearance: none;
+            background-color: #ffffff;
+            transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        .form-check-input:checked {
+            background-color: #2D5016; /* primary */
+            border-color: #2D5016;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3e%3cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 0 1 0 1.414l-8 8a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L8 12.586l7.293-7.293a1 1 0 0 1 1.414 0z' clip-rule='evenodd'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 0.75rem;
+        }
+
+        .form-check-input:focus {
+            border-color: #2D5016;
+            box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15);
+        }
     </style>
 
     {% block extra_css %}{% endblock %}
