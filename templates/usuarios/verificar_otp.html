@@ -11,7 +11,7 @@
             </svg>
         </div>
         <h1 class="text-2xl font-bold text-gray-800 mb-2">Verificacion de cuenta</h1>
-        <p class="text-gray-600 text-sm">Ingresa el codigo de 6 digitos que enviamos a tu correo electronico.</p>
+        <p class="text-gray-600 text-sm">Ingrese el código de 6 dígitos que enviamos a su correo electrónico.</p>
     </div>
 
     {% if form.non_field_errors %}
@@ -38,8 +38,8 @@
     </form>
 
     <p class="mt-4 text-sm text-gray-500">
-        ¿No recibiste el codigo? Revisa tu carpeta de spam o
-        <a href="{% url 'usuarios:registro' %}" class="text-primary hover:text-secondary font-medium">registrate nuevamente</a>.
+        ¿No recibió el código? Revise su carpeta de spam o
+        <a href="{% url 'usuarios:registro' %}" class="text-primary hover:text-secondary font-medium">regístrese nuevamente</a>.
     </p>
 </div>
 {% endblock %}

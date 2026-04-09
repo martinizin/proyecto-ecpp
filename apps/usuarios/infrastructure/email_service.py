@@ -19,9 +19,9 @@ def send_otp_email(usuario, codigo: str) -> None:
     subject = "ECPPP — Código de verificación"
     message = (
         f"Hola {usuario.get_full_name() or usuario.username},\n\n"
-        f"Tu código de verificación es: {codigo}\n\n"
+        f"Su código de verificación es: {codigo}\n\n"
         f"Este código expira en {settings.OTP_EXPIRATION_MINUTES} minutos.\n"
-        "Si no solicitaste este código, ignorá este mensaje.\n\n"
+        "Si no solicitó este código, ignore este mensaje.\n\n"
         "— Plataforma ECPPP"
     )
 
@@ -44,10 +44,10 @@ def send_lockout_notification(usuario) -> None:
     subject = "ECPPP — Cuenta bloqueada temporalmente"
     message = (
         f"Hola {usuario.get_full_name() or usuario.username},\n\n"
-        f"Tu cuenta ha sido bloqueada temporalmente debido a "
+        f"Su cuenta ha sido bloqueada temporalmente debido a "
         f"{settings.MAX_LOGIN_ATTEMPTS} intentos fallidos de inicio de sesión.\n\n"
-        f"Podrás intentar nuevamente en {settings.ACCOUNT_LOCKOUT_MINUTES} minutos.\n"
-        "Si no fuiste vos, te recomendamos cambiar tu contraseña.\n\n"
+        f"Podrá intentar nuevamente en {settings.ACCOUNT_LOCKOUT_MINUTES} minutos.\n"
+        "Si no fue usted, le recomendamos cambiar su contraseña.\n\n"
         "— Plataforma ECPPP"
     )
 

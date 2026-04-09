@@ -73,7 +73,7 @@ class RegistroView(View):
         request.session["otp_user_id"] = user_id
         messages.success(
             request,
-            "Se ha enviado un código de verificación a tu correo electrónico.",
+            "Se ha enviado un código de verificación a su correo electrónico.",
         )
         return redirect("usuarios:verificar_otp")
 
@@ -110,7 +110,7 @@ class VerificacionOTPView(View):
         del request.session["otp_user_id"]
         messages.success(
             request,
-            "Tu cuenta ha sido verificada exitosamente. Ya podés iniciar sesión.",
+            "Su cuenta ha sido verificada exitosamente. Ya puede iniciar sesión.",
         )
         return redirect("usuarios:login")
 
@@ -159,7 +159,7 @@ class LogoutView(View):
 
     def get(self, request):
         logout(request)
-        messages.info(request, "Has cerrado sesión exitosamente.")
+        messages.info(request, "Ha cerrado sesión exitosamente.")
         return redirect("usuarios:login")
 
     def post(self, request):
