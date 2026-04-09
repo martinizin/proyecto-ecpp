@@ -10,6 +10,7 @@ from typing import Optional
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 
 from apps.usuarios.domain.entities import OTPTokenEntity, RegistroAuditoriaEntity
@@ -62,7 +63,7 @@ class RegistroAppService:
         Raises:
             CorreoDuplicadoError, CedulaDuplicadaError, ValueError
         """
-        # Domain validation
+        # Domain validation (outside transaction — read-only checks)
         self.registro_service.validar_datos_registro(
             email=email,
             cedula=cedula,
@@ -70,39 +71,41 @@ class RegistroAppService:
             cedula_exists=self.usuario_repo.cedula_exists(cedula) if cedula else False,
         )
 
-        # Create inactive user via ORM (not through repo — need full model)
-        user = Usuario.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            first_name=first_name,
-            last_name=last_name,
-            rol=rol,
-            cedula=cedula or None,
-            telefono=telefono,
-            direccion=direccion,
-            is_active=False,
-        )
-
-        # Generate and save OTP
-        now = timezone.now()
-        codigo, expira_en = self.otp_service.generar(
-            usuario_id=user.pk,
-            now=now,
-            expiration_minutes=settings.OTP_EXPIRATION_MINUTES,
-        )
-
-        self.otp_repo.create(
-            OTPTokenEntity(
-                usuario_id=user.pk,
-                codigo=codigo,
-                creado_en=now,
-                expira_en=expira_en,
+        # Atomic transaction: if ANY step fails (including email), rollback everything
+        with transaction.atomic():
+            # Create inactive user via ORM (not through repo — need full model)
+            user = Usuario.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                rol=rol,
+                cedula=cedula or None,
+                telefono=telefono,
+                direccion=direccion,
+                is_active=False,
             )
-        )
 
-        # Send OTP email
-        send_otp_email(user, codigo)
+            # Generate and save OTP
+            now = timezone.now()
+            codigo, expira_en = self.otp_service.generar(
+                usuario_id=user.pk,
+                now=now,
+                expiration_minutes=settings.OTP_EXPIRATION_MINUTES,
+            )
+
+            self.otp_repo.create(
+                OTPTokenEntity(
+                    usuario_id=user.pk,
+                    codigo=codigo,
+                    creado_en=now,
+                    expira_en=expira_en,
+                )
+            )
+
+            # Send OTP email — inside transaction so failure triggers rollback
+            send_otp_email(user, codigo)
 
         return user.pk
 

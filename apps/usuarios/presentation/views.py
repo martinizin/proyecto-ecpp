@@ -68,6 +68,13 @@ class RegistroView(View):
         except (CorreoDuplicadoError, CedulaDuplicadaError, ValueError) as e:
             form.add_error(None, str(e))
             return render(request, self.template_name, {"form": form})
+        except Exception:
+            form.add_error(
+                None,
+                "No se pudo completar el registro. Error al enviar el correo de verificación. "
+                "Intente nuevamente en unos minutos.",
+            )
+            return render(request, self.template_name, {"form": form})
 
         # Store user_id in session for OTP verification
         request.session["otp_user_id"] = user_id
