@@ -138,9 +138,13 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Email configuration (production — overridden in development.py)
+# Email configuration — SMTP
+# Default: Django's standard SMTP backend (works with Gmail, Mailgun, etc.)
+# For Brevo: set EMAIL_BACKEND=apps.usuarios.infrastructure.smtp_backend.BrevoEmailBackend
+# in .env (Brevo South America needs hostname verification disabled).
 EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend",
 )
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))

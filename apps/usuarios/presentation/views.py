@@ -28,7 +28,15 @@ from apps.usuarios.domain.exceptions import (
     OTPInvalidoError,
 )
 
-from .forms import CambiarContrasenaForm, DatosPersonalesForm, LoginForm, RegistroForm, VerificacionOTPForm
+from .forms import (
+    CambiarContrasenaForm,
+    DatosPersonalesForm,
+    ECPPPPasswordResetForm,
+    ECPPPSetPasswordForm,
+    LoginForm,
+    RegistroForm,
+    VerificacionOTPForm,
+)
 
 
 def _get_client_ip(request) -> str:
@@ -271,6 +279,7 @@ class ECPPPPasswordResetView(PasswordResetView):
     template_name = "registration/password_reset_form.html"
     email_template_name = "registration/password_reset_email.html"
     success_url = "/usuarios/recuperar/enviado/"
+    form_class = ECPPPPasswordResetForm
 
 
 class ECPPPPasswordResetDoneView(PasswordResetDoneView):
@@ -280,6 +289,7 @@ class ECPPPPasswordResetDoneView(PasswordResetDoneView):
 class ECPPPPasswordResetConfirmView(PasswordResetConfirmView):
     template_name = "registration/password_reset_confirm.html"
     success_url = "/usuarios/recuperar/completo/"
+    form_class = ECPPPSetPasswordForm
 
 
 class ECPPPPasswordResetCompleteView(PasswordResetCompleteView):

@@ -5,6 +5,7 @@ Registration, OTP verification, login, profile, and password change forms.
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 
 Usuario = get_user_model()
@@ -179,3 +180,34 @@ class CambiarContrasenaForm(forms.Form):
         if new_password1:
             validate_password(new_password1)
         return cleaned_data
+
+
+# =============================================================================
+# Password Recovery Forms — styled wrappers for Django built-in forms
+# =============================================================================
+
+
+class ECPPPPasswordResetForm(PasswordResetForm):
+    """Password reset form — styled email input with form-control class."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "correo@ejemplo.com",
+        })
+
+
+class ECPPPSetPasswordForm(SetPasswordForm):
+    """Set new password form — styled password inputs with form-control class."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["new_password1"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "Nueva contraseña",
+        })
+        self.fields["new_password2"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "Confirmar nueva contraseña",
+        })
