@@ -14,17 +14,13 @@
         </p>
 
         {% if not user.is_authenticated %}
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div class="flex items-center justify-center">
             <a href="{% url 'usuarios:login' %}"
                class="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-secondary transition-colors text-sm">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/>
                 </svg>
                 Iniciar Sesión
-            </a>
-            <a href="{% url 'usuarios:registro' %}"
-               class="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-8 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-sm">
-                Registrarse
             </a>
         </div>
         {% endif %}

@@ -1,8 +1,9 @@
 """
 Views for the Usuarios bounded context.
-Auth views (HU01-HU03): registration, OTP verification, login, logout, dashboard.
+Auth views (HU02-HU03): login, logout, dashboard, password recovery.
 Profile views (HU04): personal data update, password change.
-Password recovery wires Django's built-in views with custom templates.
+
+NOTE: Public registration was removed — users are created by staff via Django Admin.
 """
 
 from django.contrib import messages
@@ -19,13 +20,9 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import RedirectView
 
-from apps.usuarios.application.services import LoginAppService, PerfilAppService, RegistroAppService
+from apps.usuarios.application.services import LoginAppService, PerfilAppService
 from apps.usuarios.domain.exceptions import (
-    CedulaDuplicadaError,
-    CorreoDuplicadoError,
     CuentaBloqueadaError,
-    OTPExpiradoError,
-    OTPInvalidoError,
 )
 
 from .forms import (
@@ -34,8 +31,6 @@ from .forms import (
     ECPPPPasswordResetForm,
     ECPPPSetPasswordForm,
     LoginForm,
-    RegistroForm,
-    VerificacionOTPForm,
 )
 
 
@@ -45,89 +40,6 @@ def _get_client_ip(request) -> str:
     if x_forwarded:
         return x_forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR", "")
-
-
-class RegistroView(View):
-    """User registration — creates inactive user + sends OTP."""
-
-    template_name = "usuarios/registro.html"
-
-    def get(self, request):
-        form = RegistroForm()
-        return render(request, self.template_name, {"form": form})
-
-    def post(self, request):
-        form = RegistroForm(request.POST)
-        if not form.is_valid():
-            return render(request, self.template_name, {"form": form})
-
-        service = RegistroAppService()
-        try:
-            user_id = service.registrar(
-                username=form.cleaned_data["email"],
-                email=form.cleaned_data["email"],
-                password=form.cleaned_data["password1"],
-                first_name=form.cleaned_data["first_name"],
-                last_name=form.cleaned_data["last_name"],
-                rol=form.cleaned_data["rol"],
-                cedula=form.cleaned_data.get("cedula", ""),
-                telefono=form.cleaned_data.get("telefono", ""),
-            )
-        except (CorreoDuplicadoError, CedulaDuplicadaError, ValueError) as e:
-            form.add_error(None, str(e))
-            return render(request, self.template_name, {"form": form})
-        except Exception:
-            form.add_error(
-                None,
-                "No se pudo completar el registro. Error al enviar el correo de verificación. "
-                "Intente nuevamente en unos minutos.",
-            )
-            return render(request, self.template_name, {"form": form})
-
-        # Store user_id in session for OTP verification
-        request.session["otp_user_id"] = user_id
-        messages.success(
-            request,
-            "Se ha enviado un código de verificación a su correo electrónico.",
-        )
-        return redirect("usuarios:verificar_otp")
-
-
-class VerificacionOTPView(View):
-    """OTP code verification — activates user account."""
-
-    template_name = "usuarios/verificar_otp.html"
-
-    def get(self, request):
-        if "otp_user_id" not in request.session:
-            return redirect("usuarios:registro")
-        form = VerificacionOTPForm()
-        return render(request, self.template_name, {"form": form})
-
-    def post(self, request):
-        if "otp_user_id" not in request.session:
-            return redirect("usuarios:registro")
-
-        form = VerificacionOTPForm(request.POST)
-        if not form.is_valid():
-            return render(request, self.template_name, {"form": form})
-
-        user_id = request.session["otp_user_id"]
-        service = RegistroAppService()
-
-        try:
-            service.verificar_otp(user_id, form.cleaned_data["codigo"])
-        except (OTPInvalidoError, OTPExpiradoError) as e:
-            form.add_error("codigo", str(e))
-            return render(request, self.template_name, {"form": form})
-
-        # Clean session and redirect to login
-        del request.session["otp_user_id"]
-        messages.success(
-            request,
-            "Su cuenta ha sido verificada exitosamente. Ya puede iniciar sesión.",
-        )
-        return redirect("usuarios:login")
 
 
 class LoginView(View):
