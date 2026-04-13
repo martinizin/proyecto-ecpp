@@ -80,9 +80,11 @@ DATABASES = {
 # Custom user model — MUST be set before first migration
 AUTH_USER_MODEL = "usuarios.Usuario"
 
-# Authentication backends
+# Authentication backends — ECPPPAuthBackend handles email+password+tipo_usuario login,
+# ModelBackend is the fallback for Django Admin (which authenticates by username+password).
 AUTHENTICATION_BACKENDS = [
     "apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 # Login / Logout URLs
