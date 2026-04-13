@@ -176,6 +176,11 @@ class CambiarContrasenaView(View):
             form.add_error("old_password", "La contraseña actual es incorrecta.")
             return render(request, self.template_name, {"form": form})
 
+        # Clear temporary password flag if set
+        if request.user.debe_cambiar_password:
+            request.user.debe_cambiar_password = False
+            request.user.save(update_fields=["debe_cambiar_password"])
+
         # Re-login to update session hash
         login(request, request.user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
         messages.success(request, "Contraseña cambiada exitosamente.")
