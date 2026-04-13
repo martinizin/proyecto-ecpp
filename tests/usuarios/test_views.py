@@ -1,20 +1,25 @@
 """
 View tests for the Usuarios bounded context using Django test Client.
 
-Tests: RegistroView, VerificacionOTPView, LoginView, LogoutView,
+Tests: LoginView (direct + 2FA), Verificacion2FAView, LogoutView,
        DashboardRedirectView, PerfilView, CambiarContrasenaView,
-       PasswordRecovery.
+       PasswordRecovery, ForzarCambioPasswordMiddleware, UsuarioAdmin.
 Refs: HU01→HU04, SCN-AUTH-01→10, SCN-PROF-01→08
+
+NOTE: Public registration was removed — users are created by staff via Django Admin.
+      TestRegistroView and TestVerificacionOTPView were removed accordingly.
 """
 
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from django.test import Client
+from django.contrib.admin.sites import AdminSite
+from django.test import Client, RequestFactory
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.usuarios.admin import UsuarioAdmin, UsuarioCreationForm
 from apps.usuarios.infrastructure.models import OTPToken, Usuario
 
 AUTH_BACKEND = "apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend"
@@ -42,199 +47,13 @@ def _create_active_user(
 
 
 # =============================================================================
-# TestRegistroView — 3 tests
-# =============================================================================
-
-
-@pytest.mark.django_db
-class TestRegistroView:
-    """View tests for user registration (HU01)."""
-
-    def setup_method(self):
-        self.client = Client()
-        self.url = reverse("usuarios:registro")
-
-    def test_get_registro_page(self):
-        """GET /usuarios/registro/ returns 200 and uses correct template."""
-        response = self.client.get(self.url)
-
-        assert response.status_code == 200
-        assert "usuarios/registro.html" in [t.name for t in response.templates]
-
-    @patch("apps.usuarios.application.services.send_otp_email")
-    def test_post_registro_exitoso(self, mock_send_otp):
-        """POST valid data → redirects to verificar_otp, session has otp_user_id."""
-        data = {
-            "first_name": "Ana",
-            "last_name": "Torres",
-            "email": "ana@test.com",
-            "cedula": "1710034065",
-            "telefono": "0991234567",
-            "rol": "estudiante",
-            "password1": PASSWORD,
-            "password2": PASSWORD,
-        }
-
-        response = self.client.post(self.url, data)
-
-        # Redirects to OTP verification
-        assert response.status_code == 302
-        assert response.url == reverse("usuarios:verificar_otp")
-
-        # User created as inactive
-        user = Usuario.objects.get(email="ana@test.com")
-        assert user.is_active is False
-        assert user.first_name == "Ana"
-        assert user.rol == "estudiante"
-
-        # OTP user_id stored in session
-        session = self.client.session
-        assert "otp_user_id" in session
-        assert session["otp_user_id"] == user.pk
-
-        # OTP email was sent
-        mock_send_otp.assert_called_once()
-
-    def test_post_registro_form_invalido(self):
-        """POST invalid data → returns 200 with form errors (no redirect)."""
-        data = {
-            "first_name": "",
-            "last_name": "",
-            "email": "not-an-email",
-            "rol": "estudiante",
-            "password1": "short",
-            "password2": "different",
-        }
-
-        response = self.client.post(self.url, data)
-
-        assert response.status_code == 200
-        assert "usuarios/registro.html" in [t.name for t in response.templates]
-        # Should NOT create any user
-        assert Usuario.objects.count() == 0
-
-
-# =============================================================================
-# TestVerificacionOTPView — 4 tests
-# =============================================================================
-
-
-@pytest.mark.django_db
-class TestVerificacionOTPView:
-    """View tests for OTP verification (HU01)."""
-
-    def setup_method(self):
-        self.client = Client()
-        self.url = reverse("usuarios:verificar_otp")
-
-    def test_get_sin_session_redirect(self):
-        """GET without otp_user_id in session → redirects to registro."""
-        response = self.client.get(self.url)
-
-        assert response.status_code == 302
-        assert response.url == reverse("usuarios:registro")
-
-    def test_get_con_session(self):
-        """GET with otp_user_id in session → returns 200."""
-        # Create inactive user
-        user = Usuario.objects.create_user(
-            username="otp_user",
-            email="otp@test.com",
-            password=PASSWORD,
-            rol="estudiante",
-            is_active=False,
-        )
-
-        # Put otp_user_id in session
-        session = self.client.session
-        session["otp_user_id"] = user.pk
-        session.save()
-
-        response = self.client.get(self.url)
-
-        assert response.status_code == 200
-        assert "usuarios/verificar_otp.html" in [t.name for t in response.templates]
-
-    def test_post_verificacion_exitosa(self):
-        """POST correct OTP code → user activated, redirects to login."""
-        # Create inactive user + OTP token
-        user = Usuario.objects.create_user(
-            username="otp_user",
-            email="otp@test.com",
-            password=PASSWORD,
-            rol="estudiante",
-            is_active=False,
-        )
-        codigo = "123456"
-        OTPToken.objects.create(
-            usuario=user,
-            codigo=codigo,
-            expira_en=timezone.now() + timedelta(minutes=10),
-            usado=False,
-        )
-
-        # Put otp_user_id in session
-        session = self.client.session
-        session["otp_user_id"] = user.pk
-        session.save()
-
-        response = self.client.post(self.url, {"codigo": codigo})
-
-        # Redirects to login
-        assert response.status_code == 302
-        assert response.url == reverse("usuarios:login")
-
-        # User is now active
-        user.refresh_from_db()
-        assert user.is_active is True
-
-        # OTP token marked as used
-        otp = OTPToken.objects.get(usuario=user, codigo=codigo)
-        assert otp.usado is True
-
-        # Session otp_user_id cleaned up
-        session = self.client.session
-        assert "otp_user_id" not in session
-
-    def test_post_codigo_incorrecto(self):
-        """POST wrong OTP code → stays on page with error."""
-        user = Usuario.objects.create_user(
-            username="otp_user",
-            email="otp@test.com",
-            password=PASSWORD,
-            rol="estudiante",
-            is_active=False,
-        )
-        OTPToken.objects.create(
-            usuario=user,
-            codigo="123456",
-            expira_en=timezone.now() + timedelta(minutes=10),
-            usado=False,
-        )
-
-        session = self.client.session
-        session["otp_user_id"] = user.pk
-        session.save()
-
-        response = self.client.post(self.url, {"codigo": "000000"})
-
-        # Stays on verification page (re-rendered with error)
-        assert response.status_code == 200
-        assert "usuarios/verificar_otp.html" in [t.name for t in response.templates]
-
-        # User still inactive
-        user.refresh_from_db()
-        assert user.is_active is False
-
-
-# =============================================================================
-# TestLoginView — 4 tests
+# TestLoginView — 5 tests (4 original + 1 new for 2FA redirect)
 # =============================================================================
 
 
 @pytest.mark.django_db
 class TestLoginView:
-    """View tests for login (HU02)."""
+    """View tests for login (HU02) — includes 2FA redirect for students."""
 
     def setup_method(self):
         self.client = Client()
@@ -258,8 +77,8 @@ class TestLoginView:
         assert response.url == reverse("usuarios:dashboard")
 
     @patch("apps.usuarios.application.services.send_lockout_notification")
-    def test_post_login_exitoso(self, mock_lockout):
-        """POST valid credentials → redirects to dashboard, user is authenticated."""
+    def test_post_login_exitoso_docente(self, mock_lockout):
+        """POST valid credentials (docente) → direct login, redirects to dashboard."""
         user = _create_active_user("login@test.com", rol="docente")
 
         data = {
@@ -270,13 +89,40 @@ class TestLoginView:
 
         response = self.client.post(self.url, data)
 
-        # Redirects to dashboard
+        # Redirects to dashboard (direct login, no 2FA)
         assert response.status_code == 302
         assert response.url == reverse("usuarios:dashboard")
 
         # User is authenticated in session
         assert response.wsgi_request.user.is_authenticated
         assert response.wsgi_request.user.pk == user.pk
+
+    @patch("apps.usuarios.application.services.send_otp_email")
+    @patch("apps.usuarios.application.services.send_lockout_notification")
+    def test_post_login_estudiante_redirige_a_2fa(self, mock_lockout, mock_otp):
+        """POST valid credentials (estudiante) → redirects to verificar_2fa, NOT dashboard."""
+        _create_active_user("estudiante@test.com", rol="estudiante")
+
+        data = {
+            "email": "estudiante@test.com",
+            "password": PASSWORD,
+            "tipo_usuario": "estudiante",
+        }
+
+        response = self.client.post(self.url, data)
+
+        # Redirects to 2FA verification (NOT to dashboard)
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:verificar_2fa")
+
+        # User is NOT authenticated yet (login happens after OTP)
+        assert not response.wsgi_request.user.is_authenticated
+
+        # Session contains 2fa_user_id
+        assert "2fa_user_id" in self.client.session
+
+        # OTP email was sent
+        mock_otp.assert_called_once()
 
     @patch("apps.usuarios.application.services.send_lockout_notification")
     def test_post_login_credenciales_invalidas(self, mock_lockout):
@@ -296,6 +142,97 @@ class TestLoginView:
         assert "usuarios/login.html" in [t.name for t in response.templates]
 
         # User is NOT authenticated
+        assert not response.wsgi_request.user.is_authenticated
+
+
+# =============================================================================
+# TestVerificacion2FAView — 4 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestVerificacion2FAView:
+    """View tests for 2FA OTP verification — student login flow (HU02)."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.url = reverse("usuarios:verificar_2fa")
+
+    def test_get_sin_session_redirect(self):
+        """GET without 2fa_user_id in session → redirects to login."""
+        response = self.client.get(self.url)
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:login")
+
+    def test_get_con_session(self):
+        """GET with 2fa_user_id in session → returns 200."""
+        user = _create_active_user("est2fa@test.com", rol="estudiante")
+
+        # Put 2fa_user_id in session
+        session = self.client.session
+        session["2fa_user_id"] = user.pk
+        session.save()
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == 200
+        assert "usuarios/verificar_2fa.html" in [t.name for t in response.templates]
+
+    def test_post_verificacion_exitosa(self):
+        """POST correct OTP → user logged in, redirects to dashboard."""
+        user = _create_active_user("est2fa@test.com", rol="estudiante")
+        codigo = "123456"
+        OTPToken.objects.create(
+            usuario=user,
+            codigo=codigo,
+            expira_en=timezone.now() + timedelta(minutes=10),
+            usado=False,
+        )
+
+        # Put 2fa_user_id in session
+        session = self.client.session
+        session["2fa_user_id"] = user.pk
+        session.save()
+
+        response = self.client.post(self.url, {"codigo": codigo})
+
+        # Redirects to dashboard
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:dashboard")
+
+        # User is now authenticated
+        assert response.wsgi_request.user.is_authenticated
+        assert response.wsgi_request.user.pk == user.pk
+
+        # OTP token marked as used
+        otp = OTPToken.objects.get(usuario=user, codigo=codigo)
+        assert otp.usado is True
+
+        # 2fa_user_id cleaned from session
+        assert "2fa_user_id" not in self.client.session
+
+    def test_post_codigo_incorrecto(self):
+        """POST wrong OTP code → stays on page with error."""
+        user = _create_active_user("est2fa@test.com", rol="estudiante")
+        OTPToken.objects.create(
+            usuario=user,
+            codigo="123456",
+            expira_en=timezone.now() + timedelta(minutes=10),
+            usado=False,
+        )
+
+        session = self.client.session
+        session["2fa_user_id"] = user.pk
+        session.save()
+
+        response = self.client.post(self.url, {"codigo": "000000"})
+
+        # Stays on 2FA page (re-rendered with error)
+        assert response.status_code == 200
+        assert "usuarios/verificar_2fa.html" in [t.name for t in response.templates]
+
+        # User NOT authenticated
         assert not response.wsgi_request.user.is_authenticated
 
 
@@ -447,7 +384,7 @@ class TestPerfilView:
 
 
 # =============================================================================
-# TestCambiarContrasenaView — 2 tests
+# TestCambiarContrasenaView — 3 tests (2 original + 1 new for debe_cambiar_password)
 # =============================================================================
 
 
@@ -501,6 +438,30 @@ class TestCambiarContrasenaView:
         self.user.refresh_from_db()
         assert self.user.check_password(PASSWORD) is True
 
+    def test_cambiar_contrasena_limpia_debe_cambiar_password(self):
+        """POST with debe_cambiar_password=True → flag cleared after password change."""
+        # Set the temporary password flag
+        self.user.debe_cambiar_password = True
+        self.user.save(update_fields=["debe_cambiar_password"])
+
+        new_password = "NewSecure456!"
+        data = {
+            "old_password": PASSWORD,
+            "new_password1": new_password,
+            "new_password2": new_password,
+        }
+
+        response = self.client.post(self.url, data)
+
+        # Redirects to perfil
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:perfil")
+
+        # Flag cleared
+        self.user.refresh_from_db()
+        assert self.user.debe_cambiar_password is False
+        assert self.user.check_password(new_password) is True
+
 
 # =============================================================================
 # TestPasswordRecovery — 1 test
@@ -523,3 +484,187 @@ class TestPasswordRecovery:
         assert "registration/password_reset_form.html" in [
             t.name for t in response.templates
         ]
+
+
+# =============================================================================
+# TestForzarCambioPasswordMiddleware — 3 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestForzarCambioPasswordMiddleware:
+    """Tests for the middleware that forces password change on temporary passwords."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def test_redirige_cuando_debe_cambiar_password(self):
+        """Authenticated user with debe_cambiar_password=True → redirects to cambiar_contrasena."""
+        user = _create_active_user("temp@test.com", rol="docente")
+        user.debe_cambiar_password = True
+        user.save(update_fields=["debe_cambiar_password"])
+        self.client.force_login(user)
+
+        # Try to access dashboard
+        response = self.client.get(reverse("usuarios:dashboard"))
+
+        # Should redirect to password change page (not follow the dashboard redirect)
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:cambiar_contrasena")
+
+    def test_permite_acceso_cambiar_contrasena(self):
+        """User with debe_cambiar_password=True CAN access the password change page."""
+        user = _create_active_user("temp@test.com", rol="docente")
+        user.debe_cambiar_password = True
+        user.save(update_fields=["debe_cambiar_password"])
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("usuarios:cambiar_contrasena"))
+
+        # Should return 200 (not redirect — the page itself is exempt)
+        assert response.status_code == 200
+        assert "usuarios/cambiar_contrasena.html" in [t.name for t in response.templates]
+
+    def test_no_redirige_cuando_no_debe_cambiar(self):
+        """Authenticated user with debe_cambiar_password=False → normal flow."""
+        user = _create_active_user("normal@test.com", rol="inspector")
+        assert user.debe_cambiar_password is False
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("usuarios:perfil"))
+
+        # Should access perfil normally (no redirect to password change)
+        assert response.status_code == 200
+        assert "usuarios/perfil.html" in [t.name for t in response.templates]
+
+
+# =============================================================================
+# TestUsuarioAdmin — 3 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestUsuarioAdmin:
+    """Tests for the customized UsuarioAdmin — user creation by secretariat."""
+
+    def setup_method(self):
+        self.site = AdminSite()
+        self.admin = UsuarioAdmin(Usuario, self.site)
+        self.factory = RequestFactory()
+
+    @patch("apps.usuarios.admin.send_credenciales_email")
+    def test_creacion_genera_password_temporal(self, mock_send_email):
+        """save_model on new user → generates temp password, sets debe_cambiar_password=True."""
+        # Create superuser for admin request
+        superuser = _create_active_user(
+            "admin@test.com", rol="inspector", is_staff=True, is_superuser=True
+        )
+
+        request = self.factory.post("/admin/usuarios/usuario/add/")
+        request.user = superuser
+        # Django messages framework needs session middleware
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        setattr(request, "session", "session")
+        setattr(request, "_messages", FallbackStorage(request))
+
+        # Create user object (simulating form save)
+        user = Usuario(
+            email="nuevo@test.com",
+            first_name="Nuevo",
+            last_name="Usuario",
+            rol="estudiante",
+            cedula="1710034065",
+        )
+
+        form = UsuarioCreationForm(
+            data={
+                "email": "nuevo@test.com",
+                "first_name": "Nuevo",
+                "last_name": "Usuario",
+                "rol": "estudiante",
+                "cedula": "1710034065",
+                "telefono": "0991234567",
+            }
+        )
+        form.is_valid()
+
+        # change=False → new user creation
+        self.admin.save_model(request, user, form, change=False)
+
+        # User was saved with correct properties
+        saved_user = Usuario.objects.get(email="nuevo@test.com")
+        assert saved_user.is_active is True
+        assert saved_user.debe_cambiar_password is True
+        assert saved_user.username == "nuevo@test.com"
+        assert saved_user.has_usable_password() is True
+
+        # Email was sent with credentials
+        mock_send_email.assert_called_once()
+        call_args = mock_send_email.call_args
+        assert call_args[0][0].email == "nuevo@test.com"
+        # Second arg is the temp password (a string of length 12)
+        temp_password = call_args[0][1]
+        assert len(temp_password) == 12
+
+    @patch("apps.usuarios.admin.send_credenciales_email")
+    def test_creacion_email_falla_muestra_password(self, mock_send_email):
+        """save_model when email fails → shows temp password in admin warning."""
+        mock_send_email.side_effect = Exception("SMTP error")
+
+        superuser = _create_active_user(
+            "admin@test.com", rol="inspector", is_staff=True, is_superuser=True
+        )
+
+        request = self.factory.post("/admin/usuarios/usuario/add/")
+        request.user = superuser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        setattr(request, "session", "session")
+        setattr(request, "_messages", FallbackStorage(request))
+
+        user = Usuario(
+            email="fallo@test.com",
+            first_name="Fallo",
+            last_name="Email",
+            rol="docente",
+        )
+
+        form = UsuarioCreationForm(
+            data={
+                "email": "fallo@test.com",
+                "first_name": "Fallo",
+                "last_name": "Email",
+                "rol": "docente",
+                "cedula": "",
+                "telefono": "",
+            }
+        )
+        form.is_valid()
+
+        self.admin.save_model(request, user, form, change=False)
+
+        # User was still created despite email failure
+        saved_user = Usuario.objects.get(email="fallo@test.com")
+        assert saved_user.is_active is True
+        assert saved_user.debe_cambiar_password is True
+
+        # Check that warning message was added (containing the temp password)
+        stored_messages = [m.message for m in request._messages]
+        assert any("Contraseña temporal:" in msg for msg in stored_messages)
+
+    def test_creation_form_valida_email_duplicado(self):
+        """UsuarioCreationForm rejects duplicate email."""
+        _create_active_user("existe@test.com", rol="estudiante")
+
+        form = UsuarioCreationForm(
+            data={
+                "email": "existe@test.com",
+                "first_name": "Duplicado",
+                "last_name": "Test",
+                "rol": "estudiante",
+                "cedula": "1710034065",
+                "telefono": "",
+            }
+        )
+
+        assert form.is_valid() is False
+        assert "email" in form.errors
