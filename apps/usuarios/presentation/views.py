@@ -1,6 +1,6 @@
 """
 Views for the Usuarios bounded context.
-Auth views (HU02-HU03): login, logout, dashboard, password recovery.
+Auth views (HU02-HU03): login, logout, 2FA, dashboard, password recovery.
 Profile views (HU04): personal data update, password change.
 
 NOTE: Public registration was removed — users are created by staff via Django Admin.
@@ -20,9 +20,11 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import RedirectView
 
-from apps.usuarios.application.services import LoginAppService, PerfilAppService
+from apps.usuarios.application.services import LoginAppService, Login2FAService, PerfilAppService
 from apps.usuarios.domain.exceptions import (
     CuentaBloqueadaError,
+    OTPExpiradoError,
+    OTPInvalidoError,
 )
 
 from .forms import (
@@ -31,6 +33,7 @@ from .forms import (
     ECPPPPasswordResetForm,
     ECPPPSetPasswordForm,
     LoginForm,
+    VerificacionOTPForm,
 )
 
 
@@ -76,6 +79,18 @@ class LoginView(View):
             form.add_error(None, "Credenciales inválidas o tipo de usuario incorrecto.")
             return render(request, self.template_name, {"form": form})
 
+        # 2FA for students — send OTP before completing login
+        if user.rol == "estudiante":
+            service_2fa = Login2FAService()
+            service_2fa.generar_otp_login(user.pk)
+            request.session["2fa_user_id"] = user.pk
+            messages.info(
+                request,
+                "Se ha enviado un código de verificación a su correo electrónico.",
+            )
+            return redirect("usuarios:verificar_2fa")
+
+        # Non-student roles — direct login
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
@@ -91,6 +106,45 @@ class LogoutView(View):
 
     def post(self, request):
         return self.get(request)
+
+
+class Verificacion2FAView(View):
+    """2FA OTP verification for students — completes login after code verification."""
+
+    template_name = "usuarios/verificar_2fa.html"
+
+    def get(self, request):
+        if "2fa_user_id" not in request.session:
+            return redirect("usuarios:login")
+        form = VerificacionOTPForm()
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        if "2fa_user_id" not in request.session:
+            return redirect("usuarios:login")
+
+        form = VerificacionOTPForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        user_id = request.session["2fa_user_id"]
+        service = Login2FAService()
+
+        try:
+            service.verificar_otp_login(user_id, form.cleaned_data["codigo"])
+        except (OTPInvalidoError, OTPExpiradoError) as e:
+            form.add_error("codigo", str(e))
+            return render(request, self.template_name, {"form": form})
+
+        # OTP verified — complete login
+        from django.contrib.auth import get_user_model
+        Usuario = get_user_model()
+        user = Usuario.objects.get(pk=user_id)
+
+        del request.session["2fa_user_id"]
+        login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
+        return redirect("usuarios:dashboard")
 
 
 @method_decorator(login_required, name="dispatch")

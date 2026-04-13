@@ -1,0 +1,45 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Verificación de identidad{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <div class="mb-6">
+        <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
+            </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Verificación de identidad</h1>
+        <p class="text-gray-600 text-sm">Ingrese el código de 6 dígitos que enviamos a su correo electrónico para completar el inicio de sesión.</p>
+    </div>
+
+    {% if form.non_field_errors %}
+    <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
+        {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="mb-6">
+            {{ form.codigo }}
+            {% if form.codigo.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ form.codigo.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-4 rounded-lg transition-colors">
+            Verificar código
+        </button>
+    </form>
+
+    <p class="mt-4 text-sm text-gray-500">
+        ¿No recibió el código? Revise su carpeta de spam o
+        <a href="{% url 'usuarios:login' %}" class="text-primary hover:text-secondary font-medium">intente iniciar sesión nuevamente</a>.
+    </p>
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 """
 URL patterns for the Usuarios bounded context.
 
-Auth (HU01-HU03): login, logout, dashboard, password recovery.
+Auth (HU01-HU03): login, logout, 2FA, dashboard, password recovery.
 Profile (HU04): personal data, password change.
 
 NOTE: Public registration was removed — users are created by staff via Django Admin.
@@ -19,13 +19,15 @@ from .views import (
     LoginView,
     LogoutView,
     PerfilView,
+    Verificacion2FAView,
 )
 
 app_name = "usuarios"
 
 urlpatterns = [
-    # Auth — HU02 (login / logout)
+    # Auth — HU02 (login / logout / 2FA)
     path("login/", LoginView.as_view(), name="login"),
+    path("verificar-2fa/", Verificacion2FAView.as_view(), name="verificar_2fa"),
     path("logout/", LogoutView.as_view(), name="logout"),
     # Dashboard redirect
     path("dashboard/", DashboardRedirectView.as_view(), name="dashboard"),

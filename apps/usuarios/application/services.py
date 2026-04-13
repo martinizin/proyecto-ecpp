@@ -319,3 +319,63 @@ class PasswordRecoveryAppService:
     """
 
     pass
+
+
+class Login2FAService:
+    """
+    Orchestrates 2FA OTP flow for student login:
+    generate OTP → send email → verify code.
+    Reuses the same OTP infrastructure as registration verification.
+    """
+
+    def __init__(self):
+        self.otp_repo = DjangoOTPTokenRepository()
+        self.otp_service = OTPService()
+
+    def generar_otp_login(self, user_id: int) -> None:
+        """
+        Invalidate previous OTPs and generate+send a new one for 2FA login.
+        """
+        self.otp_repo.invalidate_previous(user_id)
+
+        user = Usuario.objects.get(pk=user_id)
+        now = timezone.now()
+        codigo, expira_en = self.otp_service.generar(
+            usuario_id=user.pk,
+            now=now,
+            expiration_minutes=settings.OTP_EXPIRATION_MINUTES,
+        )
+
+        self.otp_repo.create(
+            OTPTokenEntity(
+                usuario_id=user.pk,
+                codigo=codigo,
+                creado_en=now,
+                expira_en=expira_en,
+            )
+        )
+
+        send_otp_email(user, codigo)
+
+    def verificar_otp_login(self, user_id: int, codigo: str) -> None:
+        """
+        Verify OTP code for 2FA login.
+
+        Raises:
+            OTPInvalidoError, OTPExpiradoError
+        """
+        token = self.otp_repo.get_valid_token(user_id, codigo)
+        if token is None:
+            raise OTPInvalidoError("El código OTP ingresado es incorrecto.")
+
+        now = timezone.now()
+        self.otp_service.verificar(
+            codigo_ingresado=codigo,
+            codigo_almacenado=token.codigo,
+            expira_en=token.expira_en,
+            usado=token.usado,
+            now=now,
+        )
+
+        # Mark token as used
+        self.otp_repo.mark_as_used(user_id, codigo)
