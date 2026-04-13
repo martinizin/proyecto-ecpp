@@ -24,6 +24,13 @@ class Usuario(AbstractUser):
     intentos_fallidos = models.PositiveIntegerField(default=0)
     bloqueado_hasta = models.DateTimeField(null=True, blank=True)
 
+    # Contraseña temporal — forzar cambio en primer inicio de sesión
+    debe_cambiar_password = models.BooleanField(
+        default=False,
+        verbose_name="Debe cambiar contraseña",
+        help_text="Se activa cuando la secretaría crea el usuario con contraseña temporal.",
+    )
+
     class Meta:
         verbose_name = "Usuario"
         verbose_name_plural = "Usuarios"
