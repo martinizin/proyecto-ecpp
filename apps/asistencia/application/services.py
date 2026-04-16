@@ -200,3 +200,47 @@ class RegistroAsistenciaAppService:
             .select_related("asignatura", "periodo", "tipo_licencia", "docente")
             .order_by("asignatura__codigo", "nombre")
         )
+
+    def obtener_datos_asistencia_estudiante(self, estudiante_id: int) -> dict:
+        """
+        Build attendance dashboard data for a student.
+
+        Returns dict with 'asignaturas' (per-subject cards),
+        'inasistencia_general', and 'riesgo_general'.
+        """
+        matriculas = (
+            Matricula.objects.filter(
+                estudiante_id=estudiante_id,
+                estado=Matricula.Estado.ACTIVA,
+                paralelo__periodo__activo=True,
+            )
+            .select_related("paralelo__asignatura", "paralelo__periodo", "paralelo__docente")
+        )
+
+        asignaturas = []
+        for matricula in matriculas:
+            paralelo = matricula.paralelo
+            datos = self._calcular_datos_estudiante(estudiante_id, paralelo.id)
+            porcentaje_inasistencia = self.calculo_service.calcular_porcentaje_inasistencia(
+                datos["sesiones_asistidas"], datos["total_sesiones"]
+            )
+            riesgo = self.calculo_service.evaluar_riesgo(porcentaje_inasistencia)
+
+            asignaturas.append(
+                {
+                    "paralelo": paralelo,
+                    "sesiones_asistidas": datos["sesiones_asistidas"],
+                    "total_sesiones": datos["total_sesiones"],
+                    "porcentaje_inasistencia": porcentaje_inasistencia,
+                    "riesgo": riesgo,
+                }
+            )
+
+        inasistencia_general = self.calculo_service.calcular_inasistencia_general(asignaturas)
+        riesgo_general = self.calculo_service.evaluar_riesgo(inasistencia_general)
+
+        return {
+            "asignaturas": asignaturas,
+            "inasistencia_general": inasistencia_general,
+            "riesgo_general": riesgo_general,
+        }
