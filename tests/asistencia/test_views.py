@@ -1,6 +1,7 @@
 """Tests for Asistencia views (HU08)."""
 
 import datetime
+from decimal import Decimal
 
 import pytest
 from django.urls import reverse
@@ -164,3 +165,73 @@ class TestHistorialAsistenciaView:
         client.force_login(self.docente)
         response = client.get(url)
         assert response.status_code == 302
+
+
+class TestDashboardAsistenciaEstudianteView:
+    """Tests for DashboardAsistenciaEstudianteView (HU09)."""
+
+    def setup_method(self):
+        self.url = reverse("asistencia:mi_asistencia")
+
+    def test_anonymous_redirect(self, client):
+        """Unauthenticated user is redirected to login."""
+        response = client.get(self.url)
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_docente_forbidden(self, client):
+        """Docente gets 403."""
+        docente = _saved(DocenteFactory())
+        client.force_login(docente)
+        response = client.get(self.url)
+        assert response.status_code == 403
+
+    def test_inspector_forbidden(self, client):
+        """Inspector gets 403."""
+        inspector = _saved(InspectorFactory())
+        client.force_login(inspector)
+        response = client.get(self.url)
+        assert response.status_code == 403
+
+    def test_estudiante_access(self, client):
+        """Student can access the dashboard."""
+        estudiante = _saved(EstudianteFactory())
+        client.force_login(estudiante)
+        response = client.get(self.url)
+        assert response.status_code == 200
+
+    def test_context_contains_data(self, client):
+        """Student with matricula + attendance → context has expected keys."""
+        estudiante = _saved(EstudianteFactory())
+        paralelo = ParaleloFactory()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        AsistenciaFactory(
+            estudiante=estudiante,
+            paralelo=paralelo,
+            estado=Asistencia.Estado.PRESENTE,
+        )
+
+        client.force_login(estudiante)
+        response = client.get(self.url)
+
+        assert response.status_code == 200
+        assert "asignaturas" in response.context
+        assert "inasistencia_general" in response.context
+        assert "riesgo_general" in response.context
+        assert len(response.context["asignaturas"]) == 1
+
+    def test_sin_registros(self, client):
+        """Student with no data → empty results."""
+        estudiante = _saved(EstudianteFactory())
+        client.force_login(estudiante)
+        response = client.get(self.url)
+
+        assert response.context["inasistencia_general"] == Decimal("0.00")
+        assert response.context["asignaturas"] == []
+
+    def test_template_used(self, client):
+        """Correct template is used."""
+        estudiante = _saved(EstudianteFactory())
+        client.force_login(estudiante)
+        response = client.get(self.url)
+        assert response.templates[0].name == "asistencia/mi_asistencia.html"
