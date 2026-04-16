@@ -7,6 +7,7 @@ Sprint 2: Attendance registration and history views.
 from django.urls import path
 
 from .views import (
+    DashboardAsistenciaEstudianteView,
     HistorialAsistenciaView,
     RegistrarAsistenciaView,
     SeleccionarParaleloView,
@@ -29,5 +30,10 @@ urlpatterns = [
         "paralelo/<int:paralelo_id>/historial/",
         HistorialAsistenciaView.as_view(),
         name="historial_asistencia",
+    ),
+    path(
+        "mi-asistencia/",
+        DashboardAsistenciaEstudianteView.as_view(),
+        name="mi_asistencia",
     ),
 ]
