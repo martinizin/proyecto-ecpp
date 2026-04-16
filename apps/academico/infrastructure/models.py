@@ -88,12 +88,6 @@ class Paralelo(models.Model):
     nombre = models.CharField(max_length=10)  # e.g. "A", "B", "GR1"
     horario = models.TextField(blank=True)
     capacidad_maxima = models.PositiveIntegerField(default=30)
-    estudiantes = models.ManyToManyField(
-        "usuarios.Usuario",
-        related_name="paralelos_matriculados",
-        blank=True,
-        limit_choices_to={"rol": "estudiante"},
-    )
 
     class Meta:
         verbose_name = "Paralelo"
@@ -103,3 +97,49 @@ class Paralelo(models.Model):
 
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
+
+
+class Matricula(models.Model):
+    """Enrollment of a student in a paralelo."""
+
+    class Estado(models.TextChoices):
+        ACTIVA = "activa", "Activa"
+        RETIRADA = "retirada", "Retirada"
+        SUSPENDIDA = "suspendida", "Suspendida"
+
+    estudiante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="matriculas",
+        limit_choices_to={"rol": "estudiante"},
+    )
+    paralelo = models.ForeignKey(
+        Paralelo,
+        on_delete=models.CASCADE,
+        related_name="matriculas",
+    )
+    estado = models.CharField(
+        max_length=15,
+        choices=Estado.choices,
+        default=Estado.ACTIVA,
+    )
+    fecha_matricula = models.DateTimeField(auto_now_add=True)
+    matriculado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="matriculas_registradas",
+    )
+
+    class Meta:
+        verbose_name = "Matrícula"
+        verbose_name_plural = "Matrículas"
+        unique_together = ["estudiante", "paralelo"]
+        ordering = ["-fecha_matricula"]
+
+    def __str__(self):
+        return (
+            f"{self.estudiante.get_full_name()} — "
+            f"{self.paralelo} ({self.get_estado_display()})"
+        )

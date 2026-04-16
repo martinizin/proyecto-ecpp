@@ -9,18 +9,20 @@ from django.db import transaction
 
 from apps.academico.domain.entities import (
     AsignaturaEntity,
+    MatriculaEntity,
     ParaleloEntity,
     PeriodoEntity,
     TipoLicenciaEntity,
 )
 from apps.academico.domain.repositories import (
     AsignaturaRepository,
+    MatriculaRepository,
     ParaleloRepository,
     PeriodoRepository,
     TipoLicenciaRepository,
 )
 
-from .models import Asignatura, Paralelo, Periodo, TipoLicencia
+from .models import Asignatura, Matricula, Paralelo, Periodo, TipoLicencia
 
 
 class DjangoPeriodoRepository(PeriodoRepository):
@@ -263,3 +265,49 @@ class DjangoParaleloRepository(ParaleloRepository):
         if exclude_id:
             qs = qs.exclude(pk=exclude_id)
         return qs.exists()
+
+
+class DjangoMatriculaRepository(MatriculaRepository):
+    """Django ORM implementation of MatriculaRepository."""
+
+    def _to_entity(self, obj: Matricula) -> MatriculaEntity:
+        return MatriculaEntity(
+            estudiante_id=obj.estudiante_id,
+            paralelo_id=obj.paralelo_id,
+            estado=obj.estado,
+            fecha_matricula=obj.fecha_matricula.date() if obj.fecha_matricula else None,
+            matriculado_por_id=obj.matriculado_por_id,
+        )
+
+    def crear(self, entity: MatriculaEntity) -> MatriculaEntity:
+        obj = Matricula.objects.create(
+            estudiante_id=entity.estudiante_id,
+            paralelo_id=entity.paralelo_id,
+            estado=entity.estado,
+            matriculado_por_id=entity.matriculado_por_id,
+        )
+        return self._to_entity(obj)
+
+    def cambiar_estado(self, matricula_id: int, nuevo_estado: str) -> MatriculaEntity:
+        obj = Matricula.objects.get(pk=matricula_id)
+        obj.estado = nuevo_estado
+        obj.save(update_fields=["estado"])
+        return self._to_entity(obj)
+
+    def get_by_estudiante_paralelo(
+        self, estudiante_id: int, paralelo_id: int
+    ) -> Optional[MatriculaEntity]:
+        try:
+            obj = Matricula.objects.get(
+                estudiante_id=estudiante_id,
+                paralelo_id=paralelo_id,
+            )
+            return self._to_entity(obj)
+        except Matricula.DoesNotExist:
+            return None
+
+    def contar_activas_en_paralelo(self, paralelo_id: int) -> int:
+        return Matricula.objects.filter(
+            paralelo_id=paralelo_id,
+            estado=Matricula.Estado.ACTIVA,
+        ).count()
