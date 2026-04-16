@@ -11,7 +11,10 @@ import pytest
 
 from apps.academico.domain.exceptions import (
     AsignaturaCodigoDuplicadoError,
+    CupoExcedidoError,
     DocenteInvalidoError,
+    EstadoMatriculaInvalidoError,
+    MatriculaDuplicadaError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
     PeriodoInactivoError,
@@ -19,6 +22,7 @@ from apps.academico.domain.exceptions import (
 )
 from apps.academico.domain.services import (
     AsignaturaService,
+    MatriculaService,
     ParaleloService,
     PeriodoService,
 )
@@ -210,3 +214,90 @@ class TestParaleloService:
                 periodo_activo=True,
                 combinacion_exists=True,
             )
+
+
+# =============================================================================
+# MatriculaService Tests
+# =============================================================================
+
+
+class TestMatriculaService:
+    """Tests for enrollment domain rules."""
+
+    def setup_method(self):
+        self.service = MatriculaService()
+
+    # --- Cupo ---
+
+    def test_validar_cupo_ok(self):
+        self.service.validar_cupo(activas_en_paralelo=29, capacidad_maxima=30)
+
+    def test_validar_cupo_excedido(self):
+        with pytest.raises(CupoExcedidoError, match="capacidad máxima"):
+            self.service.validar_cupo(activas_en_paralelo=30, capacidad_maxima=30)
+
+    def test_validar_cupo_excedido_over(self):
+        with pytest.raises(CupoExcedidoError):
+            self.service.validar_cupo(activas_en_paralelo=35, capacidad_maxima=30)
+
+    # --- Duplicada ---
+
+    def test_validar_no_duplicada_ok(self):
+        self.service.validar_no_duplicada(matricula_existente=False)
+
+    def test_validar_no_duplicada_raises(self):
+        with pytest.raises(MatriculaDuplicadaError, match="ya tiene"):
+            self.service.validar_no_duplicada(matricula_existente=True)
+
+    # --- Periodo activo ---
+
+    def test_validar_periodo_activo_ok(self):
+        self.service.validar_periodo_activo(periodo_activo=True)
+
+    def test_validar_periodo_inactivo_raises(self):
+        with pytest.raises(PeriodoInactivoError, match="período activo"):
+            self.service.validar_periodo_activo(periodo_activo=False)
+
+    # --- Transiciones de estado: secretaria ---
+
+    def test_secretaria_activa_a_retirada(self):
+        self.service.validar_transicion_estado("activa", "retirada", "secretaria")
+
+    def test_secretaria_retirada_a_activa(self):
+        self.service.validar_transicion_estado("retirada", "activa", "secretaria")
+
+    def test_secretaria_no_puede_suspender(self):
+        with pytest.raises(EstadoMatriculaInvalidoError):
+            self.service.validar_transicion_estado("activa", "suspendida", "secretaria")
+
+    def test_secretaria_no_puede_cambiar_suspendida(self):
+        with pytest.raises(EstadoMatriculaInvalidoError):
+            self.service.validar_transicion_estado("suspendida", "activa", "secretaria")
+
+    # --- Transiciones de estado: inspector ---
+
+    def test_inspector_activa_a_suspendida(self):
+        self.service.validar_transicion_estado("activa", "suspendida", "inspector")
+
+    def test_inspector_suspendida_a_activa(self):
+        self.service.validar_transicion_estado("suspendida", "activa", "inspector")
+
+    def test_inspector_no_puede_retirar(self):
+        with pytest.raises(EstadoMatriculaInvalidoError):
+            self.service.validar_transicion_estado("activa", "retirada", "inspector")
+
+    def test_inspector_no_puede_cambiar_retirada(self):
+        with pytest.raises(EstadoMatriculaInvalidoError):
+            self.service.validar_transicion_estado("retirada", "activa", "inspector")
+
+    # --- Mismo estado = no-op ---
+
+    def test_mismo_estado_no_raises(self):
+        self.service.validar_transicion_estado("activa", "activa", "secretaria")
+        self.service.validar_transicion_estado("suspendida", "suspendida", "inspector")
+
+    # --- Rol inválido ---
+
+    def test_rol_invalido_raises(self):
+        with pytest.raises(EstadoMatriculaInvalidoError, match="permisos"):
+            self.service.validar_transicion_estado("activa", "retirada", "docente")

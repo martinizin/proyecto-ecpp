@@ -10,7 +10,10 @@ from typing import Optional
 
 from .exceptions import (
     AsignaturaCodigoDuplicadoError,
+    CupoExcedidoError,
     DocenteInvalidoError,
+    EstadoMatriculaInvalidoError,
+    MatriculaDuplicadaError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
     PeriodoInactivoError,
@@ -144,3 +147,69 @@ class ParaleloService:
         self.validar_docente(docente_rol)
         self.validar_periodo_activo(periodo_activo)
         self.validar_unicidad(combinacion_exists)
+
+
+class MatriculaService:
+    """
+    Domain rules for student enrollments.
+    Validates capacity, active period, no duplicates, and state transitions.
+    """
+
+    # Valid state transitions per role
+    TRANSICIONES_SECRETARIA = {
+        "activa": ["retirada"],
+        "retirada": ["activa"],
+        "suspendida": [],  # Secretaría no puede cambiar suspendida
+    }
+    TRANSICIONES_INSPECTOR = {
+        "activa": ["suspendida"],
+        "suspendida": ["activa"],
+        "retirada": [],  # Inspector no puede cambiar retirada
+    }
+
+    def validar_cupo(self, activas_en_paralelo: int, capacidad_maxima: int) -> None:
+        """Validate that the paralelo has not reached its capacity."""
+        if activas_en_paralelo >= capacidad_maxima:
+            raise CupoExcedidoError(
+                f"El paralelo ha alcanzado su capacidad máxima "
+                f"de {capacidad_maxima} estudiantes."
+            )
+
+    def validar_no_duplicada(self, matricula_existente: bool) -> None:
+        """Validate that the student is not already enrolled in the paralelo."""
+        if matricula_existente:
+            raise MatriculaDuplicadaError(
+                "El estudiante ya tiene una matrícula en este paralelo."
+            )
+
+    def validar_periodo_activo(self, periodo_activo: bool) -> None:
+        """Validate that the paralelo belongs to an active period."""
+        if not periodo_activo:
+            raise PeriodoInactivoError(
+                "Solo se pueden registrar matrículas en paralelos "
+                "de un período activo."
+            )
+
+    def validar_transicion_estado(
+        self, estado_actual: str, nuevo_estado: str, rol: str
+    ) -> None:
+        """Validate that the state transition is allowed for the given role."""
+        if estado_actual == nuevo_estado:
+            return
+
+        if rol == "secretaria":
+            transiciones = self.TRANSICIONES_SECRETARIA
+        elif rol == "inspector":
+            transiciones = self.TRANSICIONES_INSPECTOR
+        else:
+            raise EstadoMatriculaInvalidoError(
+                f"El rol '{rol}' no tiene permisos para cambiar "
+                f"el estado de matrículas."
+            )
+
+        estados_permitidos = transiciones.get(estado_actual, [])
+        if nuevo_estado not in estados_permitidos:
+            raise EstadoMatriculaInvalidoError(
+                f"No se puede cambiar el estado de '{estado_actual}' "
+                f"a '{nuevo_estado}' con el rol '{rol}'."
+            )

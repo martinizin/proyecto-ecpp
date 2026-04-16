@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from .entities import (
     AsignaturaEntity,
+    MatriculaEntity,
     ParaleloEntity,
     PeriodoEntity,
     TipoLicenciaEntity,
@@ -130,4 +131,27 @@ class ParaleloRepository(ABC):
         exclude_id: Optional[int] = None,
     ) -> bool:
         """Check if a paralelo with the same unique combo already exists."""
+        ...
+
+
+class MatriculaRepository(ABC):
+    """Abstract repository for Matricula aggregate."""
+
+    @abstractmethod
+    def crear(self, entity: MatriculaEntity) -> MatriculaEntity:
+        ...
+
+    @abstractmethod
+    def cambiar_estado(self, matricula_id: int, nuevo_estado: str) -> MatriculaEntity:
+        ...
+
+    @abstractmethod
+    def get_by_estudiante_paralelo(
+        self, estudiante_id: int, paralelo_id: int
+    ) -> Optional[MatriculaEntity]:
+        ...
+
+    @abstractmethod
+    def contar_activas_en_paralelo(self, paralelo_id: int) -> int:
+        """Count active enrollments in a paralelo (for capacity validation)."""
         ...

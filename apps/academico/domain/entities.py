@@ -52,3 +52,14 @@ class ParaleloEntity:
     horario: str = ""
     tipo_licencia_id: Optional[int] = None
     capacidad_maxima: int = 30
+
+
+@dataclass(frozen=True)
+class MatriculaEntity:
+    """Domain representation of a student enrollment in a paralelo."""
+
+    estudiante_id: int
+    paralelo_id: int
+    estado: str = "activa"
+    fecha_matricula: Optional[date] = None
+    matriculado_por_id: Optional[int] = None

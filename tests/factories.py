@@ -9,7 +9,7 @@ from decimal import Decimal
 import factory
 from django.utils import timezone
 
-from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
+from apps.academico.infrastructure.models import Asignatura, Matricula, Paralelo, Periodo, TipoLicencia
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
 from apps.solicitudes.infrastructure.models import Solicitud
@@ -138,6 +138,18 @@ class ParaleloFactory(factory.django.DjangoModelFactory):
     nombre = factory.Sequence(lambda n: chr(65 + (n % 26)))  # A, B, C, ...
     horario = "Lunes 08:00 - 10:00"
     capacidad_maxima = 30
+
+
+class MatriculaFactory(factory.django.DjangoModelFactory):
+    """Factory for Matricula model."""
+
+    class Meta:
+        model = Matricula
+
+    estudiante = factory.SubFactory(EstudianteFactory)
+    paralelo = factory.SubFactory(ParaleloFactory)
+    estado = Matricula.Estado.ACTIVA
+    matriculado_por = factory.SubFactory(UsuarioFactory, rol="inspector")
 
 
 class EvaluacionFactory(factory.django.DjangoModelFactory):
