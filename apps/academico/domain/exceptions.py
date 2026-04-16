@@ -30,3 +30,15 @@ class DocenteInvalidoError(AcademicoError):
 
 class ParaleloDuplicadoError(AcademicoError):
     """Raised when a duplicate paralelo is detected."""
+
+
+class CupoExcedidoError(AcademicoError):
+    """Raised when a paralelo has reached its maximum capacity."""
+
+
+class MatriculaDuplicadaError(AcademicoError):
+    """Raised when a student is already enrolled in a paralelo."""
+
+
+class EstadoMatriculaInvalidoError(AcademicoError):
+    """Raised when an invalid state transition is attempted on a matricula."""
