@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Seleccionar Paralelo{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Registro de Asistencia</li>
+    </ol>
+</nav>
+
+<div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <!-- Card Header -->
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h1 class="text-xl font-semibold text-gray-800">Seleccionar Paralelo para Tomar Asistencia</h1>
+        <p class="text-sm text-gray-500 mt-1">
+            {% if request.user.rol == 'docente' %}
+                Seleccione uno de sus paralelos asignados.
+            {% else %}
+                Seleccione cualquier paralelo del período activo.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Grid de paralelos -->
+    <div class="p-6">
+        {% if paralelos %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for paralelo in paralelos %}
+            <div class="border border-gray-200 rounded-lg p-4 hover:border-primary hover:shadow transition-all">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 class="font-semibold text-gray-800">{{ paralelo.asignatura.nombre }}</h3>
+                        <p class="text-sm text-gray-500">{{ paralelo.asignatura.codigo }} — Paralelo {{ paralelo.nombre }}</p>
+                    </div>
+                    <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ paralelo.tipo_licencia.codigo }}</span>
+                </div>
+                <div class="text-sm text-gray-600 space-y-1 mb-4">
+                    <p>Período: {{ paralelo.periodo.nombre }}</p>
+                    {% if request.user.rol == 'inspector' %}
+                    <p>Docente: {{ paralelo.docente.get_full_name }}</p>
+                    {% endif %}
+                    <p>Horario: {{ paralelo.horario|default:"No especificado" }}</p>
+                </div>
+                <div class="flex gap-2">
+                    <a href="{% url 'asistencia:registrar_asistencia' paralelo.pk %}"
+                       class="flex-1 text-center bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                        Tomar Asistencia
+                    </a>
+                    <a href="{% url 'asistencia:historial_asistencia' paralelo.pk %}"
+                       class="text-center border border-gray-300 hover:border-primary text-gray-700 hover:text-primary font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                        Historial
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No hay paralelos disponibles</p>
+            <p class="text-gray-400 text-sm mt-1">
+                {% if request.user.rol == 'docente' %}
+                    No tiene paralelos asignados en el período activo.
+                {% else %}
+                    No hay paralelos en el período activo.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
