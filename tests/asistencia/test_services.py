@@ -1,6 +1,7 @@
 """Tests for RegistroAsistenciaAppService (HU08)."""
 
 import datetime
+from decimal import Decimal
 
 import pytest
 
@@ -190,3 +191,134 @@ class TestObtenerTodosParalelosActivos:
         assert all(
             p.periodo.activo for p in result
         )
+
+
+class TestObtenerDatosAsistenciaEstudiante:
+    """Tests for obtener_datos_asistencia_estudiante (HU09)."""
+
+    def setup_method(self):
+        self.service = RegistroAsistenciaAppService()
+
+    def test_sin_matriculas(self):
+        """Student with no active matriculas → empty results."""
+        estudiante = EstudianteFactory()
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert resultado["asignaturas"] == []
+        assert resultado["inasistencia_general"] == Decimal("0.00")
+        assert resultado["riesgo_general"] == "verde"
+
+    def test_una_asignatura_sin_registros(self):
+        """Active matricula but no attendance records → 0% inasistencia."""
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert len(resultado["asignaturas"]) == 1
+        asig = resultado["asignaturas"][0]
+        assert asig["sesiones_asistidas"] == 0
+        assert asig["total_sesiones"] == 0
+        assert asig["porcentaje_inasistencia"] == Decimal("0.00")
+        assert asig["riesgo"] == "verde"
+        assert resultado["inasistencia_general"] == Decimal("0.00")
+
+    def test_una_asignatura_con_registros(self):
+        """18 presente + 2 ausente out of 20 → 10% inasistencia."""
+        estudiante = EstudianteFactory()
+        paralelo = ParaleloFactory()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        for i in range(18):
+            AsistenciaFactory(
+                estudiante=estudiante,
+                paralelo=paralelo,
+                fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.PRESENTE,
+            )
+        for i in range(2):
+            AsistenciaFactory(
+                estudiante=estudiante,
+                paralelo=paralelo,
+                fecha=datetime.date(2026, 5, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.AUSENTE,
+            )
+
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert len(resultado["asignaturas"]) == 1
+        asig = resultado["asignaturas"][0]
+        assert asig["sesiones_asistidas"] == 18
+        assert asig["total_sesiones"] == 20
+        assert asig["porcentaje_inasistencia"] == Decimal("10.00")
+
+    def test_multiples_asignaturas(self):
+        """Two subjects with different attendance → correct per-subject and general."""
+        estudiante = EstudianteFactory()
+        periodo = PeriodoFactory(activo=True)
+
+        # Subject 1: 8/10 presente → 20% inasistencia
+        p1 = ParaleloFactory(periodo=periodo)
+        MatriculaFactory(estudiante=estudiante, paralelo=p1)
+        for i in range(8):
+            AsistenciaFactory(
+                estudiante=estudiante, paralelo=p1,
+                fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.PRESENTE,
+            )
+        for i in range(2):
+            AsistenciaFactory(
+                estudiante=estudiante, paralelo=p1,
+                fecha=datetime.date(2026, 5, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.AUSENTE,
+            )
+
+        # Subject 2: 10/10 presente → 0% inasistencia
+        p2 = ParaleloFactory(periodo=periodo)
+        MatriculaFactory(estudiante=estudiante, paralelo=p2)
+        for i in range(10):
+            AsistenciaFactory(
+                estudiante=estudiante, paralelo=p2,
+                fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.PRESENTE,
+            )
+
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert len(resultado["asignaturas"]) == 2
+        datos_by_paralelo = {a["paralelo"].pk: a for a in resultado["asignaturas"]}
+
+        assert datos_by_paralelo[p1.pk]["porcentaje_inasistencia"] == Decimal("20.00")
+        assert datos_by_paralelo[p2.pk]["porcentaje_inasistencia"] == Decimal("0.00")
+
+        # General: (8+10) asistidas of (10+10) total → 10% inasistencia
+        assert resultado["inasistencia_general"] == Decimal("10.00")
+
+    def test_ignora_matricula_retirada(self):
+        """Retired matricula is excluded from results."""
+        estudiante = EstudianteFactory()
+        paralelo_activo = ParaleloFactory()
+        paralelo_retirado = ParaleloFactory()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo_activo)
+        MatriculaFactory(
+            estudiante=estudiante,
+            paralelo=paralelo_retirado,
+            estado=Matricula.Estado.RETIRADA,
+        )
+
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert len(resultado["asignaturas"]) == 1
+        assert resultado["asignaturas"][0]["paralelo"].pk == paralelo_activo.pk
+
+    def test_ignora_periodo_inactivo(self):
+        """Matricula in inactive period is excluded."""
+        estudiante = EstudianteFactory()
+        periodo_inactivo = PeriodoFactory(activo=False)
+        paralelo = ParaleloFactory(periodo=periodo_inactivo)
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        resultado = self.service.obtener_datos_asistencia_estudiante(estudiante.pk)
+
+        assert resultado["asignaturas"] == []
+        assert resultado["inasistencia_general"] == Decimal("0.00")
