@@ -1,14 +1,16 @@
-"""Tests for Periodo, Asignatura, and Paralelo models."""
+"""Tests for Periodo, Asignatura, Paralelo, and Matricula models."""
 
 import datetime
 
 import pytest
 from django.db import IntegrityError
 
-from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo
+from apps.academico.infrastructure.models import Asignatura, Matricula, Paralelo, Periodo
 from tests.factories import (
     AsignaturaFactory,
     DocenteFactory,
+    EstudianteFactory,
+    MatriculaFactory,
     ParaleloFactory,
     PeriodoFactory,
 )
@@ -107,3 +109,49 @@ class TestParalelo:
         """Paralelo should reference a docente user."""
         paralelo = ParaleloFactory()
         assert paralelo.docente.rol == "docente"
+
+
+class TestMatricula:
+    """Tests for Matricula model."""
+
+    def test_create_matricula(self):
+        matricula = MatriculaFactory()
+        assert matricula.pk is not None
+        assert matricula.estado == Matricula.Estado.ACTIVA
+        assert matricula.estudiante.rol == "estudiante"
+
+    def test_str(self):
+        matricula = MatriculaFactory()
+        expected = (
+            f"{matricula.estudiante.get_full_name()} — "
+            f"{matricula.paralelo} ({matricula.get_estado_display()})"
+        )
+        assert str(matricula) == expected
+
+    def test_unique_together_estudiante_paralelo(self):
+        """Same student + paralelo should be rejected."""
+        matricula = MatriculaFactory()
+        with pytest.raises(IntegrityError):
+            MatriculaFactory(
+                estudiante=matricula.estudiante,
+                paralelo=matricula.paralelo,
+            )
+
+    def test_estado_choices(self):
+        """All three states should be valid."""
+        paralelo = ParaleloFactory()
+        for estado in [Matricula.Estado.ACTIVA, Matricula.Estado.RETIRADA, Matricula.Estado.SUSPENDIDA]:
+            m = MatriculaFactory(paralelo=paralelo, estado=estado)
+            assert m.estado == estado
+
+    def test_fecha_matricula_auto_set(self):
+        matricula = MatriculaFactory()
+        assert matricula.fecha_matricula is not None
+
+    def test_ordering_by_fecha_desc(self):
+        """Most recent enrollment first."""
+        m1 = MatriculaFactory()
+        m2 = MatriculaFactory()
+        matriculas = list(Matricula.objects.all())
+        assert matriculas[0] == m2
+        assert matriculas[1] == m1
