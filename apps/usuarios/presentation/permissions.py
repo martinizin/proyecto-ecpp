@@ -31,6 +31,25 @@ class RolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
         )
 
 
+class MultiRolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """
+    Mixin for Django CBVs that restricts access to multiple roles.
+    Set `roles_permitidos` as a list on the view class.
+
+    Usage:
+        class MyView(MultiRolRequeridoMixin, TemplateView):
+            roles_permitidos = ['docente', 'inspector']
+    """
+
+    roles_permitidos: list = []
+
+    def test_func(self) -> bool:
+        return (
+            self.request.user.is_authenticated
+            and self.request.user.rol in self.roles_permitidos
+        )
+
+
 # =============================================================================
 # DRF Permission Classes (for API views)
 # =============================================================================

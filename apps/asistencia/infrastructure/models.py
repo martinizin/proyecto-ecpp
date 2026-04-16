@@ -20,7 +20,7 @@ class Asistencia(models.Model):
     )
     fecha = models.DateField()
     estado = models.CharField(
-        max_length=15, choices=Estado.choices, default=Estado.PRESENTE
+        max_length=15, choices=Estado.choices, default=Estado.AUSENTE
     )
     observaciones = models.TextField(blank=True)
 

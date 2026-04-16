@@ -184,7 +184,7 @@ class AsistenciaFactory(factory.django.DjangoModelFactory):
     estudiante = factory.SubFactory(EstudianteFactory)
     paralelo = factory.SubFactory(ParaleloFactory)
     fecha = factory.LazyFunction(lambda: datetime.date(2026, 4, 1))
-    estado = Asistencia.Estado.PRESENTE
+    estado = Asistencia.Estado.AUSENTE
 
 
 class SolicitudFactory(factory.django.DjangoModelFactory):

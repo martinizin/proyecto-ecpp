@@ -115,8 +115,22 @@
         </a>
         {% endif %}
 
-        {# Docente section — placeholder until Sprint 2+ implements role-specific views #}
-        {# {% if user.rol == 'docente' %} ... {% endif %} #}
+        {% if user.rol == 'docente' or user.rol == 'inspector' %}
+        <!-- ATTENDANCE section (Docente + Inspector) -->
+        <p class="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Asistencia</p>
+
+        <!-- Registro de Asistencia -->
+        <a href="{% url 'asistencia:seleccionar_paralelo' %}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                  {% if request.resolver_match.app_name == 'asistencia' %}bg-white/10 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}"
+           {% if request.resolver_match.url_name == 'seleccionar_paralelo' %}aria-current="page"{% endif %}>
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            Registro de Asistencia
+        </a>
+        {% endif %}
 
         <!-- ACCOUNT section (all authenticated users) -->
         <p class="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Mi Cuenta</p>

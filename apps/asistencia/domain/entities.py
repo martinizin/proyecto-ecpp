@@ -25,5 +25,5 @@ class AsistenciaEntity:
     estudiante_id: int
     paralelo_id: int
     fecha: date
-    estado: EstadoAsistencia = EstadoAsistencia.PRESENTE
+    estado: EstadoAsistencia = EstadoAsistencia.AUSENTE
     observaciones: str = ""
