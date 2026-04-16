@@ -18,7 +18,7 @@ class TestAsistencia:
     def test_create_asistencia(self):
         asistencia = AsistenciaFactory()
         assert asistencia.pk is not None
-        assert asistencia.estado == Asistencia.Estado.PRESENTE
+        assert asistencia.estado == Asistencia.Estado.AUSENTE
         assert asistencia.estudiante.rol == "estudiante"
 
     def test_str(self):
@@ -58,7 +58,7 @@ class TestAsistencia:
         assert asistencia2.pk is not None
         assert asistencia2.pk != asistencia.pk
 
-    def test_default_estado_presente(self):
-        """Default estado should be 'presente'."""
+    def test_default_estado_ausente(self):
+        """Default estado should be 'ausente' (factory default)."""
         asistencia = AsistenciaFactory()
-        assert asistencia.estado == "presente"
+        assert asistencia.estado == "ausente"
