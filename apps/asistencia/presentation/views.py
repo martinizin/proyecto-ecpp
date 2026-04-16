@@ -12,7 +12,7 @@ from django.views import View
 
 from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.application.services import RegistroAsistenciaAppService
-from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
+from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin, RolRequeridoMixin
 
 
 class SeleccionarParaleloView(MultiRolRequeridoMixin, View):
@@ -186,5 +186,26 @@ class HistorialAsistenciaView(MultiRolRequeridoMixin, View):
             {
                 "paralelo": paralelo,
                 "historial": historial,
+            },
+        )
+
+
+class DashboardAsistenciaEstudianteView(RolRequeridoMixin, View):
+    """Student attendance dashboard — shows per-subject cards and general risk."""
+
+    rol_requerido = "estudiante"
+    template_name = "asistencia/mi_asistencia.html"
+
+    def get(self, request):
+        service = RegistroAsistenciaAppService()
+        datos = service.obtener_datos_asistencia_estudiante(request.user.id)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "asignaturas": datos["asignaturas"],
+                "inasistencia_general": datos["inasistencia_general"],
+                "riesgo_general": datos["riesgo_general"],
             },
         )
