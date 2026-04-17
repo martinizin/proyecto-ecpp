@@ -158,10 +158,10 @@ class DashboardRedirectView(RedirectView):
         if user.rol == "inspector":
             return "/academico/periodos/"
         elif user.rol == "docente":
-            return "/academico/paralelos/"
+            return "/asistencia/paralelos/"
         else:
-            # Estudiante — redirect to home for now (enrollment comes in Sprint 2)
-            return "/"
+            # Estudiante — redirect to attendance dashboard
+            return "/asistencia/mi-asistencia/"
 
 
 # =============================================================================
