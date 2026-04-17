@@ -322,3 +322,140 @@ class TestObtenerDatosAsistenciaEstudiante:
 
         assert resultado["asignaturas"] == []
         assert resultado["inasistencia_general"] == Decimal("0.00")
+
+
+class TestObtenerDatosSupervision:
+    """Tests for obtener_datos_supervision (HU11)."""
+
+    def setup_method(self):
+        self.service = RegistroAsistenciaAppService()
+
+    def test_sin_estudiantes(self):
+        """No active matriculas → empty estudiantes, tipos_licencia exists."""
+        # Create a TipoLicencia so it appears in the dropdown
+        from tests.factories import TipoLicenciaFactory
+        TipoLicenciaFactory()
+
+        resultado = self.service.obtener_datos_supervision()
+
+        assert resultado["estudiantes"] == []
+        assert resultado["tipos_licencia"].count() >= 1
+        assert resultado["tipo_licencia_seleccionado"] is None
+
+    def test_un_estudiante_sin_registros(self):
+        """1 student with active matricula, no attendance → 0.00% inasistencia, riesgo verde."""
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+
+        resultado = self.service.obtener_datos_supervision()
+
+        assert len(resultado["estudiantes"]) == 1
+        est = resultado["estudiantes"][0]
+        assert est["estudiante"] == estudiante
+        assert est["inasistencia_general"] == Decimal("0.00")
+        assert est["riesgo"] == "verde"
+
+    def test_un_estudiante_con_ausencias(self):
+        """1 student with some absences → correct percentage and riesgo."""
+        estudiante = EstudianteFactory()
+        paralelo = ParaleloFactory()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        # 8 present + 2 absent = 10 sessions → 20% inasistencia
+        for i in range(8):
+            AsistenciaFactory(
+                estudiante=estudiante,
+                paralelo=paralelo,
+                fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.PRESENTE,
+            )
+        for i in range(2):
+            AsistenciaFactory(
+                estudiante=estudiante,
+                paralelo=paralelo,
+                fecha=datetime.date(2026, 5, 1) + datetime.timedelta(days=i),
+                estado=Asistencia.Estado.AUSENTE,
+            )
+
+        resultado = self.service.obtener_datos_supervision()
+
+        assert len(resultado["estudiantes"]) == 1
+        est = resultado["estudiantes"][0]
+        assert est["inasistencia_general"] == Decimal("20.00")
+        assert est["riesgo"] == "rojo"
+
+    def test_multiples_estudiantes_ordenados(self):
+        """2 students with different inasistencia → sorted desc (highest first)."""
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+
+        est_alto = EstudianteFactory()
+        MatriculaFactory(estudiante=est_alto, paralelo=paralelo)
+        # 100% absent (1 session)
+        AsistenciaFactory(
+            estudiante=est_alto,
+            paralelo=paralelo,
+            fecha=datetime.date(2026, 4, 1),
+            estado=Asistencia.Estado.AUSENTE,
+        )
+
+        est_bajo = EstudianteFactory()
+        MatriculaFactory(estudiante=est_bajo, paralelo=paralelo)
+        # 100% present (1 session)
+        AsistenciaFactory(
+            estudiante=est_bajo,
+            paralelo=paralelo,
+            fecha=datetime.date(2026, 4, 1),
+            estado=Asistencia.Estado.PRESENTE,
+        )
+
+        resultado = self.service.obtener_datos_supervision()
+
+        assert len(resultado["estudiantes"]) == 2
+        assert resultado["estudiantes"][0]["estudiante"] == est_alto
+        assert resultado["estudiantes"][1]["estudiante"] == est_bajo
+
+    def test_filtro_tipo_licencia(self):
+        """2 students in different tipo_licencia paralelos, filter → only matching."""
+        from tests.factories import TipoLicenciaFactory
+        periodo = PeriodoFactory(activo=True)
+
+        tl_a = TipoLicenciaFactory(nombre="Tipo A", codigo="TA")
+        tl_b = TipoLicenciaFactory(nombre="Tipo B", codigo="TB")
+
+        paralelo_a = ParaleloFactory(periodo=periodo, tipo_licencia=tl_a)
+        paralelo_b = ParaleloFactory(periodo=periodo, tipo_licencia=tl_b)
+
+        est_a = EstudianteFactory()
+        MatriculaFactory(estudiante=est_a, paralelo=paralelo_a)
+
+        est_b = EstudianteFactory()
+        MatriculaFactory(estudiante=est_b, paralelo=paralelo_b)
+
+        resultado = self.service.obtener_datos_supervision(tipo_licencia_id=tl_a.pk)
+
+        assert len(resultado["estudiantes"]) == 1
+        assert resultado["estudiantes"][0]["estudiante"] == est_a
+
+    def test_ignora_matricula_retirada(self):
+        """Retired matricula is not included."""
+        estudiante = EstudianteFactory()
+        paralelo = ParaleloFactory()
+        MatriculaFactory(
+            estudiante=estudiante,
+            paralelo=paralelo,
+            estado=Matricula.Estado.RETIRADA,
+        )
+
+        resultado = self.service.obtener_datos_supervision()
+
+        assert resultado["estudiantes"] == []
+
+    def test_tipo_licencia_seleccionado_en_resultado(self):
+        """Passing tipo_licencia_id returns it in result dict."""
+        from tests.factories import TipoLicenciaFactory
+        tl = TipoLicenciaFactory()
+
+        resultado = self.service.obtener_datos_supervision(tipo_licencia_id=tl.pk)
+
+        assert resultado["tipo_licencia_seleccionado"] == tl.pk

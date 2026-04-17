@@ -235,3 +235,85 @@ class TestDashboardAsistenciaEstudianteView:
         client.force_login(estudiante)
         response = client.get(self.url)
         assert response.templates[0].name == "asistencia/mi_asistencia.html"
+
+
+class TestSupervisionAsistenciaView:
+    """Tests for SupervisionAsistenciaView (HU11)."""
+
+    def setup_method(self):
+        self.url = reverse("asistencia:supervision")
+
+    def test_anonymous_redirect(self, client):
+        """Unauthenticated user is redirected to login."""
+        response = client.get(self.url)
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_estudiante_forbidden(self, client):
+        """Student user gets 403."""
+        estudiante = _saved(EstudianteFactory())
+        client.force_login(estudiante)
+        response = client.get(self.url)
+        assert response.status_code == 403
+
+    def test_docente_forbidden(self, client):
+        """Docente user gets 403."""
+        docente = _saved(DocenteFactory())
+        client.force_login(docente)
+        response = client.get(self.url)
+        assert response.status_code == 403
+
+    def test_inspector_access(self, client):
+        """Inspector can access, status 200."""
+        inspector = _saved(InspectorFactory())
+        client.force_login(inspector)
+        response = client.get(self.url)
+        assert response.status_code == 200
+
+    def test_context_contains_data(self, client):
+        """Inspector with matriculas in system → context has expected keys."""
+        inspector = _saved(InspectorFactory())
+        estudiante = EstudianteFactory()
+        paralelo = ParaleloFactory()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        client.force_login(inspector)
+        response = client.get(self.url)
+
+        assert response.status_code == 200
+        assert "estudiantes" in response.context
+        assert "tipos_licencia" in response.context
+        assert "total_estudiantes" in response.context
+        assert "en_riesgo" in response.context
+        assert "normales" in response.context
+        assert response.context["total_estudiantes"] == 1
+
+    def test_filtro_tipo_licencia(self, client):
+        """GET with ?tipo_licencia=X → filters results."""
+        from tests.factories import TipoLicenciaFactory
+
+        inspector = _saved(InspectorFactory())
+
+        tl_a = TipoLicenciaFactory(nombre="Tipo A", codigo="TA")
+        tl_b = TipoLicenciaFactory(nombre="Tipo B", codigo="TB")
+
+        paralelo_a = ParaleloFactory(tipo_licencia=tl_a)
+        paralelo_b = ParaleloFactory(tipo_licencia=tl_b)
+
+        est_a = EstudianteFactory()
+        MatriculaFactory(estudiante=est_a, paralelo=paralelo_a)
+        est_b = EstudianteFactory()
+        MatriculaFactory(estudiante=est_b, paralelo=paralelo_b)
+
+        client.force_login(inspector)
+        response = client.get(self.url, {"tipo_licencia": tl_a.pk})
+
+        assert response.status_code == 200
+        assert response.context["total_estudiantes"] == 1
+
+    def test_template_used(self, client):
+        """Correct template is asistencia/supervision.html."""
+        inspector = _saved(InspectorFactory())
+        client.force_login(inspector)
+        response = client.get(self.url)
+        assert response.templates[0].name == "asistencia/supervision.html"
