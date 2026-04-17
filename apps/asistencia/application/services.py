@@ -11,7 +11,9 @@ from typing import List, Optional
 from django.db import transaction
 from django.db.models import Q
 
-from apps.academico.infrastructure.models import Matricula, Paralelo
+from collections import defaultdict
+
+from apps.academico.infrastructure.models import Matricula, Paralelo, TipoLicencia
 from apps.asistencia.domain.services import AsistenciaCalculoService
 from apps.asistencia.infrastructure.models import Asistencia
 
@@ -200,6 +202,65 @@ class RegistroAsistenciaAppService:
             .select_related("asignatura", "periodo", "tipo_licencia", "docente")
             .order_by("asignatura__codigo", "nombre")
         )
+
+    def obtener_datos_supervision(self, tipo_licencia_id: int = None) -> dict:
+        """
+        Build supervision panel data for the inspector.
+
+        Returns dict with 'estudiantes' (sorted by inasistencia desc),
+        'tipos_licencia' (for filter dropdown), and 'tipo_licencia_seleccionado'.
+        """
+        matriculas = Matricula.objects.filter(
+            estado=Matricula.Estado.ACTIVA,
+            paralelo__periodo__activo=True,
+        ).select_related("estudiante", "paralelo__asignatura", "paralelo__tipo_licencia")
+
+        if tipo_licencia_id:
+            matriculas = matriculas.filter(paralelo__tipo_licencia_id=tipo_licencia_id)
+
+        # Group matriculas by student
+        estudiantes_map: dict = defaultdict(list)
+        for matricula in matriculas:
+            estudiantes_map[matricula.estudiante_id].append(matricula)
+
+        estudiantes = []
+        for estudiante_id, mats in estudiantes_map.items():
+            estudiante = mats[0].estudiante
+
+            # Calculate per-paralelo attendance data
+            datos_list = []
+            for mat in mats:
+                datos = self._calcular_datos_estudiante(estudiante_id, mat.paralelo_id)
+                datos_list.append(datos)
+
+            inasistencia_general = self.calculo_service.calcular_inasistencia_general(datos_list)
+            riesgo = self.calculo_service.evaluar_riesgo(inasistencia_general)
+
+            # Collect distinct tipo_licencia names
+            tipos = sorted(set(
+                str(mat.paralelo.tipo_licencia)
+                for mat in mats
+                if mat.paralelo.tipo_licencia
+            ))
+            tipo_licencia_str = ", ".join(tipos) if tipos else "—"
+
+            estudiantes.append({
+                "estudiante": estudiante,
+                "tipo_licencia": tipo_licencia_str,
+                "inasistencia_general": inasistencia_general,
+                "riesgo": riesgo,
+            })
+
+        # Sort by inasistencia descending (most at risk first)
+        estudiantes.sort(key=lambda e: e["inasistencia_general"], reverse=True)
+
+        tipos_licencia = TipoLicencia.objects.filter(activo=True).order_by("codigo")
+
+        return {
+            "estudiantes": estudiantes,
+            "tipos_licencia": tipos_licencia,
+            "tipo_licencia_seleccionado": tipo_licencia_id,
+        }
 
     def obtener_datos_asistencia_estudiante(self, estudiante_id: int) -> dict:
         """
