@@ -11,6 +11,7 @@ from .views import (
     HistorialAsistenciaView,
     RegistrarAsistenciaView,
     SeleccionarParaleloView,
+    SupervisionAsistenciaView,
 )
 
 app_name = "asistencia"
@@ -35,5 +36,10 @@ urlpatterns = [
         "mi-asistencia/",
         DashboardAsistenciaEstudianteView.as_view(),
         name="mi_asistencia",
+    ),
+    path(
+        "supervision/",
+        SupervisionAsistenciaView.as_view(),
+        name="supervision",
     ),
 ]
