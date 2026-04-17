@@ -209,3 +209,29 @@ class DashboardAsistenciaEstudianteView(RolRequeridoMixin, View):
                 "riesgo_general": datos["riesgo_general"],
             },
         )
+
+
+class SupervisionAsistenciaView(RolRequeridoMixin, View):
+    """Inspector supervision panel — shows all students with risk indicators."""
+
+    rol_requerido = "inspector"
+    template_name = "asistencia/supervision.html"
+
+    def get(self, request):
+        tipo_licencia_id = request.GET.get("tipo_licencia")
+        if tipo_licencia_id:
+            try:
+                tipo_licencia_id = int(tipo_licencia_id)
+            except (ValueError, TypeError):
+                tipo_licencia_id = None
+
+        service = RegistroAsistenciaAppService()
+        datos = service.obtener_datos_supervision(tipo_licencia_id)
+
+        # Pre-calculate counts for summary cards
+        en_riesgo = sum(1 for e in datos["estudiantes"] if e["riesgo"] == "rojo")
+        datos["total_estudiantes"] = len(datos["estudiantes"])
+        datos["en_riesgo"] = en_riesgo
+        datos["normales"] = datos["total_estudiantes"] - en_riesgo
+
+        return render(request, self.template_name, datos)
