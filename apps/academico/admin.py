@@ -101,7 +101,7 @@ class MatriculaAdmin(admin.ModelAdmin):
                 # Map user to domain role: superusers act as secretaría
                 rol_dominio = (
                     "secretaria"
-                    if request.user.is_superuser
+                    if request.user.is_superuser or request.user.rol == "secretaria"
                     else request.user.rol
                 )
                 service.validar_transicion_estado(

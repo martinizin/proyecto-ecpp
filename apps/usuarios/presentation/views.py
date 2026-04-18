@@ -159,8 +159,10 @@ class DashboardRedirectView(RedirectView):
             return "/academico/periodos/"
         elif user.rol == "docente":
             return "/asistencia/paralelos/"
+        elif user.rol == "secretaria":
+            return "/secretaria/usuarios/"
         else:
-            # Estudiante — redirect to attendance dashboard
+            # Estudiante
             return "/asistencia/mi-asistencia/"
 
 
