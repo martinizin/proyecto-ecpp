@@ -89,4 +89,5 @@ class TestUsuarioConstraints:
         assert "estudiante" in choices
         assert "docente" in choices
         assert "inspector" in choices
-        assert len(choices) == 3
+        assert "secretaria" in choices
+        assert len(choices) == 4
