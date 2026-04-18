@@ -1,0 +1,202 @@
+"""Application services for the Secretaría module — user and enrollment management."""
+
+import string
+
+from django.utils.crypto import get_random_string
+
+from apps.usuarios.infrastructure.email_service import send_credenciales_email
+from apps.usuarios.infrastructure.models import Usuario
+
+
+class GestionUsuariosService:
+    """Service for user management by secretaría."""
+
+    def listar_usuarios(self, search: str = None, rol_filter: str = None):
+        """List users with optional search and role filter."""
+        qs = Usuario.objects.all().order_by("-date_joined")
+        if search:
+            from django.db.models import Q
+
+            qs = qs.filter(
+                Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(cedula__icontains=search)
+            )
+        if rol_filter:
+            qs = qs.filter(rol=rol_filter)
+        return qs
+
+    def crear_usuario(
+        self, email, first_name, last_name, rol, cedula, telefono=""
+    ) -> tuple:
+        """
+        Create a new user with auto-generated temp password.
+        Returns (usuario, temp_password, email_sent: bool).
+        """
+        temp_password = get_random_string(
+            length=12,
+            allowed_chars=string.ascii_letters + string.digits + "!@#$%&*",
+        )
+
+        usuario = Usuario(
+            email=email,
+            username=email,  # project convention: username = email
+            first_name=first_name,
+            last_name=last_name,
+            rol=rol,
+            cedula=cedula,
+            telefono=telefono,
+            is_active=True,
+            debe_cambiar_password=True,
+        )
+        usuario.set_password(temp_password)
+        usuario.save()
+
+        # Send credentials email
+        email_sent = True
+        try:
+            send_credenciales_email(usuario, temp_password)
+        except Exception:
+            email_sent = False
+
+        return usuario, temp_password, email_sent
+
+    def editar_usuario(self, usuario_id, **kwargs):
+        """Update user fields. Only updates provided kwargs."""
+        usuario = Usuario.objects.get(pk=usuario_id)
+        for field, value in kwargs.items():
+            setattr(usuario, field, value)
+        usuario.save(update_fields=list(kwargs.keys()))
+        return usuario
+
+    def obtener_usuario(self, usuario_id):
+        """Get a single user by ID."""
+        return Usuario.objects.get(pk=usuario_id)
+
+    def toggle_activo(self, usuario_id) -> Usuario:
+        """Toggle user is_active status."""
+        usuario = Usuario.objects.get(pk=usuario_id)
+        usuario.is_active = not usuario.is_active
+        usuario.save(update_fields=["is_active"])
+        return usuario
+
+
+class GestionMatriculasService:
+    """Service for enrollment management by secretaría."""
+
+    def __init__(self):
+        from apps.academico.domain.services import MatriculaService
+
+        self.domain_service = MatriculaService()
+
+    def listar_matriculas(self, paralelo_filter=None, estado_filter=None, search=None):
+        """List enrollments with optional filters."""
+        from apps.academico.infrastructure.models import Matricula
+
+        qs = Matricula.objects.select_related(
+            "estudiante",
+            "paralelo__asignatura",
+            "paralelo__periodo",
+            "paralelo__tipo_licencia",
+            "matriculado_por",
+        ).order_by("-fecha_matricula")
+
+        if paralelo_filter:
+            qs = qs.filter(paralelo_id=paralelo_filter)
+        if estado_filter:
+            qs = qs.filter(estado=estado_filter)
+        if search:
+            from django.db.models import Q
+
+            qs = qs.filter(
+                Q(estudiante__first_name__icontains=search)
+                | Q(estudiante__last_name__icontains=search)
+                | Q(estudiante__cedula__icontains=search)
+            )
+        return qs
+
+    def obtener_paralelos_activos(self):
+        """Get all paralelos in active period for the dropdown."""
+        from apps.academico.infrastructure.models import Paralelo
+
+        return (
+            Paralelo.objects.filter(periodo__activo=True)
+            .select_related("asignatura", "periodo", "tipo_licencia", "docente")
+            .order_by("asignatura__codigo", "nombre")
+        )
+
+    def obtener_estudiantes_disponibles(self):
+        """Get all active students for the dropdown."""
+        from apps.usuarios.infrastructure.models import Usuario
+
+        return Usuario.objects.filter(rol="estudiante", is_active=True).order_by(
+            "last_name", "first_name"
+        )
+
+    def crear_matricula(self, estudiante_id, paralelo_id, registrado_por_id):
+        """
+        Create enrollment with domain validations.
+        Raises domain exceptions on failure.
+        """
+        from apps.academico.infrastructure.models import Matricula, Paralelo
+
+        paralelo = Paralelo.objects.select_related("periodo").get(pk=paralelo_id)
+
+        # Domain validations
+        self.domain_service.validar_periodo_activo(paralelo.periodo.activo)
+
+        existe = Matricula.objects.filter(
+            estudiante_id=estudiante_id, paralelo_id=paralelo_id
+        ).exists()
+        self.domain_service.validar_no_duplicada(existe)
+
+        activas = Matricula.objects.filter(
+            paralelo_id=paralelo_id, estado=Matricula.Estado.ACTIVA
+        ).count()
+        self.domain_service.validar_cupo(activas, paralelo.capacidad_maxima)
+
+        matricula = Matricula.objects.create(
+            estudiante_id=estudiante_id,
+            paralelo_id=paralelo_id,
+            estado=Matricula.Estado.ACTIVA,
+            matriculado_por_id=registrado_por_id,
+        )
+        return matricula
+
+    def cambiar_estado(self, matricula_id, nuevo_estado, rol):
+        """Change enrollment state with domain validation."""
+        from apps.academico.infrastructure.models import Matricula
+
+        matricula = Matricula.objects.select_related("paralelo").get(pk=matricula_id)
+
+        # Validate transition
+        self.domain_service.validar_transicion_estado(
+            estado_actual=matricula.estado,
+            nuevo_estado=nuevo_estado,
+            rol=rol,
+        )
+
+        # If reactivating, check capacity
+        if nuevo_estado == Matricula.Estado.ACTIVA:
+            activas = (
+                Matricula.objects.filter(
+                    paralelo=matricula.paralelo,
+                    estado=Matricula.Estado.ACTIVA,
+                )
+                .exclude(pk=matricula.pk)
+                .count()
+            )
+            self.domain_service.validar_cupo(activas, matricula.paralelo.capacidad_maxima)
+
+        matricula.estado = nuevo_estado
+        matricula.save(update_fields=["estado"])
+        return matricula
+
+    def obtener_matricula(self, matricula_id):
+        """Get a single enrollment by ID."""
+        from apps.academico.infrastructure.models import Matricula
+
+        return Matricula.objects.select_related(
+            "estudiante", "paralelo__asignatura", "paralelo__periodo"
+        ).get(pk=matricula_id)
