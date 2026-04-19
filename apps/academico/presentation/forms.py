@@ -26,8 +26,8 @@ class PeriodoForm(forms.ModelForm):
         fields = ["nombre", "tipo_licencia", "fecha_inicio", "fecha_fin"]
         widgets = {
             "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: Periodo 2026-A"}),
-            "fecha_inicio": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
-            "fecha_fin": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "fecha_inicio": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
+            "fecha_fin": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
         }
 
     def clean(self):
