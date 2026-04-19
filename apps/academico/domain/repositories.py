@@ -24,7 +24,8 @@ class PeriodoRepository(ABC):
         ...
 
     @abstractmethod
-    def get_activo(self) -> Optional[PeriodoEntity]:
+    def get_activo_por_tipo(self, tipo_licencia_id: int) -> Optional[PeriodoEntity]:
+        """Get the active period for a specific license type."""
         ...
 
     @abstractmethod
@@ -45,8 +46,8 @@ class PeriodoRepository(ABC):
         ...
 
     @abstractmethod
-    def desactivar_todos(self) -> None:
-        """Deactivate all periods."""
+    def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
+        """Deactivate all periods for a given license type."""
         ...
 
 

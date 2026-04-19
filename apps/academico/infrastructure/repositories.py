@@ -33,6 +33,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
             nombre=obj.nombre,
             fecha_inicio=obj.fecha_inicio,
             fecha_fin=obj.fecha_fin,
+            tipo_licencia_id=obj.tipo_licencia_id,
             activo=obj.activo,
             creado_por_id=obj.creado_por_id,
         )
@@ -44,9 +45,9 @@ class DjangoPeriodoRepository(PeriodoRepository):
         except Periodo.DoesNotExist:
             return None
 
-    def get_activo(self) -> Optional[PeriodoEntity]:
+    def get_activo_por_tipo(self, tipo_licencia_id: int) -> Optional[PeriodoEntity]:
         try:
-            obj = Periodo.objects.get(activo=True)
+            obj = Periodo.objects.get(activo=True, tipo_licencia_id=tipo_licencia_id)
             return self._to_entity(obj)
         except Periodo.DoesNotExist:
             return None
@@ -59,6 +60,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
             nombre=entity.nombre,
             fecha_inicio=entity.fecha_inicio,
             fecha_fin=entity.fecha_fin,
+            tipo_licencia_id=entity.tipo_licencia_id,
             activo=entity.activo,
             creado_por_id=entity.creado_por_id,
         )
@@ -69,6 +71,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.nombre = entity.nombre
         obj.fecha_inicio = entity.fecha_inicio
         obj.fecha_fin = entity.fecha_fin
+        obj.tipo_licencia_id = entity.tipo_licencia_id
         obj.activo = entity.activo
         obj.save()
         return self._to_entity(obj)
@@ -80,8 +83,10 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.activo = True
         obj.save(update_fields=["activo", "modificado_en"])
 
-    def desactivar_todos(self) -> None:
-        Periodo.objects.filter(activo=True).update(activo=False)
+    def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
+        Periodo.objects.filter(
+            activo=True, tipo_licencia_id=tipo_licencia_id
+        ).update(activo=False)
 
 
 class DjangoTipoLicenciaRepository(TipoLicenciaRepository):

@@ -54,14 +54,18 @@ class PeriodoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="activo")
     def activo(self, request):
-        """Return the currently active period, or 404 if none."""
-        periodo = Periodo.objects.filter(activo=True).select_related("creado_por").first()
-        if not periodo:
+        """Return active periods. Optionally filter by ?tipo_licencia={id}."""
+        qs = Periodo.objects.filter(activo=True).select_related("creado_por", "tipo_licencia")
+        tipo_id = request.query_params.get("tipo_licencia")
+        if tipo_id:
+            qs = qs.filter(tipo_licencia_id=tipo_id)
+        periodos = qs.all()
+        if not periodos:
             return Response(
-                {"detail": "No hay período activo actualmente."},
+                {"detail": "No hay períodos activos."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        serializer = self.get_serializer(periodo)
+        serializer = self.get_serializer(periodos, many=True)
         return Response(serializer.data)
 
 

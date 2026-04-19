@@ -43,6 +43,9 @@ class PeriodoListView(RolRequeridoMixin, ListView):
     template_name = "academico/periodo_list.html"
     context_object_name = "periodos"
 
+    def get_queryset(self):
+        return Periodo.objects.select_related("tipo_licencia").all()
+
 
 class PeriodoCreateView(RolRequeridoMixin, ListView):
     """Create a new academic period — Inspector only."""
@@ -66,6 +69,7 @@ class PeriodoCreateView(RolRequeridoMixin, ListView):
                 nombre=form.cleaned_data["nombre"],
                 fecha_inicio=form.cleaned_data["fecha_inicio"],
                 fecha_fin=form.cleaned_data["fecha_fin"],
+                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 creado_por_id=request.user.pk,
             )
         except AcademicoError as e:

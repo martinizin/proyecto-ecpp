@@ -24,7 +24,7 @@ from .exceptions import (
 class PeriodoService:
     """
     Domain rules for academic periods.
-    Enforces single-active invariant and date validation.
+    Enforces one-active-per-tipo-licencia invariant and date validation.
     """
 
     def validar_fechas(self, fecha_inicio: date, fecha_fin: date) -> None:
@@ -40,30 +40,28 @@ class PeriodoService:
         confirmar_desactivacion: bool,
     ) -> bool:
         """
-        Check if activation can proceed.
+        Check if activation can proceed for a given tipo_licencia.
 
         Args:
-            periodo_activo_actual: Name of the currently active period, or None.
+            periodo_activo_actual: Name of the currently active period
+                for this tipo_licencia, or None.
             confirmar_desactivacion: Whether the user confirmed deactivation.
 
         Returns:
             True if activation can proceed.
 
         Raises:
-            PeriodoActivoExistenteError: If there's an active period and
-                user hasn't confirmed deactivation.
+            PeriodoActivoExistenteError: If there's an active period for
+                this tipo_licencia and user hasn't confirmed deactivation.
         """
         if periodo_activo_actual is None:
-            # No active period — activate directly (SCN-PER-08)
             return True
 
         if confirmar_desactivacion:
-            # User confirmed — proceed (SCN-PER-06)
             return True
 
-        # Active period exists but no confirmation (SCN-PER-05)
         raise PeriodoActivoExistenteError(
-            f"El período '{periodo_activo_actual}' está activo. "
+            f"El período '{periodo_activo_actual}' ya está activo para este tipo de licencia. "
             "¿Desea desactivarlo para activar el nuevo período?"
         )
 

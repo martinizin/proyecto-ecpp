@@ -100,6 +100,7 @@ class PeriodoFactory(factory.django.DjangoModelFactory):
         model = Periodo
 
     nombre = factory.Sequence(lambda n: f"2026-{n}")
+    tipo_licencia = factory.SubFactory(TipoLicenciaFactory)
     fecha_inicio = factory.LazyFunction(lambda: datetime.date(2026, 3, 1))
     fecha_fin = factory.LazyFunction(lambda: datetime.date(2026, 7, 31))
     activo = True

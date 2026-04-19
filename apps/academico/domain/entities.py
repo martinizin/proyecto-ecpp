@@ -10,11 +10,12 @@ from typing import List, Optional
 
 @dataclass(frozen=True)
 class PeriodoEntity:
-    """Domain representation of an academic period."""
+    """Domain representation of an academic period linked to a license type."""
 
     nombre: str
     fecha_inicio: date
     fecha_fin: date
+    tipo_licencia_id: Optional[int] = None
     activo: bool = False
     creado_por_id: Optional[int] = None
 

@@ -3,9 +3,14 @@ from django.db import models
 
 
 class Periodo(models.Model):
-    """Academic period (e.g. '2026-1')."""
+    """Academic period linked to a specific license type (e.g. '2026-A — Licencia E')."""
 
-    nombre = models.CharField(max_length=100, unique=True)
+    nombre = models.CharField(max_length=100)
+    tipo_licencia = models.ForeignKey(
+        "TipoLicencia",
+        on_delete=models.CASCADE,
+        related_name="periodos",
+    )
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     activo = models.BooleanField(default=False)
@@ -21,10 +26,11 @@ class Periodo(models.Model):
     class Meta:
         verbose_name = "Periodo Academico"
         verbose_name_plural = "Periodos Academicos"
+        unique_together = ["nombre", "tipo_licencia"]
         ordering = ["-fecha_inicio"]
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} — {self.tipo_licencia.codigo}"
 
 
 class TipoLicencia(models.Model):

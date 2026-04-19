@@ -44,12 +44,18 @@ class PeriodoSerializer(serializers.ModelSerializer):
         read_only=True,
         default="",
     )
+    tipo_licencia_codigo = serializers.CharField(
+        source="tipo_licencia.codigo",
+        read_only=True,
+    )
 
     class Meta:
         model = Periodo
         fields = [
             "id",
             "nombre",
+            "tipo_licencia",
+            "tipo_licencia_codigo",
             "fecha_inicio",
             "fecha_fin",
             "activo",
@@ -57,7 +63,7 @@ class PeriodoSerializer(serializers.ModelSerializer):
             "creado_por_nombre",
             "modificado_en",
         ]
-        read_only_fields = ["id", "activo", "creado_por", "creado_por_nombre", "modificado_en"]
+        read_only_fields = ["id", "activo", "creado_por", "creado_por_nombre", "tipo_licencia_codigo", "modificado_en"]
 
     def validate(self, attrs):
         fecha_inicio = attrs.get("fecha_inicio")

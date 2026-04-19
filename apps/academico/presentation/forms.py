@@ -12,11 +12,18 @@ Usuario = get_user_model()
 
 
 class PeriodoForm(forms.ModelForm):
-    """Form for creating/editing academic periods."""
+    """Form for creating/editing academic periods linked to a license type."""
+
+    tipo_licencia = forms.ModelChoiceField(
+        queryset=TipoLicencia.objects.filter(activo=True),
+        label="Tipo de licencia",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Seleccione un tipo de licencia",
+    )
 
     class Meta:
         model = Periodo
-        fields = ["nombre", "fecha_inicio", "fecha_fin"]
+        fields = ["nombre", "tipo_licencia", "fecha_inicio", "fecha_fin"]
         widgets = {
             "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: Periodo 2026-A"}),
             "fecha_inicio": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
