@@ -451,3 +451,125 @@ class TestTipoLicenciaViews:
         response = docente_client.get(url)
 
         assert response.status_code == 403
+
+
+# =============================================================================
+# TestParaleloLoteViews — 7 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestParaleloLoteViews:
+    """View tests for batch paralelo creation."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.inspector = _create_inspector()
+        self.client.force_login(self.inspector)
+
+        self.docente = _create_docente()
+        self.tipo_licencia = _create_tipo_licencia(num_asignaturas=5)
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+
+        self.asig1 = _create_asignatura(nombre="Legislación", codigo="LEG-001")
+        self.asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
+        self.asig3 = _create_asignatura(nombre="Primeros Auxilios", codigo="PAU-001")
+        self.asig1.tipos_licencia.add(self.tipo_licencia)
+        self.asig2.tipos_licencia.add(self.tipo_licencia)
+        self.asig3.tipos_licencia.add(self.tipo_licencia)
+
+    def _lote_url(self):
+        return reverse("academico:paralelo_create_lote")
+
+    def _post_data(self, asignatura_ids):
+        return {
+            "periodo": self.periodo.pk,
+            "tipo_licencia": self.tipo_licencia.pk,
+            "asignaturas": asignatura_ids,
+            "nombre": "A",
+            "docente": self.docente.pk,
+            "horario": "Lun-Vie 08:00-10:00",
+            "capacidad_maxima": 30,
+        }
+
+    def test_get_form_lote(self):
+        """GET /academico/paralelos/crear-lote/ as inspector → 200."""
+        response = self.client.get(self._lote_url())
+        assert response.status_code == 200
+        assert "academico/paralelo_form_lote.html" in [
+            t.name for t in response.templates
+        ]
+
+    def test_create_lote_exitoso(self):
+        """POST with 3 asignaturas → creates 3 paralelos, redirect."""
+        data = self._post_data([self.asig1.pk, self.asig2.pk, self.asig3.pk])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 302
+        assert reverse("academico:paralelo_list") in response.url
+        assert Paralelo.objects.count() == 3
+        assert Paralelo.objects.filter(nombre="A", tipo_licencia=self.tipo_licencia).count() == 3
+
+    def test_create_lote_skips_duplicates(self):
+        """POST with existing paralelo → skips duplicate, creates the rest."""
+        Paralelo.objects.create(
+            asignatura=self.asig1,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+
+        data = self._post_data([self.asig1.pk, self.asig2.pk])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 302
+        assert Paralelo.objects.count() == 2  # 1 existing + 1 new
+
+    def test_create_lote_no_asignaturas_selected(self):
+        """POST without asignaturas → form error, no paralelos created."""
+        data = self._post_data([])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 200  # re-render form
+        assert Paralelo.objects.count() == 0
+
+    def test_create_lote_exceeds_max_asignaturas(self):
+        """POST with more asignaturas than tipo_licencia.num_asignaturas → form error."""
+        # tipo_licencia has num_asignaturas=5, create 6 asignaturas
+        extra_asigs = []
+        for i in range(4, 7):
+            asig = _create_asignatura(nombre=f"Extra {i}", codigo=f"EXT-{i:03d}")
+            asig.tipos_licencia.add(self.tipo_licencia)
+            extra_asigs.append(asig)
+
+        all_ids = [self.asig1.pk, self.asig2.pk, self.asig3.pk] + [a.pk for a in extra_asigs]
+        assert len(all_ids) == 6  # exceeds 5
+
+        data = self._post_data(all_ids)
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 200  # re-render form with error
+        assert Paralelo.objects.count() == 0
+
+    def test_create_lote_docente_forbidden(self):
+        """POST as docente → 403."""
+        docente_client = Client()
+        docente_client.force_login(self.docente)
+
+        data = self._post_data([self.asig1.pk])
+        response = docente_client.post(self._lote_url(), data)
+
+        assert response.status_code == 403
+
+    def test_asignaturas_por_tipo_json(self):
+        """GET /academico/asignaturas-por-tipo/?tipo_licencia=X → JSON with filtered asignaturas."""
+        url = reverse("academico:asignaturas_por_tipo")
+        response = self.client.get(url, {"tipo_licencia": self.tipo_licencia.pk})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["asignaturas"]) == 3
+        codigos = {a["codigo"] for a in data["asignaturas"]}
+        assert codigos == {"LEG-001", "MEC-001", "PAU-001"}

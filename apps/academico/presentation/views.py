@@ -5,7 +5,9 @@ All write operations restricted to Inspector role via RolRequeridoMixin.
 """
 
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views import View
 from django.views.generic import ListView
 
 from apps.academico.application.services import (
@@ -25,7 +27,7 @@ from apps.academico.infrastructure.models import (
 )
 from apps.usuarios.presentation.permissions import RolRequeridoMixin
 
-from .forms import AsignaturaForm, ParaleloForm, PeriodoForm
+from .forms import AsignaturaForm, ParaleloForm, ParaleloLoteForm, PeriodoForm
 
 
 # =============================================================================
@@ -306,6 +308,68 @@ class ParaleloCreateView(RolRequeridoMixin, ListView):
 
         messages.success(request, "Paralelo creado exitosamente.")
         return redirect("academico:paralelo_list")
+
+
+class ParaleloCreateLoteView(RolRequeridoMixin, View):
+    """Batch-create paralelos: one per selected asignatura — Inspector only."""
+
+    rol_requerido = "inspector"
+    template_name = "academico/paralelo_form_lote.html"
+
+    def get(self, request):
+        form = ParaleloLoteForm()
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        form = ParaleloLoteForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        service = ParaleloAppService()
+        try:
+            creados, duplicados = service.crear_lote(
+                asignaturas=form.cleaned_data["asignaturas"],
+                periodo=form.cleaned_data["periodo"],
+                tipo_licencia=form.cleaned_data["tipo_licencia"],
+                docente=form.cleaned_data["docente"],
+                nombre=form.cleaned_data["nombre"],
+                horario=form.cleaned_data.get("horario", ""),
+                capacidad_maxima=form.cleaned_data["capacidad_maxima"],
+                usuario_id=request.user.pk,
+            )
+        except (AcademicoError, ValueError) as e:
+            form.add_error(None, str(e))
+            return render(request, self.template_name, {"form": form})
+
+        if creados:
+            messages.success(
+                request,
+                f"Se crearon {len(creados)} paralelos exitosamente.",
+            )
+        if duplicados:
+            messages.warning(
+                request,
+                f"Se omitieron {len(duplicados)} paralelos duplicados: {', '.join(duplicados)}.",
+            )
+        if not creados and not duplicados:
+            messages.info(request, "No se crearon paralelos.")
+
+        return redirect("academico:paralelo_list")
+
+
+class AsignaturasPorTipoLicenciaView(RolRequeridoMixin, View):
+    """JSON endpoint: returns asignaturas filtered by tipo_licencia ID."""
+
+    rol_requerido = "inspector"
+
+    def get(self, request):
+        tipo_id = request.GET.get("tipo_licencia")
+        if not tipo_id:
+            return JsonResponse({"asignaturas": []})
+        asignaturas = Asignatura.objects.filter(
+            tipos_licencia__id=tipo_id
+        ).distinct().values("id", "codigo", "nombre")
+        return JsonResponse({"asignaturas": list(asignaturas)})
 
 
 class ParaleloUpdateView(RolRequeridoMixin, ListView):

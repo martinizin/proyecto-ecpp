@@ -346,6 +346,72 @@ class ParaleloAppService:
 
         return created
 
+    def crear_lote(
+        self,
+        asignaturas: list,
+        periodo,
+        tipo_licencia,
+        docente,
+        nombre: str,
+        horario: str,
+        capacidad_maxima: int,
+        usuario_id: int,
+    ):
+        """
+        Create one paralelo per selected asignatura (batch creation).
+
+        Validates docente role and active period once, then checks uniqueness
+        per asignatura. Skips duplicates and reports them.
+
+        Returns:
+            Tuple of (list of created ParaleloEntity, list of skipped asignatura codigos).
+
+        Raises:
+            DocenteInvalidoError, PeriodoInactivoError
+        """
+        self.paralelo_service.validar_docente(docente.rol)
+        self.paralelo_service.validar_periodo_activo(periodo.activo)
+
+        created_list = []
+        duplicados = []
+
+        for asignatura in asignaturas:
+            if self.paralelo_repo.exists(
+                periodo_id=periodo.pk,
+                tipo_licencia_id=tipo_licencia.pk,
+                asignatura_id=asignatura.pk,
+                nombre=nombre,
+            ):
+                duplicados.append(asignatura.codigo)
+                continue
+
+            entity = ParaleloEntity(
+                asignatura_codigo=asignatura.codigo,
+                periodo_nombre=periodo.nombre,
+                docente_username=docente.username,
+                nombre=nombre,
+                horario=horario,
+                tipo_licencia_id=tipo_licencia.pk,
+                capacidad_maxima=capacidad_maxima,
+            )
+            created = self.paralelo_repo.create(entity)
+            created_list.append(created)
+
+        if created_list:
+            codigos = ", ".join(c.asignatura_codigo for c in created_list)
+            self.auditoria_repo.registrar(
+                RegistroAuditoriaEntity(
+                    accion="creacion_paralelos_lote",
+                    usuario_id=usuario_id,
+                    detalle=(
+                        f"Lote de {len(created_list)} paralelos creados: "
+                        f"{codigos} — {nombre} ({periodo.nombre})"
+                    ),
+                )
+            )
+
+        return created_list, duplicados
+
     def actualizar(
         self,
         paralelo_id: int,

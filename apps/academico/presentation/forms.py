@@ -62,7 +62,7 @@ class AsignaturaForm(forms.ModelForm):
 
 
 class ParaleloForm(forms.ModelForm):
-    """Form for creating/editing parallels with teacher assignment."""
+    """Form for creating/editing a single parallel with teacher assignment."""
 
     docente = forms.ModelChoiceField(
         queryset=Usuario.objects.filter(rol="docente", is_active=True),
@@ -100,3 +100,77 @@ class ParaleloForm(forms.ModelForm):
             "horario": forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Horario del paralelo"}),
             "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
+
+
+class ParaleloLoteForm(forms.Form):
+    """
+    Batch creation form: creates multiple paralelos (one per selected asignatura)
+    sharing the same periodo, tipo_licencia, nombre, docente, horario, and capacidad.
+
+    Asignaturas are filtered by the selected tipo_licencia.
+    """
+
+    periodo = forms.ModelChoiceField(
+        queryset=Periodo.objects.filter(activo=True),
+        label="Período",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Seleccione un período",
+    )
+    tipo_licencia = forms.ModelChoiceField(
+        queryset=TipoLicencia.objects.filter(activo=True),
+        label="Tipo de licencia",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Seleccione un tipo de licencia",
+    )
+    asignaturas = forms.ModelMultipleChoiceField(
+        queryset=Asignatura.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        label="Asignaturas",
+        error_messages={"required": "Debe seleccionar al menos una asignatura."},
+    )
+    nombre = forms.CharField(
+        max_length=10,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: A, B, GR1"}),
+        label="Nombre del paralelo",
+    )
+    docente = forms.ModelChoiceField(
+        queryset=Usuario.objects.filter(rol="docente", is_active=True),
+        label="Docente",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Seleccione un docente",
+    )
+    horario = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Horario del paralelo"}),
+        label="Horario",
+    )
+    capacidad_maxima = forms.IntegerField(
+        min_value=1,
+        initial=30,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
+        label="Capacidad máxima",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # If tipo_licencia was submitted, filter asignaturas by it
+        if self.data.get("tipo_licencia"):
+            try:
+                tipo_id = int(self.data["tipo_licencia"])
+                self.fields["asignaturas"].queryset = Asignatura.objects.filter(
+                    tipos_licencia__id=tipo_id
+                ).distinct()
+            except (ValueError, TypeError):
+                pass
+
+    def clean_asignaturas(self):
+        asignaturas = self.cleaned_data.get("asignaturas")
+        tipo_licencia = self.cleaned_data.get("tipo_licencia")
+        if asignaturas and tipo_licencia:
+            max_asignaturas = tipo_licencia.num_asignaturas
+            if len(asignaturas) > max_asignaturas:
+                raise forms.ValidationError(
+                    f"La licencia {tipo_licencia.codigo} permite máximo "
+                    f"{max_asignaturas} asignaturas. Seleccionó {len(asignaturas)}."
+                )
+        return asignaturas
