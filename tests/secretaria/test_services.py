@@ -208,3 +208,48 @@ class TestGestionMatriculasService:
             search=mat1.estudiante.first_name
         )
         assert result.count() >= 1
+
+    def test_cambiar_paralelo_success(self):
+        """Change paralelo of an active enrollment."""
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+        nuevo = ParaleloFactory(periodo=mat.paralelo.periodo)
+
+        result = self.service.cambiar_paralelo(mat.pk, nuevo.pk)
+        assert result.paralelo_id == nuevo.pk
+
+    def test_cambiar_paralelo_inactive_raises(self):
+        """Cannot change paralelo of a retired enrollment."""
+        mat = MatriculaFactory(estado=Matricula.Estado.RETIRADA)
+        nuevo = ParaleloFactory(periodo=mat.paralelo.periodo)
+
+        with pytest.raises(EstadoMatriculaInvalidoError):
+            self.service.cambiar_paralelo(mat.pk, nuevo.pk)
+
+    def test_cambiar_paralelo_same_raises(self):
+        """Cannot move to the same paralelo."""
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+
+        with pytest.raises(MatriculaDuplicadaError):
+            self.service.cambiar_paralelo(mat.pk, mat.paralelo.pk)
+
+    def test_cambiar_paralelo_duplicate_raises(self):
+        """Cannot move if student already enrolled in target paralelo."""
+        est = EstudianteFactory()
+        est.save()
+        mat = MatriculaFactory(estudiante=est, estado=Matricula.Estado.ACTIVA)
+        otro_paralelo = ParaleloFactory(periodo=mat.paralelo.periodo)
+        # Create existing enrollment in target
+        MatriculaFactory(estudiante=est, paralelo=otro_paralelo)
+
+        with pytest.raises(MatriculaDuplicadaError):
+            self.service.cambiar_paralelo(mat.pk, otro_paralelo.pk)
+
+    def test_cambiar_paralelo_full_capacity_raises(self):
+        """Cannot move if target paralelo is at max capacity."""
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+        nuevo = ParaleloFactory(periodo=mat.paralelo.periodo, capacidad_maxima=1)
+        # Fill the target paralelo
+        MatriculaFactory(paralelo=nuevo, estado=Matricula.Estado.ACTIVA)
+
+        with pytest.raises(CupoExcedidoError):
+            self.service.cambiar_paralelo(mat.pk, nuevo.pk)

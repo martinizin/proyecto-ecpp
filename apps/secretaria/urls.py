@@ -28,4 +28,9 @@ urlpatterns = [
         views.MatriculaCambiarEstadoView.as_view(),
         name="matricula_cambiar_estado",
     ),
+    path(
+        "matriculas/<int:pk>/cambiar-paralelo/",
+        views.MatriculaCambiarParaleloView.as_view(),
+        name="matricula_cambiar_paralelo",
+    ),
 ]

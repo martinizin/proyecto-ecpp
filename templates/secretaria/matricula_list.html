@@ -105,6 +105,7 @@
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
                             {% if matricula.estado == "activa" %}
+                                <a href="{% url 'secretaria:matricula_cambiar_paralelo' matricula.pk %}" class="text-sm font-medium text-primary hover:text-secondary transition-colors">Cambiar paralelo</a>
                                 <form method="post" action="{% url 'secretaria:matricula_cambiar_estado' matricula.pk %}" class="inline">
                                     {% csrf_token %}
                                     <input type="hidden" name="nuevo_estado" value="retirada">

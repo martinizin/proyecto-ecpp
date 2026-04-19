@@ -312,3 +312,76 @@ class TestMatriculaCambiarEstadoView:
         assert response.status_code == 302  # redirects with error message
         mat.refresh_from_db()
         assert mat.estado == "activa"  # state unchanged
+
+
+class TestMatriculaCambiarParaleloView:
+    """Tests for MatriculaCambiarParaleloView."""
+
+    def test_get_shows_form(self, client):
+        """GET renders the change paralelo form."""
+        sec = make_secretaria()
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "matricula" in response.context
+        assert "paralelos" in response.context
+
+    def test_change_paralelo_success(self, client):
+        """POST with valid paralelo changes enrollment."""
+        sec = make_secretaria()
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+        nuevo = ParaleloFactory(periodo=mat.paralelo.periodo)
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.post(url, {"nuevo_paralelo": nuevo.pk})
+        assert response.status_code == 302
+        mat.refresh_from_db()
+        assert mat.paralelo_id == nuevo.pk
+
+    def test_change_to_same_paralelo_fails(self, client):
+        """Cannot move to the same paralelo."""
+        sec = make_secretaria()
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.post(url, {"nuevo_paralelo": mat.paralelo.pk})
+        assert response.status_code == 302
+        mat.refresh_from_db()
+        assert mat.paralelo_id == mat.paralelo_id  # unchanged
+
+    def test_change_paralelo_inactive_matricula_fails(self, client):
+        """Cannot change paralelo of a retired enrollment."""
+        sec = make_secretaria()
+        mat = MatriculaFactory(estado=Matricula.Estado.RETIRADA)
+        nuevo = ParaleloFactory(periodo=mat.paralelo.periodo)
+        original_paralelo_id = mat.paralelo_id
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.post(url, {"nuevo_paralelo": nuevo.pk})
+        assert response.status_code == 302
+        mat.refresh_from_db()
+        assert mat.paralelo_id == original_paralelo_id  # unchanged
+
+    def test_empty_paralelo_redirects_with_error(self, client):
+        """POST without selecting paralelo redirects with error."""
+        sec = make_secretaria()
+        mat = MatriculaFactory(estado=Matricula.Estado.ACTIVA)
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.post(url, {"nuevo_paralelo": ""})
+        assert response.status_code == 302
+
+    def test_anonymous_redirect(self, client):
+        """Unauthenticated user is redirected to login."""
+        mat = MatriculaFactory()
+        url = reverse("secretaria:matricula_cambiar_paralelo", kwargs={"pk": mat.pk})
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/login/" in response.url

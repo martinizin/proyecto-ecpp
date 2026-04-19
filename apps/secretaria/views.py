@@ -237,6 +237,38 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             })
 
 
+class MatriculaCambiarParaleloView(RolRequeridoMixin, View):
+    """Change enrollment paralelo — Secretaría only."""
+
+    rol_requerido = "secretaria"
+    template_name = "secretaria/matricula_cambiar_paralelo.html"
+
+    def get(self, request, pk):
+        service = GestionMatriculasService()
+        matricula = service.obtener_matricula(pk)
+        paralelos = service.obtener_paralelos_activos().exclude(pk=matricula.paralelo_id)
+        return render(request, self.template_name, {
+            "matricula": matricula,
+            "paralelos": paralelos,
+        })
+
+    def post(self, request, pk):
+        service = GestionMatriculasService()
+        nuevo_paralelo_id = request.POST.get("nuevo_paralelo", "").strip()
+
+        if not nuevo_paralelo_id:
+            messages.error(request, "Debe seleccionar un paralelo.")
+            return redirect("secretaria:matricula_cambiar_paralelo", pk=pk)
+
+        try:
+            service.cambiar_paralelo(pk, int(nuevo_paralelo_id))
+            messages.success(request, "Paralelo actualizado exitosamente.")
+        except (MatriculaDuplicadaError, CupoExcedidoError, EstadoMatriculaInvalidoError) as e:
+            messages.error(request, str(e))
+
+        return redirect("secretaria:matricula_list")
+
+
 class MatriculaCambiarEstadoView(RolRequeridoMixin, View):
     """Change enrollment state — Secretaría only."""
 

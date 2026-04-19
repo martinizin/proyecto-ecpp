@@ -200,3 +200,50 @@ class GestionMatriculasService:
         return Matricula.objects.select_related(
             "estudiante", "paralelo__asignatura", "paralelo__periodo"
         ).get(pk=matricula_id)
+
+    def cambiar_paralelo(self, matricula_id, nuevo_paralelo_id):
+        """
+        Change the paralelo of an active enrollment.
+        Validates: enrollment is active, no duplicate, capacity not exceeded.
+        """
+        from apps.academico.infrastructure.models import Matricula, Paralelo
+
+        matricula = Matricula.objects.select_related("paralelo__periodo").get(
+            pk=matricula_id
+        )
+
+        # Only active enrollments can change paralelo
+        if matricula.estado != Matricula.Estado.ACTIVA:
+            from apps.academico.domain.exceptions import EstadoMatriculaInvalidoError
+
+            raise EstadoMatriculaInvalidoError(
+                "Solo se puede cambiar el paralelo de matrículas activas."
+            )
+
+        nuevo_paralelo = Paralelo.objects.select_related("periodo").get(
+            pk=nuevo_paralelo_id
+        )
+
+        # Cannot move to same paralelo
+        if matricula.paralelo_id == nuevo_paralelo.pk:
+            from apps.academico.domain.exceptions import MatriculaDuplicadaError
+
+            raise MatriculaDuplicadaError(
+                "El estudiante ya se encuentra en este paralelo."
+            )
+
+        # Check no duplicate in target paralelo
+        existe = Matricula.objects.filter(
+            estudiante_id=matricula.estudiante_id, paralelo_id=nuevo_paralelo_id
+        ).exists()
+        self.domain_service.validar_no_duplicada(existe)
+
+        # Check capacity in target paralelo
+        activas = Matricula.objects.filter(
+            paralelo_id=nuevo_paralelo_id, estado=Matricula.Estado.ACTIVA
+        ).count()
+        self.domain_service.validar_cupo(activas, nuevo_paralelo.capacidad_maxima)
+
+        matricula.paralelo = nuevo_paralelo
+        matricula.save(update_fields=["paralelo_id"])
+        return matricula
