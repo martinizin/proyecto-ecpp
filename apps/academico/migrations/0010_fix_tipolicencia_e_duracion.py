@@ -1,20 +1,29 @@
 """
-Data migration: fix Licencia tipo E duracion_meses from 9 to 5.
+Data migration: fix all TipoLicencia data to match confirmed stakeholder specs.
 
-Corrects seed data based on confirmed stakeholder information.
+- Licencia C: 6 meses, 13 asignaturas
+- Licencia E: 5 meses, 17 asignaturas
+- Licencia EC: 5 meses, 8 asignaturas
 """
 
 from django.db import migrations
 
 
-def fix_duracion_e(apps, schema_editor):
-    TipoLicencia = apps.get_model("academico", "TipoLicencia")
-    TipoLicencia.objects.filter(codigo="E").update(duracion_meses=5)
+DATOS_CORRECTOS = {
+    "C": {"nombre": "Licencia tip C", "duracion_meses": 6, "num_asignaturas": 13},
+    "E": {"nombre": "Licencia tip E", "duracion_meses": 5, "num_asignaturas": 17},
+    "EC": {"nombre": "Licencia tip EC", "duracion_meses": 5, "num_asignaturas": 8},
+}
 
 
-def reverse_fix(apps, schema_editor):
+def fix_tipos_licencia(apps, schema_editor):
     TipoLicencia = apps.get_model("academico", "TipoLicencia")
-    TipoLicencia.objects.filter(codigo="E").update(duracion_meses=9)
+    for codigo, datos in DATOS_CORRECTOS.items():
+        TipoLicencia.objects.filter(codigo=codigo).update(**datos)
+
+
+def noop(apps, schema_editor):
+    pass
 
 
 class Migration(migrations.Migration):
@@ -24,5 +33,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(fix_duracion_e, reverse_fix),
+        migrations.RunPython(fix_tipos_licencia, noop),
     ]
