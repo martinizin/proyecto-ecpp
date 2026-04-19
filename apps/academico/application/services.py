@@ -90,6 +90,7 @@ class PeriodoAppService:
         fecha_inicio: date,
         fecha_fin: date,
         usuario_id: int,
+        tipo_licencia_id: int | None = None,
     ) -> PeriodoEntity:
         """
         Update an existing period.
@@ -104,7 +105,7 @@ class PeriodoAppService:
             nombre=nombre,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
-            tipo_licencia_id=existing.tipo_licencia_id if existing else None,
+            tipo_licencia_id=tipo_licencia_id or (existing.tipo_licencia_id if existing else None),
             activo=existing.activo if existing else False,
             creado_por_id=existing.creado_por_id if existing else None,
         )

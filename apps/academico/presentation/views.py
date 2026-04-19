@@ -118,6 +118,7 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
                 nombre=form.cleaned_data["nombre"],
                 fecha_inicio=form.cleaned_data["fecha_inicio"],
                 fecha_fin=form.cleaned_data["fecha_fin"],
+                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 usuario_id=request.user.pk,
             )
 
@@ -131,6 +132,7 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
 
         except PeriodoActivoExistenteError as e:
             # Return to form with confirmation needed
+            periodo.refresh_from_db()
             return render(request, self.template_name, {
                 "form": PeriodoForm(instance=periodo),
                 "editing": True,
