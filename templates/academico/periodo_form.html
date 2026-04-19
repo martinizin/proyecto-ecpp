@@ -87,6 +87,7 @@
                 <input type="hidden" name="activar" value="1">
                 <input type="hidden" name="confirmar_desactivacion" value="1">
                 <input type="hidden" name="nombre" value="{{ periodo.nombre }}">
+                <input type="hidden" name="tipo_licencia" value="{{ periodo.tipo_licencia_id }}">
                 <input type="hidden" name="fecha_inicio" value="{{ periodo.fecha_inicio|date:'Y-m-d' }}">
                 <input type="hidden" name="fecha_fin" value="{{ periodo.fecha_fin|date:'Y-m-d' }}">
                 <div class="flex items-center gap-3 justify-end">
