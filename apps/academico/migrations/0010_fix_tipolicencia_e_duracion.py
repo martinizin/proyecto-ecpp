@@ -10,9 +10,9 @@ from django.db import migrations
 
 
 DATOS_CORRECTOS = {
-    "C": {"nombre": "Licencia tip C", "duracion_meses": 6, "num_asignaturas": 13},
-    "E": {"nombre": "Licencia tip E", "duracion_meses": 5, "num_asignaturas": 17},
-    "EC": {"nombre": "Licencia tip EC", "duracion_meses": 5, "num_asignaturas": 8},
+    "C": {"nombre": "Licencia tipo C", "duracion_meses": 6, "num_asignaturas": 13},
+    "E": {"nombre": "Licencia tipo E", "duracion_meses": 5, "num_asignaturas": 17},
+    "EC": {"nombre": "Licencia tipo E Convalidada", "duracion_meses": 5, "num_asignaturas": 8},
 }
 
 

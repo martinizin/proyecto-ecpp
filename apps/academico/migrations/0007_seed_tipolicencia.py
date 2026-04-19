@@ -11,21 +11,21 @@ def seed_tipos_licencia(apps, schema_editor):
 
     tipos = [
         {
-            "nombre": "Licencia tip C",
+            "nombre": "Licencia tipo C",
             "codigo": "C",
             "duracion_meses": 6,
             "num_asignaturas": 13,
             "activo": True,
         },
         {
-            "nombre": "Licencia tip E",
+            "nombre": "Licencia tipo E",
             "codigo": "E",
             "duracion_meses": 5,
             "num_asignaturas": 17,
             "activo": True,
         },
         {
-            "nombre": "Licencia tip EC",
+            "nombre": "Licencia tipo EC",
             "codigo": "EC",
             "duracion_meses": 5,  # Convalidada: sin duración propia definida por stakeholders
             "num_asignaturas": 8,
