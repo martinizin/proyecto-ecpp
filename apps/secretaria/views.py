@@ -5,6 +5,7 @@ All operations restricted to Secretaría role via RolRequeridoMixin.
 """
 
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views import View
 
@@ -235,6 +236,83 @@ class MatriculaCreateView(RolRequeridoMixin, View):
                 "estudiantes": service.obtener_estudiantes_disponibles(),
                 "paralelos": service.obtener_paralelos_activos(),
             })
+
+
+class ParalelosPorPeriodoView(RolRequeridoMixin, View):
+    """JSON endpoint: return paralelos for a given periodo."""
+
+    rol_requerido = "secretaria"
+
+    def get(self, request):
+        periodo_id = request.GET.get("periodo_id", "").strip()
+        if not periodo_id:
+            return JsonResponse({"paralelos": []})
+
+        service = GestionMatriculasService()
+        paralelos = service.obtener_paralelos_por_periodo(int(periodo_id))
+        data = [
+            {
+                "id": p.id,
+                "asignatura_codigo": p.asignatura.codigo,
+                "asignatura_nombre": p.asignatura.nombre,
+                "nombre": p.nombre,
+                "docente": p.docente.get_full_name() if p.docente else "",
+                "capacidad_maxima": p.capacidad_maxima,
+            }
+            for p in paralelos
+        ]
+        return JsonResponse({"paralelos": data})
+
+
+class MatriculaLoteView(RolRequeridoMixin, View):
+    """Batch enrollment: select student + period, then pick paralelos."""
+
+    rol_requerido = "secretaria"
+    template_name = "secretaria/matricula_form_lote.html"
+
+    def get(self, request):
+        service = GestionMatriculasService()
+        return render(request, self.template_name, {
+            "estudiantes": service.obtener_estudiantes_disponibles(),
+            "periodos": service.obtener_periodos_activos(),
+        })
+
+    def post(self, request):
+        service = GestionMatriculasService()
+        estudiante_id = request.POST.get("estudiante", "").strip()
+        paralelo_ids = request.POST.getlist("paralelos")
+
+        if not estudiante_id:
+            messages.error(request, "Debe seleccionar un estudiante.")
+            return render(request, self.template_name, {
+                "estudiantes": service.obtener_estudiantes_disponibles(),
+                "periodos": service.obtener_periodos_activos(),
+            })
+
+        if not paralelo_ids:
+            messages.error(request, "Debe seleccionar al menos un paralelo.")
+            return render(request, self.template_name, {
+                "estudiantes": service.obtener_estudiantes_disponibles(),
+                "periodos": service.obtener_periodos_activos(),
+            })
+
+        creados, omitidos = service.matricular_en_lote(
+            estudiante_id=int(estudiante_id),
+            paralelo_ids=[int(pid) for pid in paralelo_ids],
+            registrado_por_id=request.user.pk,
+        )
+
+        if creados:
+            messages.success(request, f"Se crearon {creados} matrícula(s) exitosamente.")
+        if omitidos:
+            messages.warning(
+                request,
+                f"Se omitieron {len(omitidos)} paralelo(s): {'; '.join(omitidos)}",
+            )
+        if not creados and not omitidos:
+            messages.info(request, "No se realizaron cambios.")
+
+        return redirect("secretaria:matricula_list")
 
 
 class MatriculaCambiarParaleloView(RolRequeridoMixin, View):

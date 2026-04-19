@@ -247,3 +247,71 @@ class GestionMatriculasService:
         matricula.paralelo = nuevo_paralelo
         matricula.save(update_fields=["paralelo_id"])
         return matricula
+
+    def obtener_periodos_activos(self):
+        """Get all active periods (one per tipo_licencia)."""
+        from apps.academico.infrastructure.models import Periodo
+
+        return (
+            Periodo.objects.filter(activo=True)
+            .select_related("tipo_licencia")
+            .order_by("tipo_licencia__codigo")
+        )
+
+    def obtener_paralelos_por_periodo(self, periodo_id):
+        """Get all paralelos for a specific period."""
+        from apps.academico.infrastructure.models import Paralelo
+
+        return (
+            Paralelo.objects.filter(periodo_id=periodo_id)
+            .select_related("asignatura", "periodo", "tipo_licencia", "docente")
+            .order_by("asignatura__codigo", "nombre")
+        )
+
+    def matricular_en_lote(self, estudiante_id, paralelo_ids, registrado_por_id):
+        """
+        Enroll a student in multiple paralelos at once.
+        Skips paralelos where enrollment already exists or capacity is full.
+        Returns (created_count, skipped_details).
+        """
+        from django.db import transaction
+        from apps.academico.infrastructure.models import Matricula, Paralelo
+
+        paralelos = Paralelo.objects.filter(
+            pk__in=paralelo_ids
+        ).select_related("periodo", "asignatura")
+
+        creados = 0
+        omitidos = []
+
+        with transaction.atomic():
+            for paralelo in paralelos:
+                # Validate active period
+                if not paralelo.periodo.activo:
+                    omitidos.append(f"{paralelo.asignatura.codigo}: período inactivo")
+                    continue
+
+                # Check duplicate
+                if Matricula.objects.filter(
+                    estudiante_id=estudiante_id, paralelo_id=paralelo.pk
+                ).exists():
+                    omitidos.append(f"{paralelo.asignatura.codigo}: ya matriculado")
+                    continue
+
+                # Check capacity
+                activas = Matricula.objects.filter(
+                    paralelo=paralelo, estado=Matricula.Estado.ACTIVA
+                ).count()
+                if activas >= paralelo.capacidad_maxima:
+                    omitidos.append(f"{paralelo.asignatura.codigo}: sin cupo")
+                    continue
+
+                Matricula.objects.create(
+                    estudiante_id=estudiante_id,
+                    paralelo=paralelo,
+                    estado=Matricula.Estado.ACTIVA,
+                    matriculado_por_id=registrado_por_id,
+                )
+                creados += 1
+
+        return creados, omitidos

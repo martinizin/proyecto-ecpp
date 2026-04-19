@@ -253,3 +253,69 @@ class TestGestionMatriculasService:
 
         with pytest.raises(CupoExcedidoError):
             self.service.cambiar_paralelo(mat.pk, nuevo.pk)
+
+    def test_matricular_en_lote_success(self):
+        """Batch enrollment creates multiple matriculas."""
+        est = EstudianteFactory()
+        est.save()
+        periodo = PeriodoFactory(activo=True)
+        p1 = ParaleloFactory(periodo=periodo)
+        p2 = ParaleloFactory(periodo=periodo)
+
+        creados, omitidos = self.service.matricular_en_lote(
+            estudiante_id=est.pk,
+            paralelo_ids=[p1.pk, p2.pk],
+            registrado_por_id=est.pk,
+        )
+        assert creados == 2
+        assert len(omitidos) == 0
+
+    def test_matricular_en_lote_skips_duplicates(self):
+        """Batch enrollment skips paralelos where student is already enrolled."""
+        est = EstudianteFactory()
+        est.save()
+        periodo = PeriodoFactory(activo=True)
+        p1 = ParaleloFactory(periodo=periodo)
+        p2 = ParaleloFactory(periodo=periodo)
+        MatriculaFactory(estudiante=est, paralelo=p1)
+
+        creados, omitidos = self.service.matricular_en_lote(
+            estudiante_id=est.pk,
+            paralelo_ids=[p1.pk, p2.pk],
+            registrado_por_id=est.pk,
+        )
+        assert creados == 1
+        assert len(omitidos) == 1
+        assert "ya matriculado" in omitidos[0]
+
+    def test_matricular_en_lote_skips_full_capacity(self):
+        """Batch enrollment skips paralelos at max capacity."""
+        est = EstudianteFactory()
+        est.save()
+        periodo = PeriodoFactory(activo=True)
+        p1 = ParaleloFactory(periodo=periodo, capacidad_maxima=1)
+        MatriculaFactory(paralelo=p1, estado=Matricula.Estado.ACTIVA)
+
+        creados, omitidos = self.service.matricular_en_lote(
+            estudiante_id=est.pk,
+            paralelo_ids=[p1.pk],
+            registrado_por_id=est.pk,
+        )
+        assert creados == 0
+        assert len(omitidos) == 1
+        assert "sin cupo" in omitidos[0]
+
+    def test_obtener_periodos_activos(self):
+        """Returns only active periods."""
+        PeriodoFactory(activo=True)
+        PeriodoFactory(activo=False)
+        result = self.service.obtener_periodos_activos()
+        assert result.count() == 1
+
+    def test_obtener_paralelos_por_periodo(self):
+        """Returns paralelos for a specific period."""
+        periodo = PeriodoFactory(activo=True)
+        ParaleloFactory(periodo=periodo)
+        ParaleloFactory()  # different period
+        result = self.service.obtener_paralelos_por_periodo(periodo.pk)
+        assert result.count() == 1

@@ -385,3 +385,85 @@ class TestMatriculaCambiarParaleloView:
         response = client.get(url)
         assert response.status_code == 302
         assert "/login/" in response.url
+
+
+class TestMatriculaLoteView:
+    """Tests for MatriculaLoteView (batch enrollment)."""
+
+    def test_get_shows_form(self, client):
+        """GET renders the batch enrollment form."""
+        sec = make_secretaria()
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_create_lote")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "estudiantes" in response.context
+        assert "periodos" in response.context
+
+    def test_post_batch_success(self, client):
+        """POST with student + paralelos creates enrollments."""
+        sec = make_secretaria()
+        est = _saved(EstudianteFactory())
+        periodo = PeriodoFactory(activo=True)
+        p1 = ParaleloFactory(periodo=periodo)
+        p2 = ParaleloFactory(periodo=periodo)
+
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_create_lote")
+        response = client.post(url, {
+            "estudiante": est.pk,
+            "paralelos": [p1.pk, p2.pk],
+        })
+        assert response.status_code == 302
+        from apps.academico.infrastructure.models import Matricula as Mat
+        assert Mat.objects.filter(estudiante=est).count() == 2
+
+    def test_post_no_estudiante_shows_error(self, client):
+        """POST without student shows error."""
+        sec = make_secretaria()
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_create_lote")
+        response = client.post(url, {"estudiante": "", "paralelos": []})
+        assert response.status_code == 200  # re-renders form
+
+    def test_post_no_paralelos_shows_error(self, client):
+        """POST without paralelos shows error."""
+        sec = make_secretaria()
+        est = _saved(EstudianteFactory())
+        client.force_login(sec)
+        url = reverse("secretaria:matricula_create_lote")
+        response = client.post(url, {"estudiante": est.pk})
+        assert response.status_code == 200  # re-renders form
+
+    def test_anonymous_redirect(self, client):
+        """Unauthenticated user is redirected to login."""
+        url = reverse("secretaria:matricula_create_lote")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+
+class TestParalelosPorPeriodoView:
+    """Tests for ParalelosPorPeriodoView JSON endpoint."""
+
+    def test_returns_paralelos_json(self, client):
+        """GET with periodo_id returns paralelos as JSON."""
+        sec = make_secretaria()
+        periodo = PeriodoFactory(activo=True)
+        ParaleloFactory(periodo=periodo)
+
+        client.force_login(sec)
+        url = reverse("secretaria:paralelos_por_periodo")
+        response = client.get(url, {"periodo_id": periodo.pk})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["paralelos"]) == 1
+
+    def test_empty_without_periodo(self, client):
+        """GET without periodo_id returns empty list."""
+        sec = make_secretaria()
+        client.force_login(sec)
+        url = reverse("secretaria:paralelos_por_periodo")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.json()["paralelos"] == []

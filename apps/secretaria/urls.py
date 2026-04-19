@@ -23,6 +23,8 @@ urlpatterns = [
     # Enrollment management
     path("matriculas/", views.MatriculaListView.as_view(), name="matricula_list"),
     path("matriculas/crear/", views.MatriculaCreateView.as_view(), name="matricula_create"),
+    path("matriculas/crear-lote/", views.MatriculaLoteView.as_view(), name="matricula_create_lote"),
+    path("paralelos-por-periodo/", views.ParalelosPorPeriodoView.as_view(), name="paralelos_por_periodo"),
     path(
         "matriculas/<int:pk>/cambiar-estado/",
         views.MatriculaCambiarEstadoView.as_view(),
