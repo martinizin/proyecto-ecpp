@@ -52,10 +52,11 @@ class PeriodoAppService:
         nombre: str,
         fecha_inicio: date,
         fecha_fin: date,
+        tipo_licencia_id: int,
         creado_por_id: int,
     ) -> PeriodoEntity:
         """
-        Create a new academic period.
+        Create a new academic period linked to a license type.
 
         Raises:
             PeriodoSolapadoError: If fecha_inicio >= fecha_fin.
@@ -66,6 +67,7 @@ class PeriodoAppService:
             nombre=nombre,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
+            tipo_licencia_id=tipo_licencia_id,
             activo=False,
             creado_por_id=creado_por_id,
         )
@@ -102,6 +104,7 @@ class PeriodoAppService:
             nombre=nombre,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
+            tipo_licencia_id=existing.tipo_licencia_id if existing else None,
             activo=existing.activo if existing else False,
             creado_por_id=existing.creado_por_id if existing else None,
         )
@@ -125,7 +128,7 @@ class PeriodoAppService:
         confirmar_desactivacion: bool = False,
     ) -> bool:
         """
-        Activate a period, enforcing single-active invariant.
+        Activate a period, enforcing one-active-per-tipo-licencia invariant.
 
         Args:
             periodo_id: ID of the period to activate.
@@ -136,9 +139,11 @@ class PeriodoAppService:
             True if activation succeeded.
 
         Raises:
-            PeriodoActivoExistenteError: If another period is active and not confirmed.
+            PeriodoActivoExistenteError: If another period of the same tipo_licencia
+                is active and not confirmed.
         """
-        activo = self.periodo_repo.get_activo()
+        periodo = self.periodo_repo.get_by_id(periodo_id)
+        activo = self.periodo_repo.get_activo_por_tipo(periodo.tipo_licencia_id)
         periodo_activo_nombre = activo.nombre if activo else None
 
         # Domain check — may raise PeriodoActivoExistenteError
@@ -147,9 +152,9 @@ class PeriodoAppService:
             confirmar_desactivacion=confirmar_desactivacion,
         )
 
-        # Deactivate current if exists
+        # Deactivate current for this tipo_licencia if exists
         if activo:
-            self.periodo_repo.desactivar_todos()
+            self.periodo_repo.desactivar_por_tipo(periodo.tipo_licencia_id)
             self.auditoria_repo.registrar(
                 RegistroAuditoriaEntity(
                     accion="cambio_estado_periodo",

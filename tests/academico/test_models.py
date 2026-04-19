@@ -28,14 +28,15 @@ class TestPeriodo:
         assert periodo.activo is True
         assert periodo.fecha_inicio == datetime.date(2026, 3, 1)
 
-    def test_nombre_unique(self):
-        PeriodoFactory(nombre="2026-1")
+    def test_unique_together_nombre_tipo_licencia(self):
+        """Same nombre + tipo_licencia should be rejected."""
+        periodo = PeriodoFactory(nombre="2026-1")
         with pytest.raises(IntegrityError):
-            PeriodoFactory(nombre="2026-1")
+            PeriodoFactory(nombre="2026-1", tipo_licencia=periodo.tipo_licencia)
 
     def test_str(self):
         periodo = PeriodoFactory(nombre="2026-1")
-        assert str(periodo) == "2026-1"
+        assert str(periodo) == f"2026-1 — {periodo.tipo_licencia.codigo}"
 
     def test_ordering_by_fecha_inicio_desc(self):
         """Periods should be ordered by fecha_inicio descending."""

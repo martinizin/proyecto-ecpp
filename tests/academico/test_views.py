@@ -86,7 +86,7 @@ def _create_tipo_licencia(**kwargs) -> TipoLicencia:
     return obj
 
 
-def _create_periodo(creado_por=None, **kwargs) -> Periodo:
+def _create_periodo(creado_por=None, tipo_licencia=None, **kwargs) -> Periodo:
     defaults = {
         "nombre": "2026-A",
         "fecha_inicio": datetime.date(2026, 3, 1),
@@ -96,6 +96,9 @@ def _create_periodo(creado_por=None, **kwargs) -> Periodo:
     defaults.update(kwargs)
     if creado_por:
         defaults["creado_por"] = creado_por
+    if tipo_licencia is None:
+        tipo_licencia = _create_tipo_licencia()
+    defaults["tipo_licencia"] = tipo_licencia
     return Periodo.objects.create(**defaults)
 
 
@@ -170,9 +173,11 @@ class TestPeriodoViews:
 
     def test_create_periodo_post_exitoso(self):
         """POST valid data → redirects to periodo_list, period created in DB."""
+        tipo_licencia = _create_tipo_licencia()
         url = reverse("academico:periodo_create")
         data = {
             "nombre": "2026-B",
+            "tipo_licencia": tipo_licencia.pk,
             "fecha_inicio": "2026-09-01",
             "fecha_fin": "2027-02-28",
         }
@@ -203,6 +208,7 @@ class TestPeriodoViews:
         url = reverse("academico:periodo_update", args=[periodo.pk])
         data = {
             "nombre": "2026-A-Modificado",
+            "tipo_licencia": periodo.tipo_licencia.pk,
             "fecha_inicio": "2026-03-01",
             "fecha_fin": "2026-08-31",
         }
