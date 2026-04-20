@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Paralelo {{ nombre }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'academico:paralelo_list' %}" class="hover:text-primary transition-colors">Paralelos</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Editar Paralelo {{ nombre }}</li>
+    </ol>
+</nav>
+
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <h1 class="text-xl font-semibold text-gray-800 mb-1">Editar Paralelo {{ nombre }} — {{ tipo_licencia.codigo }} — {{ periodo.nombre }}</h1>
+        <p class="text-sm text-gray-500 mb-6">Seleccione las asignaturas que forman parte de este paralelo y ajuste la capacidad máxima.</p>
+
+        {% if errors %}
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <!-- Asignaturas checkboxes -->
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Asignaturas</label>
+                {% if all_asignaturas %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                    {% for asig in all_asignaturas %}
+                    <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                        <input type="checkbox" name="asignaturas" value="{{ asig.pk }}"
+                               {% if selected_ids %}
+                                   {% if asig.pk in selected_ids %}checked{% endif %}
+                               {% elif asig.pk in existing_asignatura_ids %}
+                                   checked
+                               {% endif %}
+                               class="rounded border-gray-300 text-primary focus:ring-primary">
+                        <span>
+                            <span class="font-medium text-gray-700">{{ asig.codigo }}</span>
+                            <span class="text-gray-500">— {{ asig.nombre }}</span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-400 italic">No hay asignaturas asociadas a este tipo de licencia.</p>
+                {% endif %}
+            </div>
+
+            <!-- Capacidad máxima -->
+            <div class="mb-5">
+                <label for="id_capacidad_maxima" class="block text-sm font-medium text-gray-700 mb-1">Capacidad máxima</label>
+                <input type="number" name="capacidad_maxima" id="id_capacidad_maxima"
+                       value="{{ capacidad_maxima }}" min="1"
+                       class="w-full sm:w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary">
+            </div>
+
+            <!-- Docente para nuevas asignaturas -->
+            <div class="mb-5">
+                <label for="id_docente_default" class="block text-sm font-medium text-gray-700 mb-1">Docente para nuevas asignaturas</label>
+                <select name="docente_default" id="id_docente_default"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary">
+                    <option value="">— Seleccione un docente —</option>
+                    {% for docente in docentes %}
+                    <option value="{{ docente.pk }}">{{ docente.get_full_name }} ({{ docente.username }})</option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1 text-xs text-gray-400">Se asignará a las asignaturas que agregue. Puede cambiarlo después.</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-4 mt-6">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Guardar Cambios
+                </button>
+                <a href="{% url 'academico:paralelo_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

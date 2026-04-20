@@ -21,6 +21,7 @@ from .views import (
     AsignaturasPorTipoLicenciaView,
     ParaleloCreateLoteView,
     ParaleloCreateView,
+    ParaleloGrupoEditView,
     ParaleloListView,
     ParaleloUpdateView,
     PeriodoCreateView,
@@ -52,6 +53,7 @@ urlpatterns = [
     path("paralelos/crear/", ParaleloCreateView.as_view(), name="paralelo_create"),
     path("paralelos/crear-lote/", ParaleloCreateLoteView.as_view(), name="paralelo_create_lote"),
     path("paralelos/<int:pk>/editar/", ParaleloUpdateView.as_view(), name="paralelo_update"),
+    path("paralelos/grupo/<int:periodo_id>/<int:tipo_licencia_id>/<str:nombre>/editar/", ParaleloGrupoEditView.as_view(), name="paralelo_grupo_edit"),
     # Utilidades (JSON endpoints)
     path("asignaturas-por-tipo/", AsignaturasPorTipoLicenciaView.as_view(), name="asignaturas_por_tipo"),
     # Tipos de Licencia (read-only)
