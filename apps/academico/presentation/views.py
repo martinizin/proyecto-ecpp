@@ -4,6 +4,8 @@ CRUD views for periods, subjects, parallels, and license types.
 All write operations restricted to Inspector role via RolRequeridoMixin.
 """
 
+from collections import OrderedDict
+
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -259,7 +261,7 @@ class AsignaturaUpdateView(RolRequeridoMixin, ListView):
 
 
 class ParaleloListView(RolRequeridoMixin, ListView):
-    """List all parallels — Inspector only."""
+    """List all parallels grouped by identity — Inspector only."""
 
     rol_requerido = "inspector"
     model = Paralelo
@@ -269,7 +271,27 @@ class ParaleloListView(RolRequeridoMixin, ListView):
     def get_queryset(self):
         return Paralelo.objects.select_related(
             "asignatura", "periodo", "docente", "tipo_licencia"
-        ).all()
+        ).order_by("periodo__nombre", "tipo_licencia__codigo", "nombre", "asignatura__codigo")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paralelos = context["paralelos"]
+
+        groups = OrderedDict()
+        for p in paralelos:
+            key = (p.periodo_id, p.tipo_licencia_id, p.nombre)
+            if key not in groups:
+                groups[key] = {
+                    "nombre": p.nombre,
+                    "periodo": p.periodo,
+                    "tipo_licencia": p.tipo_licencia,
+                    "capacidad_maxima": p.capacidad_maxima,
+                    "asignaturas": [],
+                }
+            groups[key]["asignaturas"].append(p)
+
+        context["paralelo_groups"] = list(groups.values())
+        return context
 
 
 class ParaleloCreateView(RolRequeridoMixin, ListView):
