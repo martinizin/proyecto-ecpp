@@ -388,7 +388,7 @@ class TestParaleloViews:
     # --- Update ---
 
     def test_update_paralelo_post_exitoso(self):
-        """POST updated data → redirect to paralelo_list, DB updated."""
+        """POST updated docente/horario → redirect to paralelo_list, DB updated."""
         paralelo = Paralelo.objects.create(
             asignatura=self.asignatura,
             periodo=self.periodo,
@@ -401,13 +401,8 @@ class TestParaleloViews:
 
         url = reverse("academico:paralelo_update", args=[paralelo.pk])
         data = {
-            "asignatura": self.asignatura.pk,
-            "periodo": self.periodo.pk,
-            "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
-            "nombre": "A",
             "horario": "Lun-Vie 14:00-16:00",
-            "capacidad_maxima": 35,
         }
 
         response = self.client.post(url, data)
@@ -416,7 +411,6 @@ class TestParaleloViews:
         assert reverse("academico:paralelo_list") in response.url
 
         paralelo.refresh_from_db()
-        assert paralelo.capacidad_maxima == 35
         assert paralelo.horario == "Lun-Vie 14:00-16:00"
 
 

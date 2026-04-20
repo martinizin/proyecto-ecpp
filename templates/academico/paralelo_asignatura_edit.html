@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Editar {{ paralelo.asignatura.nombre }} — Paralelo {{ paralelo.nombre }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'academico:paralelo_list' %}" class="hover:text-primary transition-colors">Paralelos</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">{{ paralelo.asignatura.nombre }} — Paralelo {{ paralelo.nombre }}</li>
+    </ol>
+</nav>
+
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <h1 class="text-xl font-semibold text-gray-800 mb-6">
+            Editar {{ paralelo.asignatura.nombre }} ({{ paralelo.asignatura.codigo }}) — Paralelo {{ paralelo.nombre }}
+        </h1>
+
+        <!-- Read-only info -->
+        <div class="mb-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h2 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Información del paralelo</h2>
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Período</dt>
+                    <dd class="font-medium text-gray-800">{{ paralelo.periodo.nombre }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Tipo de licencia</dt>
+                    <dd class="font-medium text-gray-800">{{ paralelo.tipo_licencia.nombre }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Paralelo</dt>
+                    <dd class="font-medium text-gray-800">{{ paralelo.nombre }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label for="id_docente" class="block text-sm font-medium text-gray-700 mb-1">{{ form.docente.label }}</label>
+                {{ form.docente }}
+                {% if form.docente.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.docente.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_horario" class="block text-sm font-medium text-gray-700 mb-1">{{ form.horario.label }}</label>
+                {{ form.horario }}
+                {% if form.horario.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.horario.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-4 mt-6">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Guardar
+                </button>
+                <a href="{% url 'academico:paralelo_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

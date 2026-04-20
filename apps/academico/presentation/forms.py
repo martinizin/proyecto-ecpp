@@ -109,6 +109,28 @@ class ParaleloForm(forms.ModelForm):
         }
 
 
+class ParaleloAsignaturaEditForm(forms.ModelForm):
+    """Lightweight form to edit only docente and horario of an existing paralelo."""
+
+    docente = forms.ModelChoiceField(
+        queryset=Usuario.objects.filter(rol="docente", is_active=True),
+        label="Docente",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Seleccione un docente",
+    )
+
+    class Meta:
+        model = Paralelo
+        fields = ["docente", "horario"]
+        widgets = {
+            "horario": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Ej: Lunes 08:00–10:00, Miércoles 10:00–12:00",
+            }),
+        }
+
+
 class ParaleloLoteForm(forms.Form):
     """
     Batch creation form: creates multiple paralelos (one per selected asignatura)
