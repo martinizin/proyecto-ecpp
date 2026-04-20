@@ -4,6 +4,8 @@ CRUD views for user management.
 All operations restricted to Secretaría role via RolRequeridoMixin.
 """
 
+from collections import OrderedDict
+
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -186,8 +188,28 @@ class MatriculaListView(RolRequeridoMixin, View):
             search=search_query or None,
         )
 
+        # Group matriculas: {estudiante: {tipo_licencia: [matriculas]}}
+        grouped = OrderedDict()
+        for m in matriculas:
+            est = m.estudiante
+            tl = m.paralelo.tipo_licencia
+            if est.pk not in grouped:
+                grouped[est.pk] = {
+                    "estudiante": est,
+                    "licencias": OrderedDict(),
+                }
+            tl_key = tl.pk
+            if tl_key not in grouped[est.pk]["licencias"]:
+                grouped[est.pk]["licencias"][tl_key] = {
+                    "tipo_licencia": tl,
+                    "periodo": m.paralelo.periodo,
+                    "matriculas": [],
+                }
+            grouped[est.pk]["licencias"][tl_key]["matriculas"].append(m)
+
         return render(request, self.template_name, {
-            "matriculas": matriculas,
+            "grouped": grouped,
+            "matriculas_count": len(matriculas),
             "search_query": search_query,
             "paralelo_filter": paralelo_filter,
             "estado_filter": estado_filter,
@@ -259,6 +281,8 @@ class ParalelosPorPeriodoView(RolRequeridoMixin, View):
                 "nombre": p.nombre,
                 "docente": p.docente.get_full_name() if p.docente else "",
                 "capacidad_maxima": p.capacidad_maxima,
+                "tipo_licencia_codigo": p.tipo_licencia.codigo if p.tipo_licencia else "",
+                "tipo_licencia_nombre": p.tipo_licencia.nombre if p.tipo_licencia else "",
             }
             for p in paralelos
         ]

@@ -223,7 +223,7 @@ class TestMatriculaListView:
         client.force_login(sec)
         response = client.get(self.url, {"estado": "activa"})
         assert response.status_code == 200
-        assert response.context["matriculas"].count() == 1
+        assert response.context["matriculas_count"] == 1
 
 
 class TestMatriculaCreateView:
