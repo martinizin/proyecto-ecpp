@@ -7,12 +7,14 @@ import pytest
 from apps.academico.domain.exceptions import (
     CupoExcedidoError,
     EstadoMatriculaInvalidoError,
+    MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
     PeriodoInactivoError,
 )
 from apps.academico.infrastructure.models import Matricula
 from apps.secretaria.services import GestionMatriculasService, GestionUsuariosService
 from tests.factories import (
+    AsignaturaFactory,
     DocenteFactory,
     EstudianteFactory,
     MatriculaFactory,
@@ -319,3 +321,87 @@ class TestGestionMatriculasService:
         ParaleloFactory()  # different period
         result = self.service.obtener_paralelos_por_periodo(periodo.pk)
         assert result.count() == 1
+
+    def test_crear_matricula_asignatura_duplicada(self):
+        """Cannot enroll in same asignatura even in different paralelo."""
+        est = EstudianteFactory()
+        periodo = PeriodoFactory(activo=True)
+        asignatura = AsignaturaFactory()
+        paralelo_a = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="A"
+        )
+        paralelo_b = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="B"
+        )
+        secretaria = UsuarioFactory(rol="secretaria")
+
+        # Enroll in paralelo A
+        self.service.crear_matricula(
+            estudiante_id=est.pk,
+            paralelo_id=paralelo_a.pk,
+            registrado_por_id=secretaria.pk,
+        )
+
+        # Try to enroll in paralelo B (same asignatura) — should fail
+        with pytest.raises(MatriculaAsignaturaDuplicadaError):
+            self.service.crear_matricula(
+                estudiante_id=est.pk,
+                paralelo_id=paralelo_b.pk,
+                registrado_por_id=secretaria.pk,
+            )
+
+    def test_crear_matricula_asignatura_retirada_permite_reinscripcion(self):
+        """Student retired from asignatura CAN enroll in different paralelo."""
+        est = EstudianteFactory()
+        periodo = PeriodoFactory(activo=True)
+        asignatura = AsignaturaFactory()
+        paralelo_a = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="A"
+        )
+        paralelo_b = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="B"
+        )
+        secretaria = UsuarioFactory(rol="secretaria")
+
+        # Enroll and then retire from paralelo A
+        mat = self.service.crear_matricula(
+            estudiante_id=est.pk,
+            paralelo_id=paralelo_a.pk,
+            registrado_por_id=secretaria.pk,
+        )
+        self.service.cambiar_estado(mat.pk, "retirada", "secretaria")
+
+        # Now enroll in paralelo B — should succeed
+        mat_b = self.service.crear_matricula(
+            estudiante_id=est.pk,
+            paralelo_id=paralelo_b.pk,
+            registrado_por_id=secretaria.pk,
+        )
+        assert mat_b.pk is not None
+
+    def test_matricular_en_lote_skips_asignatura_duplicada(self):
+        """Batch enrollment skips paralelos where student already has same asignatura."""
+        est = EstudianteFactory()
+        est.save()
+        periodo = PeriodoFactory(activo=True)
+        asignatura = AsignaturaFactory()
+        paralelo_a = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="A"
+        )
+        paralelo_b = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="B"
+        )
+        otra_asignatura = AsignaturaFactory()
+        paralelo_c = ParaleloFactory(
+            periodo=periodo, asignatura=otra_asignatura, nombre="A"
+        )
+        MatriculaFactory(estudiante=est, paralelo=paralelo_a)
+
+        creados, omitidos = self.service.matricular_en_lote(
+            estudiante_id=est.pk,
+            paralelo_ids=[paralelo_b.pk, paralelo_c.pk],
+            registrado_por_id=est.pk,
+        )
+        assert creados == 1  # only paralelo_c (different asignatura)
+        assert len(omitidos) == 1
+        assert "ya inscrito en esta asignatura" in omitidos[0]

@@ -141,7 +141,7 @@ class GestionMatriculasService:
         """
         from apps.academico.infrastructure.models import Matricula, Paralelo
 
-        paralelo = Paralelo.objects.select_related("periodo").get(pk=paralelo_id)
+        paralelo = Paralelo.objects.select_related("periodo", "asignatura").get(pk=paralelo_id)
 
         # Domain validations
         self.domain_service.validar_periodo_activo(paralelo.periodo.activo)
@@ -150,6 +150,23 @@ class GestionMatriculasService:
             estudiante_id=estudiante_id, paralelo_id=paralelo_id
         ).exists()
         self.domain_service.validar_no_duplicada(existe)
+
+        # Check same asignatura in same periodo (any paralelo)
+        ya_inscrito_asignatura = Matricula.objects.filter(
+            estudiante_id=estudiante_id,
+            paralelo__asignatura_id=paralelo.asignatura_id,
+            paralelo__periodo_id=paralelo.periodo_id,
+            estado=Matricula.Estado.ACTIVA,
+        ).select_related("paralelo").first()
+        self.domain_service.validar_asignatura_no_duplicada(
+            ya_inscrito=ya_inscrito_asignatura is not None,
+            asignatura_nombre=paralelo.asignatura.nombre,
+            paralelo_existente=(
+                ya_inscrito_asignatura.paralelo.nombre
+                if ya_inscrito_asignatura
+                else ""
+            ),
+        )
 
         activas = Matricula.objects.filter(
             paralelo_id=paralelo_id, estado=Matricula.Estado.ACTIVA
@@ -296,6 +313,19 @@ class GestionMatriculasService:
                     estudiante_id=estudiante_id, paralelo_id=paralelo.pk
                 ).exists():
                     omitidos.append(f"{paralelo.asignatura.codigo}: ya matriculado")
+                    continue
+
+                # Check same asignatura in same periodo (any paralelo)
+                mat_asignatura = Matricula.objects.filter(
+                    estudiante_id=estudiante_id,
+                    paralelo__asignatura_id=paralelo.asignatura_id,
+                    paralelo__periodo_id=paralelo.periodo_id,
+                    estado=Matricula.Estado.ACTIVA,
+                ).exists()
+                if mat_asignatura:
+                    omitidos.append(
+                        f"{paralelo.asignatura.codigo}: ya inscrito en esta asignatura en otro paralelo"
+                    )
                     continue
 
                 # Check capacity

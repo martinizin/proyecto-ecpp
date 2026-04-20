@@ -13,6 +13,7 @@ from .exceptions import (
     CupoExcedidoError,
     DocenteInvalidoError,
     EstadoMatriculaInvalidoError,
+    MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
@@ -179,6 +180,24 @@ class MatriculaService:
             raise MatriculaDuplicadaError(
                 "El estudiante ya tiene una matrícula en este paralelo."
             )
+
+    def validar_asignatura_no_duplicada(
+        self,
+        ya_inscrito: bool,
+        asignatura_nombre: str = "",
+        paralelo_existente: str = "",
+    ) -> None:
+        """Validate that the student is not already enrolled in the same asignatura."""
+        if ya_inscrito:
+            msg = "El estudiante ya se encuentra inscrito en esta asignatura"
+            if asignatura_nombre and paralelo_existente:
+                msg = (
+                    f"El estudiante ya se encuentra inscrito en la asignatura "
+                    f"{asignatura_nombre} en el paralelo {paralelo_existente}."
+                )
+            else:
+                msg += "."
+            raise MatriculaAsignaturaDuplicadaError(msg)
 
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the paralelo belongs to an active period."""

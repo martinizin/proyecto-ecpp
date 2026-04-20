@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from apps.academico.infrastructure.models import Matricula
 from tests.factories import (
+    AsignaturaFactory,
     DocenteFactory,
     EstudianteFactory,
     MatriculaFactory,
@@ -281,6 +282,28 @@ class TestMatriculaCreateView:
         response = client.post(self.url, {
             "estudiante": nuevo_est.pk,
             "paralelo": paralelo.pk,
+        })
+        assert response.status_code == 200
+        assert response.context["form"].non_field_errors()
+
+    def test_post_asignatura_duplicada(self, client):
+        """Enrolling in same asignatura different paralelo shows error."""
+        sec = make_secretaria()
+        periodo = PeriodoFactory(activo=True)
+        asignatura = AsignaturaFactory()
+        paralelo_a = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="A"
+        )
+        paralelo_b = ParaleloFactory(
+            periodo=periodo, asignatura=asignatura, nombre="B"
+        )
+        est = EstudianteFactory()
+        MatriculaFactory(estudiante=est, paralelo=paralelo_a)
+
+        client.force_login(sec)
+        response = client.post(self.url, {
+            "estudiante": est.pk,
+            "paralelo": paralelo_b.pk,
         })
         assert response.status_code == 200
         assert response.context["form"].non_field_errors()

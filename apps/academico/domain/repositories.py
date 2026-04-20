@@ -156,3 +156,10 @@ class MatriculaRepository(ABC):
     def contar_activas_en_paralelo(self, paralelo_id: int) -> int:
         """Count active enrollments in a paralelo (for capacity validation)."""
         ...
+
+    @abstractmethod
+    def exists_by_estudiante_asignatura_periodo(
+        self, estudiante_id: int, asignatura_id: int, periodo_id: int
+    ) -> bool:
+        """Check if student has an active enrollment in the same asignatura within the period."""
+        ...

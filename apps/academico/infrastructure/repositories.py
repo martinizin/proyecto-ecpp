@@ -316,3 +316,13 @@ class DjangoMatriculaRepository(MatriculaRepository):
             paralelo_id=paralelo_id,
             estado=Matricula.Estado.ACTIVA,
         ).count()
+
+    def exists_by_estudiante_asignatura_periodo(
+        self, estudiante_id: int, asignatura_id: int, periodo_id: int
+    ) -> bool:
+        return Matricula.objects.filter(
+            estudiante_id=estudiante_id,
+            paralelo__asignatura_id=asignatura_id,
+            paralelo__periodo_id=periodo_id,
+            estado=Matricula.Estado.ACTIVA,
+        ).exists()

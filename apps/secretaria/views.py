@@ -15,6 +15,7 @@ from apps.usuarios.presentation.permissions import RolRequeridoMixin
 from apps.academico.domain.exceptions import (
     CupoExcedidoError,
     EstadoMatriculaInvalidoError,
+    MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
     PeriodoInactivoError,
 )
@@ -229,7 +230,7 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             )
             messages.success(request, "Matrícula registrada exitosamente.")
             return redirect("secretaria:matricula_list")
-        except (CupoExcedidoError, MatriculaDuplicadaError, PeriodoInactivoError) as e:
+        except (CupoExcedidoError, MatriculaDuplicadaError, MatriculaAsignaturaDuplicadaError, PeriodoInactivoError) as e:
             form.add_error(None, str(e))
             return render(request, self.template_name, {
                 "form": form,
