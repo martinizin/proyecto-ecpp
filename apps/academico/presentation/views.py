@@ -23,13 +23,21 @@ from apps.academico.domain.exceptions import (
 )
 from apps.academico.infrastructure.models import (
     Asignatura,
+    Matricula,
     Paralelo,
     Periodo,
     TipoLicencia,
 )
+from apps.usuarios.infrastructure.models import Usuario
 from apps.usuarios.presentation.permissions import RolRequeridoMixin
 
-from .forms import AsignaturaForm, ParaleloForm, ParaleloLoteForm, PeriodoForm
+from .forms import (
+    AsignaturaForm,
+    ParaleloAsignaturaEditForm,
+    ParaleloForm,
+    ParaleloLoteForm,
+    PeriodoForm,
+)
 
 
 # =============================================================================
@@ -400,65 +408,39 @@ class AsignaturasPorTipoLicenciaView(RolRequeridoMixin, View):
         return JsonResponse({"asignaturas": list(asignaturas)})
 
 
-class ParaleloUpdateView(RolRequeridoMixin, ListView):
-    """Update a parallel — Inspector only."""
+class ParaleloUpdateView(RolRequeridoMixin, View):
+    """Edit docente and horario for a paralelo — Inspector only."""
 
     rol_requerido = "inspector"
-    template_name = "academico/paralelo_form.html"
-    model = Paralelo
+    template_name = "academico/paralelo_asignatura_edit.html"
+
+    def _get_paralelo(self, pk):
+        return get_object_or_404(
+            Paralelo.objects.select_related(
+                "asignatura", "periodo", "tipo_licencia", "docente",
+            ),
+            pk=pk,
+        )
 
     def get(self, request, pk):
-        paralelo = get_object_or_404(Paralelo, pk=pk)
-        form = ParaleloForm(instance=paralelo)
+        paralelo = self._get_paralelo(pk)
+        form = ParaleloAsignaturaEditForm(instance=paralelo)
         return render(request, self.template_name, {
             "form": form,
-            "editing": True,
             "paralelo": paralelo,
         })
 
     def post(self, request, pk):
-        paralelo = get_object_or_404(
-            Paralelo.objects.select_related("asignatura", "periodo", "docente"),
-            pk=pk,
-        )
-        form = ParaleloForm(request.POST, instance=paralelo)
+        paralelo = self._get_paralelo(pk)
+        form = ParaleloAsignaturaEditForm(request.POST, instance=paralelo)
         if not form.is_valid():
             return render(request, self.template_name, {
                 "form": form,
-                "editing": True,
                 "paralelo": paralelo,
             })
 
-        service = ParaleloAppService()
-        docente = form.cleaned_data["docente"]
-        periodo = form.cleaned_data["periodo"]
-        asignatura = form.cleaned_data["asignatura"]
-
-        try:
-            service.actualizar(
-                paralelo_id=pk,
-                asignatura_codigo=asignatura.codigo,
-                periodo_nombre=periodo.nombre,
-                docente_username=docente.username,
-                docente_rol=docente.rol,
-                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
-                nombre=form.cleaned_data["nombre"],
-                horario=form.cleaned_data.get("horario", ""),
-                capacidad_maxima=form.cleaned_data["capacidad_maxima"],
-                periodo_id=periodo.pk,
-                periodo_activo=periodo.activo,
-                asignatura_id=asignatura.pk,
-                usuario_id=request.user.pk,
-            )
-        except (AcademicoError, ValueError) as e:
-            form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "paralelo": paralelo,
-            })
-
-        messages.success(request, "Paralelo actualizado exitosamente.")
+        form.save()
+        messages.success(request, "Docente y horario actualizados exitosamente.")
         return redirect("academico:paralelo_list")
 
 
@@ -477,3 +459,136 @@ class TipoLicenciaListView(RolRequeridoMixin, ListView):
 
     def get_queryset(self):
         return TipoLicencia.objects.all()
+
+
+# =============================================================================
+# Paralelo Grupo Edit View
+# =============================================================================
+
+
+class ParaleloGrupoEditView(RolRequeridoMixin, View):
+    """Edit a paralelo group: manage asignaturas and capacidad_maxima — Inspector only."""
+
+    rol_requerido = "inspector"
+    template_name = "academico/paralelo_grupo_edit.html"
+
+    def _get_group_context(self, periodo_id, tipo_licencia_id, nombre):
+        """Build common context for GET and POST."""
+        periodo = get_object_or_404(Periodo, pk=periodo_id)
+        tipo_licencia = get_object_or_404(TipoLicencia, pk=tipo_licencia_id)
+
+        # All Paralelo rows in this group
+        group_rows = Paralelo.objects.filter(
+            periodo_id=periodo_id,
+            tipo_licencia_id=tipo_licencia_id,
+            nombre=nombre,
+        ).select_related("asignatura", "docente")
+
+        # All asignaturas for this tipo_licencia
+        all_asignaturas = Asignatura.objects.filter(
+            tipos_licencia=tipo_licencia
+        ).distinct().order_by("codigo")
+
+        # IDs already in the group
+        existing_asignatura_ids = set(group_rows.values_list("asignatura_id", flat=True))
+
+        # Current capacidad from any row (they share the value)
+        capacidad_maxima = group_rows.first().capacidad_maxima if group_rows.exists() else 30
+
+        # Docentes for the default docente select
+        docentes = Usuario.objects.filter(rol="docente", is_active=True).order_by(
+            "last_name", "first_name"
+        )
+
+        return {
+            "periodo": periodo,
+            "tipo_licencia": tipo_licencia,
+            "nombre": nombre,
+            "group_rows": group_rows,
+            "all_asignaturas": all_asignaturas,
+            "existing_asignatura_ids": existing_asignatura_ids,
+            "capacidad_maxima": capacidad_maxima,
+            "docentes": docentes,
+        }
+
+    def get(self, request, periodo_id, tipo_licencia_id, nombre):
+        ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+        return render(request, self.template_name, ctx)
+
+    def post(self, request, periodo_id, tipo_licencia_id, nombre):
+        ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+
+        selected_ids = set(
+            int(x) for x in request.POST.getlist("asignaturas") if x.isdigit()
+        )
+        new_capacidad = request.POST.get("capacidad_maxima", "30")
+        default_docente_id = request.POST.get("docente_default", "")
+
+        # Validate capacidad
+        try:
+            new_capacidad = int(new_capacidad)
+            if new_capacidad < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            new_capacidad = 30
+
+        existing_ids = ctx["existing_asignatura_ids"]
+        errors = []
+
+        # --- Remove deselected asignaturas ---
+        to_remove = existing_ids - selected_ids
+        for asig_id in to_remove:
+            row = ctx["group_rows"].filter(asignatura_id=asig_id).first()
+            if row:
+                active_matriculas = Matricula.objects.filter(
+                    paralelo=row, estado=Matricula.Estado.ACTIVA
+                ).exists()
+                if active_matriculas:
+                    asig = row.asignatura
+                    errors.append(
+                        f"No se puede quitar {asig.nombre} ({asig.codigo}) "
+                        f"porque tiene matrículas activas."
+                    )
+                else:
+                    row.delete()
+
+        if errors:
+            # Re-fetch context after partial deletes
+            ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+            ctx["errors"] = errors
+            ctx["selected_ids"] = selected_ids
+            ctx["capacidad_maxima"] = new_capacidad
+            return render(request, self.template_name, ctx)
+
+        # --- Add newly selected asignaturas ---
+        to_add = selected_ids - existing_ids
+        if to_add:
+            if not default_docente_id:
+                ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+                ctx["errors"] = [
+                    "Debe seleccionar un docente para las nuevas asignaturas."
+                ]
+                ctx["selected_ids"] = selected_ids
+                ctx["capacidad_maxima"] = new_capacidad
+                return render(request, self.template_name, ctx)
+
+            docente = get_object_or_404(Usuario, pk=default_docente_id, rol="docente")
+            for asig_id in to_add:
+                Paralelo.objects.create(
+                    asignatura_id=asig_id,
+                    periodo_id=periodo_id,
+                    tipo_licencia_id=tipo_licencia_id,
+                    docente=docente,
+                    nombre=nombre,
+                    capacidad_maxima=new_capacidad,
+                )
+
+        # --- Update capacidad_maxima on all rows ---
+        Paralelo.objects.filter(
+            periodo_id=periodo_id,
+            tipo_licencia_id=tipo_licencia_id,
+            nombre=nombre,
+        ).update(capacidad_maxima=new_capacidad)
+
+        messages.success(request, f"Paralelo {nombre} actualizado exitosamente.")
+        return redirect("academico:paralelo_list")
