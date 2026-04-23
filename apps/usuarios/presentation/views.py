@@ -79,15 +79,21 @@ class LoginView(View):
             form.add_error(None, "Credenciales inválidas o tipo de usuario incorrecto.")
             return render(request, self.template_name, {"form": form})
 
-        # 2FA for all roles — send OTP before completing login
-        service_2fa = Login2FAService()
-        service_2fa.generar_otp_login(user.pk)
-        request.session["2fa_user_id"] = user.pk
-        messages.info(
-            request,
-            "Se ha enviado un código de verificación a su correo electrónico.",
-        )
-        return redirect("usuarios:verificar_2fa")
+        # 2FA for estudiante, docente, inspector — send OTP before completing login
+        if user.rol in ("estudiante", "docente", "inspector"):
+            service_2fa = Login2FAService()
+            service_2fa.generar_otp_login(user.pk)
+            request.session["2fa_user_id"] = user.pk
+            messages.info(
+                request,
+                "Se ha enviado un código de verificación a su correo electrónico.",
+            )
+            return redirect("usuarios:verificar_2fa")
+
+        # Secretaría — direct login (2FA pending until real email is configured)
+        login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
+        return redirect("usuarios:dashboard")
 
 
 class LogoutView(View):
