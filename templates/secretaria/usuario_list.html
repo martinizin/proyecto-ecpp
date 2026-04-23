@@ -97,6 +97,9 @@
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
                             <a href="{% url 'secretaria:usuario_edit' usuario.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
+                            {% if usuario.rol == "estudiante" %}
+                                <a href="{% url 'secretaria:resetear_password_estudiante' usuario.pk %}" class="text-amber-600 hover:text-amber-800 font-medium text-sm transition-colors">Resetear Contraseña</a>
+                            {% endif %}
                             <form method="post" action="{% url 'secretaria:usuario_toggle_activo' usuario.pk %}" class="inline">
                                 {% csrf_token %}
                                 <button type="submit" class="text-sm font-medium transition-colors {% if usuario.is_active %}text-red-600 hover:text-red-800{% else %}text-green-600 hover:text-green-800{% endif %}">

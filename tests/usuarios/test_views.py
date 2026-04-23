@@ -53,7 +53,7 @@ def _create_active_user(
 
 @pytest.mark.django_db
 class TestLoginView:
-    """View tests for login (HU02) — includes 2FA redirect for students."""
+    """View tests for login (HU02) — includes 2FA redirect for all roles."""
 
     def setup_method(self):
         self.client = Client()
@@ -76,10 +76,11 @@ class TestLoginView:
         assert response.status_code == 302
         assert response.url == reverse("usuarios:dashboard")
 
+    @patch("apps.usuarios.application.services.send_otp_email")
     @patch("apps.usuarios.application.services.send_lockout_notification")
-    def test_post_login_exitoso_docente(self, mock_lockout):
-        """POST valid credentials (docente) → direct login, redirects to dashboard."""
-        user = _create_active_user("login@test.com", rol="docente")
+    def test_post_login_exitoso_docente_redirige_a_2fa(self, mock_lockout, mock_otp):
+        """POST valid credentials (docente) → redirects to verificar_2fa (2FA for all roles)."""
+        _create_active_user("login@test.com", rol="docente")
 
         data = {
             "email": "login@test.com",
@@ -89,13 +90,18 @@ class TestLoginView:
 
         response = self.client.post(self.url, data)
 
-        # Redirects to dashboard (direct login, no 2FA)
+        # Redirects to 2FA verification (NOT to dashboard)
         assert response.status_code == 302
-        assert response.url == reverse("usuarios:dashboard")
+        assert response.url == reverse("usuarios:verificar_2fa")
 
-        # User is authenticated in session
-        assert response.wsgi_request.user.is_authenticated
-        assert response.wsgi_request.user.pk == user.pk
+        # User is NOT authenticated yet (login happens after OTP)
+        assert not response.wsgi_request.user.is_authenticated
+
+        # Session contains 2fa_user_id
+        assert "2fa_user_id" in self.client.session
+
+        # OTP email was sent
+        mock_otp.assert_called_once()
 
     @patch("apps.usuarios.application.services.send_otp_email")
     @patch("apps.usuarios.application.services.send_lockout_notification")

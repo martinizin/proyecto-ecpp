@@ -20,6 +20,11 @@ urlpatterns = [
         views.UsuarioToggleActivoView.as_view(),
         name="usuario_toggle_activo",
     ),
+    path(
+        "usuarios/<int:pk>/resetear-password/",
+        views.ResetearPasswordEstudianteView.as_view(),
+        name="resetear_password_estudiante",
+    ),
     # Enrollment management
     path("matriculas/", views.MatriculaListView.as_view(), name="matricula_list"),
     path("matriculas/crear/", views.MatriculaCreateView.as_view(), name="matricula_create"),

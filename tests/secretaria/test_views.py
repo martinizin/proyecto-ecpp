@@ -490,3 +490,52 @@ class TestParalelosPorPeriodoView:
         response = client.get(url)
         assert response.status_code == 200
         assert response.json()["paralelos"] == []
+
+
+# =============================================================================
+# ResetearPasswordEstudiante Views
+# =============================================================================
+
+
+class TestResetearPasswordEstudianteView:
+    """Tests for ResetearPasswordEstudianteView."""
+
+    def _url(self, pk):
+        return reverse("secretaria:resetear_password_estudiante", kwargs={"pk": pk})
+
+    def test_get_shows_confirmation(self, client):
+        """GET returns 200 with student info."""
+        sec = make_secretaria()
+        est = _saved(EstudianteFactory())
+        client.force_login(sec)
+        response = client.get(self._url(est.pk))
+        assert response.status_code == 200
+        assert "estudiante" in response.context
+
+    def test_post_generates_temp_password(self, client):
+        """POST sets temp password and debe_cambiar_password=True."""
+        sec = make_secretaria()
+        est = _saved(EstudianteFactory())
+        old_hash = est.password
+        client.force_login(sec)
+        response = client.post(self._url(est.pk))
+        assert response.status_code == 302
+
+        est.refresh_from_db()
+        assert est.debe_cambiar_password is True
+        assert est.password != old_hash
+
+    def test_post_non_student_returns_403(self, client):
+        """POST on non-student user returns 403."""
+        sec = make_secretaria()
+        docente = _saved(DocenteFactory())
+        client.force_login(sec)
+        response = client.post(self._url(docente.pk))
+        assert response.status_code == 403
+
+    def test_non_secretaria_forbidden(self, client):
+        """Non-secretaria user gets 403."""
+        est = _saved(EstudianteFactory())
+        client.force_login(est)
+        response = client.get(self._url(est.pk))
+        assert response.status_code == 403
