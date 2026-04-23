@@ -2,6 +2,7 @@
 
 from django import forms
 
+from apps.core.validators import validate_cedula_ecuatoriana, validate_nombre, validate_telefono, sanitize_text
 from apps.usuarios.infrastructure.models import Usuario
 
 
@@ -34,7 +35,7 @@ class CrearUsuarioForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     cedula = forms.CharField(
-        max_length=13,
+        max_length=10,
         label="Cédula",
         widget=forms.TextInput(
             attrs={"class": "form-control", "placeholder": "1234567890"}
@@ -57,11 +58,27 @@ class CrearUsuarioForm(forms.Form):
             )
         return email
 
+    def clean_first_name(self):
+        value = self.cleaned_data["first_name"]
+        return validate_nombre(value)
+
+    def clean_last_name(self):
+        value = self.cleaned_data["last_name"]
+        return validate_nombre(value)
+
     def clean_cedula(self):
         cedula = self.cleaned_data["cedula"]
-        if cedula and Usuario.objects.filter(cedula=cedula).exists():
-            raise forms.ValidationError("Ya existe un usuario con esta cédula.")
+        if cedula:
+            validate_cedula_ecuatoriana(cedula)
+            if Usuario.objects.filter(cedula=cedula).exists():
+                raise forms.ValidationError("Ya existe un usuario con esta cédula.")
         return cedula
+
+    def clean_telefono(self):
+        value = self.cleaned_data.get("telefono", "")
+        if value:
+            return validate_telefono(value)
+        return value
 
 
 class EditarUsuarioForm(forms.Form):
@@ -89,10 +106,31 @@ class EditarUsuarioForm(forms.Form):
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     direccion = forms.CharField(
+        max_length=500,
         required=False,
         label="Dirección",
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
     )
+
+    def clean_first_name(self):
+        value = self.cleaned_data["first_name"]
+        return validate_nombre(value)
+
+    def clean_last_name(self):
+        value = self.cleaned_data["last_name"]
+        return validate_nombre(value)
+
+    def clean_telefono(self):
+        value = self.cleaned_data.get("telefono", "")
+        if value:
+            return validate_telefono(value)
+        return value
+
+    def clean_direccion(self):
+        value = self.cleaned_data.get("direccion", "")
+        if value:
+            return sanitize_text(value)
+        return value
 
 
 class CrearMatriculaForm(forms.Form):

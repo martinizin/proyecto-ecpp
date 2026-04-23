@@ -106,7 +106,7 @@ class TestUsuarioCreateView:
             "first_name": "Nuevo",
             "last_name": "Usuario",
             "rol": "estudiante",
-            "cedula": "0777777777",
+            "cedula": "1710034065",
         })
         assert response.status_code == 302
         assert Usuario.objects.filter(email="newuser@test.com").exists()
@@ -122,7 +122,7 @@ class TestUsuarioCreateView:
             "first_name": "Test",
             "last_name": "User",
             "rol": "estudiante",
-            "cedula": "0666666666",
+            "cedula": "0502672230",
         })
         assert response.status_code == 200
         assert "email" in response.context["form"].errors

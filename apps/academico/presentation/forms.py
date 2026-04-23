@@ -3,10 +3,13 @@ Forms for the Academico bounded context.
 Period, subject, and parallel CRUD forms.
 """
 
+import datetime
+
 from django import forms
 from django.contrib.auth import get_user_model
 
 from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
+from apps.core.validators import sanitize_text, validate_codigo
 
 Usuario = get_user_model()
 
@@ -30,6 +33,12 @@ class PeriodoForm(forms.ModelForm):
             "fecha_fin": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
         }
 
+    def clean_nombre(self):
+        nombre = self.cleaned_data.get("nombre", "")
+        if nombre and len(nombre.strip()) < 3:
+            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
+        return nombre.strip()
+
     def clean(self):
         cleaned_data = super().clean()
         fecha_inicio = cleaned_data.get("fecha_inicio")
@@ -38,6 +47,14 @@ class PeriodoForm(forms.ModelForm):
             raise forms.ValidationError(
                 "La fecha de inicio debe ser anterior a la fecha de fin."
             )
+        min_date = datetime.date(2020, 1, 1)
+        max_date = datetime.date(2040, 12, 31)
+        for field_name, fecha in [("fecha_inicio", fecha_inicio), ("fecha_fin", fecha_fin)]:
+            if fecha and (fecha < min_date or fecha > max_date):
+                self.add_error(
+                    field_name,
+                    f"La fecha debe estar entre {min_date} y {max_date}.",
+                )
         return cleaned_data
 
 
@@ -61,10 +78,20 @@ class AsignaturaForm(forms.ModelForm):
             "horas_lectivas": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
 
+    def clean_codigo(self):
+        value = self.cleaned_data.get("codigo", "")
+        return validate_codigo(value)
+
+    def clean_descripcion(self):
+        value = self.cleaned_data.get("descripcion", "")
+        return sanitize_text(value)
+
     def clean_horas_lectivas(self):
         horas = self.cleaned_data.get("horas_lectivas")
         if horas is not None and horas <= 0:
             raise forms.ValidationError("Las horas lectivas deben ser mayores a 0.")
+        if horas is not None and horas > 500:
+            raise forms.ValidationError("Las horas lectivas no pueden superar las 500.")
         return horas
 
 
@@ -108,6 +135,20 @@ class ParaleloForm(forms.ModelForm):
             "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
 
+    def clean_horario(self):
+        value = self.cleaned_data.get("horario", "")
+        if value:
+            return sanitize_text(value)
+        return value
+
+    def clean_capacidad_maxima(self):
+        value = self.cleaned_data.get("capacidad_maxima")
+        if value is not None and value < 1:
+            raise forms.ValidationError("La capacidad mínima es 1.")
+        if value is not None and value > 100:
+            raise forms.ValidationError("La capacidad máxima no puede superar 100.")
+        return value
+
 
 class ParaleloAsignaturaEditForm(forms.ModelForm):
     """Lightweight form to edit only docente and horario of an existing paralelo."""
@@ -129,6 +170,12 @@ class ParaleloAsignaturaEditForm(forms.ModelForm):
                 "placeholder": "Ej: Lunes 08:00–10:00, Miércoles 10:00–12:00",
             }),
         }
+
+    def clean_horario(self):
+        value = self.cleaned_data.get("horario", "")
+        if value:
+            return sanitize_text(value)
+        return value
 
 
 class ParaleloLoteForm(forms.Form):
@@ -175,6 +222,7 @@ class ParaleloLoteForm(forms.Form):
     )
     capacidad_maxima = forms.IntegerField(
         min_value=1,
+        max_value=100,
         initial=30,
         widget=forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         label="Capacidad máxima",
@@ -191,6 +239,12 @@ class ParaleloLoteForm(forms.Form):
                 ).distinct()
             except (ValueError, TypeError):
                 pass
+
+    def clean_horario(self):
+        value = self.cleaned_data.get("horario", "")
+        if value:
+            return sanitize_text(value)
+        return value
 
     def clean_asignaturas(self):
         asignaturas = self.cleaned_data.get("asignaturas")

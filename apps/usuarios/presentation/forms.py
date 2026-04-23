@@ -8,6 +8,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 
+from apps.core.validators import validate_nombre, validate_cedula_ecuatoriana, validate_telefono, sanitize_text
+
 Usuario = get_user_model()
 
 
@@ -60,11 +62,27 @@ class RegistroForm(forms.Form):
             raise forms.ValidationError("Este correo electrónico ya está registrado.")
         return email
 
+    def clean_first_name(self):
+        value = self.cleaned_data["first_name"]
+        return validate_nombre(value)
+
+    def clean_last_name(self):
+        value = self.cleaned_data["last_name"]
+        return validate_nombre(value)
+
     def clean_cedula(self):
         cedula = self.cleaned_data.get("cedula", "")
-        if cedula and Usuario.objects.filter(cedula=cedula).exists():
-            raise forms.ValidationError("Esta cédula ya está registrada.")
+        if cedula:
+            validate_cedula_ecuatoriana(cedula)
+            if Usuario.objects.filter(cedula=cedula).exists():
+                raise forms.ValidationError("Esta cédula ya está registrada.")
         return cedula
+
+    def clean_telefono(self):
+        value = self.cleaned_data.get("telefono", "")
+        if value:
+            return validate_telefono(value)
+        return value
 
     def clean_password2(self):
         password1 = self.cleaned_data.get("password1")
@@ -145,10 +163,31 @@ class DatosPersonalesForm(forms.Form):
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     direccion = forms.CharField(
+        max_length=500,
         required=False,
         label="Dirección",
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
     )
+
+    def clean_first_name(self):
+        value = self.cleaned_data["first_name"]
+        return validate_nombre(value)
+
+    def clean_last_name(self):
+        value = self.cleaned_data["last_name"]
+        return validate_nombre(value)
+
+    def clean_telefono(self):
+        value = self.cleaned_data.get("telefono", "")
+        if value:
+            return validate_telefono(value)
+        return value
+
+    def clean_direccion(self):
+        value = self.cleaned_data.get("direccion", "")
+        if value:
+            return sanitize_text(value)
+        return value
 
 
 class CambiarContrasenaForm(forms.Form):
