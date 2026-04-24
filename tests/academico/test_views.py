@@ -5,7 +5,7 @@ Tests: PeriodoListView, PeriodoCreateView, PeriodoUpdateView,
        AsignaturaListView, AsignaturaCreateView, AsignaturaUpdateView,
        ParaleloListView, ParaleloCreateView, ParaleloUpdateView,
        TipoLicenciaListView.
-Role enforcement: all views require Inspector — non-inspectors get 403.
+Role enforcement: all views require Inspector or Secretaria — other roles get 403.
 Refs: HU05, HU06, SCN-PER-01→04, SCN-CAT-01→10
 """
 
@@ -64,6 +64,18 @@ def _create_estudiante() -> Usuario:
         first_name="Juan",
         last_name="Perez",
         rol="estudiante",
+        is_active=True,
+    )
+
+
+def _create_secretaria() -> Usuario:
+    return Usuario.objects.create_user(
+        username="secretaria_v",
+        email="secretaria@v.com",
+        password=PASSWORD,
+        first_name="Ana",
+        last_name="Martinez",
+        rol="secretaria",
         is_active=True,
     )
 
@@ -448,6 +460,54 @@ class TestTipoLicenciaViews:
         response = docente_client.get(url)
 
         assert response.status_code == 403
+
+
+# =============================================================================
+# TestSecretariaAccess — 3 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSecretariaAccess:
+    """Verify secretaria role can access all academic views."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.secretaria = _create_secretaria()
+        self.client.force_login(self.secretaria)
+
+        self.inspector = _create_inspector()
+        self.tipo_licencia = _create_tipo_licencia()
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+        self.asignatura = _create_asignatura()
+        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        self.docente = _create_docente()
+
+    def test_secretaria_can_list_periodos(self):
+        """GET /academico/periodos/ as secretaria → 200."""
+        url = reverse("academico:periodo_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
+
+    def test_secretaria_can_list_asignaturas(self):
+        """GET /academico/asignaturas/ as secretaria → 200."""
+        url = reverse("academico:asignatura_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
+
+    def test_secretaria_can_list_paralelos(self):
+        """GET /academico/paralelos/ as secretaria → 200."""
+        Paralelo.objects.create(
+            asignatura=self.asignatura,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        url = reverse("academico:paralelo_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
 
 
 # =============================================================================

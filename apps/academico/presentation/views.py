@@ -1,7 +1,7 @@
 """
 Views for the Academico bounded context.
 CRUD views for periods, subjects, parallels, and license types.
-All write operations restricted to Inspector role via RolRequeridoMixin.
+All write operations restricted to Inspector role via MultiRolRequeridoMixin.
 """
 
 from collections import OrderedDict
@@ -32,7 +32,7 @@ from apps.academico.infrastructure.models import (
     TipoLicencia,
 )
 from apps.usuarios.infrastructure.models import Usuario
-from apps.usuarios.presentation.permissions import RolRequeridoMixin
+from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
 
 from .forms import (
     AsignaturaForm,
@@ -48,10 +48,10 @@ from .forms import (
 # =============================================================================
 
 
-class PeriodoListView(RolRequeridoMixin, ListView):
+class PeriodoListView(MultiRolRequeridoMixin, ListView):
     """List all academic periods — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Periodo
     template_name = "academico/periodo_list.html"
     context_object_name = "periodos"
@@ -60,10 +60,10 @@ class PeriodoListView(RolRequeridoMixin, ListView):
         return Periodo.objects.select_related("tipo_licencia").all()
 
 
-class PeriodoCreateView(RolRequeridoMixin, ListView):
+class PeriodoCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new academic period — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/periodo_form.html"
     model = Periodo  # Required by ListView but unused
 
@@ -93,10 +93,10 @@ class PeriodoCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:periodo_list")
 
 
-class PeriodoUpdateView(RolRequeridoMixin, ListView):
+class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
     """Update an academic period — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/periodo_form.html"
     model = Periodo  # Required by ListView but unused
 
@@ -170,19 +170,19 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class AsignaturaListView(RolRequeridoMixin, ListView):
+class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     """List all subjects — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Asignatura
     template_name = "academico/asignatura_list.html"
     context_object_name = "asignaturas"
 
 
-class AsignaturaCreateView(RolRequeridoMixin, ListView):
+class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new subject — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
@@ -215,10 +215,10 @@ class AsignaturaCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:asignatura_list")
 
 
-class AsignaturaUpdateView(RolRequeridoMixin, ListView):
+class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
     """Update a subject — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
@@ -271,10 +271,10 @@ class AsignaturaUpdateView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class ParaleloListView(RolRequeridoMixin, ListView):
+class ParaleloListView(MultiRolRequeridoMixin, ListView):
     """List all parallels grouped by identity — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Paralelo
     template_name = "academico/paralelo_list.html"
     context_object_name = "paralelos"
@@ -305,10 +305,10 @@ class ParaleloListView(RolRequeridoMixin, ListView):
         return context
 
 
-class ParaleloCreateView(RolRequeridoMixin, ListView):
+class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new parallel — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/paralelo_form.html"
     model = Paralelo
 
@@ -348,10 +348,10 @@ class ParaleloCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:paralelo_list")
 
 
-class ParaleloCreateLoteView(RolRequeridoMixin, View):
+class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
     """Batch-create paralelos: one per selected asignatura — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/paralelo_form_lote.html"
 
     def get(self, request):
@@ -394,10 +394,10 @@ class ParaleloCreateLoteView(RolRequeridoMixin, View):
         return redirect("academico:paralelo_list")
 
 
-class AsignaturasPorTipoLicenciaView(RolRequeridoMixin, View):
+class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
     """JSON endpoint: returns asignaturas filtered by tipo_licencia ID."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
 
     def get(self, request):
         tipo_id = request.GET.get("tipo_licencia")
@@ -409,10 +409,10 @@ class AsignaturasPorTipoLicenciaView(RolRequeridoMixin, View):
         return JsonResponse({"asignaturas": list(asignaturas)})
 
 
-class ParaleloUpdateView(RolRequeridoMixin, View):
+class ParaleloUpdateView(MultiRolRequeridoMixin, View):
     """Edit docente and schedule blocks for a paralelo — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/paralelo_asignatura_edit.html"
 
     def _get_paralelo(self, pk):
@@ -528,10 +528,10 @@ class ParaleloUpdateView(RolRequeridoMixin, View):
 # =============================================================================
 
 
-class TipoLicenciaListView(RolRequeridoMixin, ListView):
+class TipoLicenciaListView(MultiRolRequeridoMixin, ListView):
     """List all license types — Inspector only, read-only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = TipoLicencia
     template_name = "academico/tipo_licencia_list.html"
     context_object_name = "tipos_licencia"
@@ -545,10 +545,10 @@ class TipoLicenciaListView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class ParaleloGrupoEditView(RolRequeridoMixin, View):
+class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
     """Edit a paralelo group: manage asignaturas and capacidad_maxima — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/paralelo_grupo_edit.html"
 
     def _get_group_context(self, periodo_id, tipo_licencia_id, nombre):

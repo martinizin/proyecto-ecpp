@@ -68,6 +68,19 @@ class IsInspector(BasePermission):
         )
 
 
+class IsInspectorOrSecretaria(BasePermission):
+    """Allow access to users with rol='inspector' or rol='secretaria'."""
+
+    message = "Solo el Inspector o la Secretaria pueden realizar esta acción."
+
+    def has_permission(self, request, view) -> bool:
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.rol in ("inspector", "secretaria")
+        )
+
+
 class IsDocente(BasePermission):
     """Allow access only to users with rol='docente'."""
 
