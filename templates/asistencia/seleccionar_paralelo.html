@@ -43,7 +43,7 @@
                     {% if request.user.rol == 'inspector' %}
                     <p>Docente: {{ paralelo.docente.get_full_name }}</p>
                     {% endif %}
-                    <p>Horario: {{ paralelo.horario|default:"No especificado" }}</p>
+                    <p>Horario: {% if paralelo.bloques_horario.all %}{% for bloque in paralelo.bloques_horario.all %}{{ bloque.get_dia_semana_display|truncatechars:3 }} {{ bloque.hora_inicio|time:"H:i" }}-{{ bloque.hora_fin|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}{% else %}<span class="text-gray-400">Sin horario</span>{% endif %}</p>
                 </div>
                 <div class="flex gap-2">
                     <a href="{% url 'asistencia:registrar_asistencia' paralelo.pk %}"

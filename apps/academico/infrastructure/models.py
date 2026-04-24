@@ -92,7 +92,6 @@ class Paralelo(models.Model):
         limit_choices_to={"rol": "docente"},
     )
     nombre = models.CharField(max_length=10)  # e.g. "A", "B", "GR1"
-    horario = models.TextField(blank=True)
     capacidad_maxima = models.PositiveIntegerField(default=30)
 
     class Meta:
@@ -103,6 +102,41 @@ class Paralelo(models.Model):
 
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
+
+
+class BloqueHorario(models.Model):
+    """A time block for a paralelo (subject-section). Supports multiple blocks per paralelo."""
+
+    class DiaSemana(models.TextChoices):
+        LUNES = "lunes", "Lunes"
+        MARTES = "martes", "Martes"
+        MIERCOLES = "miercoles", "Miércoles"
+        JUEVES = "jueves", "Jueves"
+        VIERNES = "viernes", "Viernes"
+        SABADO = "sabado", "Sábado"
+
+    paralelo = models.ForeignKey(
+        Paralelo,
+        on_delete=models.CASCADE,
+        related_name="bloques_horario",
+    )
+    dia_semana = models.CharField(max_length=10, choices=DiaSemana.choices)
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+
+    class Meta:
+        verbose_name = "Bloque Horario"
+        verbose_name_plural = "Bloques Horarios"
+        unique_together = ["paralelo", "dia_semana", "hora_inicio"]
+        ordering = ["dia_semana", "hora_inicio"]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.hora_inicio and self.hora_fin and self.hora_inicio >= self.hora_fin:
+            raise ValidationError("La hora de inicio debe ser anterior a la hora de fin.")
+
+    def __str__(self):
+        return f"{self.get_dia_semana_display()} {self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}"
 
 
 class Matricula(models.Model):

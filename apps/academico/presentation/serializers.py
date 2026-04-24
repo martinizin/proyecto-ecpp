@@ -156,7 +156,6 @@ class ParaleloSerializer(serializers.ModelSerializer):
             "docente",
             "docente_nombre",
             "nombre",
-            "horario",
             "capacidad_maxima",
         ]
 

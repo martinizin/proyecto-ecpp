@@ -5,8 +5,10 @@ All write operations restricted to Inspector role via RolRequeridoMixin.
 """
 
 from collections import OrderedDict
+from datetime import time
 
 from django.contrib import messages
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
@@ -23,6 +25,7 @@ from apps.academico.domain.exceptions import (
 )
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
     Matricula,
     Paralelo,
     Periodo,
@@ -279,7 +282,7 @@ class ParaleloListView(RolRequeridoMixin, ListView):
     def get_queryset(self):
         return Paralelo.objects.select_related(
             "asignatura", "periodo", "docente", "tipo_licencia"
-        ).order_by("periodo__nombre", "tipo_licencia__codigo", "nombre", "asignatura__codigo")
+        ).prefetch_related("bloques_horario").order_by("periodo__nombre", "tipo_licencia__codigo", "nombre", "asignatura__codigo")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -331,7 +334,6 @@ class ParaleloCreateView(RolRequeridoMixin, ListView):
                 docente_rol=docente.rol,
                 tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 nombre=form.cleaned_data["nombre"],
-                horario=form.cleaned_data.get("horario", ""),
                 capacidad_maxima=form.cleaned_data["capacidad_maxima"],
                 periodo_id=periodo.pk,
                 periodo_activo=periodo.activo,
@@ -369,7 +371,6 @@ class ParaleloCreateLoteView(RolRequeridoMixin, View):
                 tipo_licencia=form.cleaned_data["tipo_licencia"],
                 docente=form.cleaned_data["docente"],
                 nombre=form.cleaned_data["nombre"],
-                horario=form.cleaned_data.get("horario", ""),
                 capacidad_maxima=form.cleaned_data["capacidad_maxima"],
                 usuario_id=request.user.pk,
             )
@@ -409,7 +410,7 @@ class AsignaturasPorTipoLicenciaView(RolRequeridoMixin, View):
 
 
 class ParaleloUpdateView(RolRequeridoMixin, View):
-    """Edit docente and horario for a paralelo — Inspector only."""
+    """Edit docente and schedule blocks for a paralelo — Inspector only."""
 
     rol_requerido = "inspector"
     template_name = "academico/paralelo_asignatura_edit.html"
@@ -425,21 +426,99 @@ class ParaleloUpdateView(RolRequeridoMixin, View):
     def get(self, request, pk):
         paralelo = self._get_paralelo(pk)
         form = ParaleloAsignaturaEditForm(instance=paralelo)
+        bloques = paralelo.bloques_horario.all()
         return render(request, self.template_name, {
             "form": form,
             "paralelo": paralelo,
+            "bloques": bloques,
         })
 
     def post(self, request, pk):
         paralelo = self._get_paralelo(pk)
         form = ParaleloAsignaturaEditForm(request.POST, instance=paralelo)
         if not form.is_valid():
+            bloques = paralelo.bloques_horario.all()
             return render(request, self.template_name, {
                 "form": form,
                 "paralelo": paralelo,
+                "bloques": bloques,
             })
 
+        # Parse schedule blocks from POST
+        bloques_data = []
+        idx = 0
+        while f"bloque_dia_{idx}" in request.POST:
+            dia = request.POST.get(f"bloque_dia_{idx}", "").strip()
+            inicio_str = request.POST.get(f"bloque_inicio_{idx}", "").strip()
+            fin_str = request.POST.get(f"bloque_fin_{idx}", "").strip()
+            if dia and inicio_str and fin_str:
+                try:
+                    h_inicio = time.fromisoformat(inicio_str)
+                    h_fin = time.fromisoformat(fin_str)
+                    bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
+                except ValueError:
+                    pass
+            idx += 1
+
+        # Validate blocks
+        errores = []
+        for b in bloques_data:
+            if b["inicio"] >= b["fin"]:
+                dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                errores.append(
+                    f"Horario inválido: la hora de inicio ({b['inicio']:%H:%M}) "
+                    f"debe ser anterior a la hora de fin ({b['fin']:%H:%M}) "
+                    f"el {dia_display}."
+                )
+
+        # Conflict validation: check other paralelos in the same group
+        if not errores:
+            same_group_paralelos = Paralelo.objects.filter(
+                periodo_id=paralelo.periodo_id,
+                tipo_licencia_id=paralelo.tipo_licencia_id,
+                nombre=paralelo.nombre,
+            ).exclude(asignatura_id=paralelo.asignatura_id)
+
+            for b in bloques_data:
+                conflicting_blocks = BloqueHorario.objects.filter(
+                    paralelo__in=same_group_paralelos,
+                    dia_semana=b["dia"],
+                    hora_inicio__lt=b["fin"],
+                    hora_fin__gt=b["inicio"],
+                ).select_related("paralelo__asignatura")
+
+                for cb in conflicting_blocks:
+                    dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                    errores.append(
+                        f"Conflicto de horario: {cb.paralelo.asignatura.nombre} "
+                        f"ya tiene clase el {dia_display} de "
+                        f"{cb.hora_inicio:%H:%M} a {cb.hora_fin:%H:%M}"
+                    )
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+            bloques = paralelo.bloques_horario.all()
+            return render(request, self.template_name, {
+                "form": form,
+                "paralelo": paralelo,
+                "bloques": bloques,
+                "errores_horario": errores,
+            })
+
+        # Save docente
         form.save()
+
+        # Replace schedule blocks
+        paralelo.bloques_horario.all().delete()
+        for b in bloques_data:
+            BloqueHorario.objects.create(
+                paralelo=paralelo,
+                dia_semana=b["dia"],
+                hora_inicio=b["inicio"],
+                hora_fin=b["fin"],
+            )
+
         messages.success(request, "Docente y horario actualizados exitosamente.")
         return redirect("academico:paralelo_list")
 

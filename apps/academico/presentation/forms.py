@@ -125,21 +125,13 @@ class ParaleloForm(forms.ModelForm):
             "asignatura",
             "nombre",
             "docente",
-            "horario",
             "capacidad_maxima",
         ]
         widgets = {
             "asignatura": forms.Select(attrs={"class": "form-select"}),
             "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: A, B, GR1"}),
-            "horario": forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Horario del paralelo"}),
             "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
-
-    def clean_horario(self):
-        value = self.cleaned_data.get("horario", "")
-        if value:
-            return sanitize_text(value)
-        return value
 
     def clean_capacidad_maxima(self):
         value = self.cleaned_data.get("capacidad_maxima")
@@ -151,7 +143,7 @@ class ParaleloForm(forms.ModelForm):
 
 
 class ParaleloAsignaturaEditForm(forms.ModelForm):
-    """Lightweight form to edit only docente and horario of an existing paralelo."""
+    """Lightweight form to edit only docente of an existing paralelo."""
 
     docente = forms.ModelChoiceField(
         queryset=Usuario.objects.filter(rol="docente", is_active=True),
@@ -162,20 +154,7 @@ class ParaleloAsignaturaEditForm(forms.ModelForm):
 
     class Meta:
         model = Paralelo
-        fields = ["docente", "horario"]
-        widgets = {
-            "horario": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 3,
-                "placeholder": "Ej: Lunes 08:00–10:00, Miércoles 10:00–12:00",
-            }),
-        }
-
-    def clean_horario(self):
-        value = self.cleaned_data.get("horario", "")
-        if value:
-            return sanitize_text(value)
-        return value
+        fields = ["docente"]
 
 
 class ParaleloLoteForm(forms.Form):
@@ -215,11 +194,6 @@ class ParaleloLoteForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         empty_label="Seleccione un docente",
     )
-    horario = forms.CharField(
-        required=False,
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Horario del paralelo"}),
-        label="Horario",
-    )
     capacidad_maxima = forms.IntegerField(
         min_value=1,
         max_value=100,
@@ -239,12 +213,6 @@ class ParaleloLoteForm(forms.Form):
                 ).distinct()
             except (ValueError, TypeError):
                 pass
-
-    def clean_horario(self):
-        value = self.cleaned_data.get("horario", "")
-        if value:
-            return sanitize_text(value)
-        return value
 
     def clean_asignaturas(self):
         asignaturas = self.cleaned_data.get("asignaturas")

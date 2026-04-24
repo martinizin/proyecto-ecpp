@@ -50,7 +50,6 @@ class ParaleloEntity:
     periodo_nombre: str
     docente_username: str
     nombre: str
-    horario: str = ""
     tipo_licencia_id: Optional[int] = None
     capacidad_maxima: int = 30
 

@@ -17,6 +17,7 @@ from django.urls import reverse
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
     Paralelo,
     Periodo,
     TipoLicencia,
@@ -340,7 +341,6 @@ class TestParaleloViews:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
@@ -372,7 +372,6 @@ class TestParaleloViews:
             "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
             "nombre": "B",
-            "horario": "Mar-Jue 10:00-12:00",
             "capacidad_maxima": 25,
         }
 
@@ -388,21 +387,19 @@ class TestParaleloViews:
     # --- Update ---
 
     def test_update_paralelo_post_exitoso(self):
-        """POST updated docente/horario → redirect to paralelo_list, DB updated."""
+        """POST updated docente → redirect to paralelo_list, DB updated."""
         paralelo = Paralelo.objects.create(
             asignatura=self.asignatura,
             periodo=self.periodo,
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
         url = reverse("academico:paralelo_update", args=[paralelo.pk])
         data = {
             "docente": self.docente.pk,
-            "horario": "Lun-Vie 14:00-16:00",
         }
 
         response = self.client.post(url, data)
@@ -411,7 +408,7 @@ class TestParaleloViews:
         assert reverse("academico:paralelo_list") in response.url
 
         paralelo.refresh_from_db()
-        assert paralelo.horario == "Lun-Vie 14:00-16:00"
+        assert paralelo.docente == self.docente
 
 
 # =============================================================================
@@ -488,7 +485,6 @@ class TestParaleloLoteViews:
             "asignaturas": asignatura_ids,
             "nombre": "A",
             "docente": self.docente.pk,
-            "horario": "Lun-Vie 08:00-10:00",
             "capacidad_maxima": 30,
         }
 
@@ -573,3 +569,141 @@ class TestParaleloLoteViews:
         assert len(data["asignaturas"]) == 3
         codigos = {a["codigo"] for a in data["asignaturas"]}
         assert codigos == {"LEG-001", "MEC-001", "PAU-001"}
+
+
+# =============================================================================
+# TestParaleloBloqueHorarioViews — 5 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestParaleloBloqueHorarioViews:
+    """View tests for BloqueHorario management in ParaleloUpdateView."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.inspector = _create_inspector()
+        self.client.force_login(self.inspector)
+
+        self.docente = _create_docente()
+        self.tipo_licencia = _create_tipo_licencia()
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+        self.asignatura = _create_asignatura(nombre="Legislación", codigo="LEG-001")
+        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+
+        self.paralelo = Paralelo.objects.create(
+            asignatura=self.asignatura,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+
+    def _update_url(self):
+        return reverse("academico:paralelo_update", args=[self.paralelo.pk])
+
+    def _post_with_bloques(self, bloques):
+        """Helper: POST docente + schedule blocks."""
+        data = {"docente": self.docente.pk}
+        for i, b in enumerate(bloques):
+            data[f"bloque_dia_{i}"] = b["dia"]
+            data[f"bloque_inicio_{i}"] = b["inicio"]
+            data[f"bloque_fin_{i}"] = b["fin"]
+        data["bloques_count"] = len(bloques)
+        return self.client.post(self._update_url(), data)
+
+    def test_update_paralelo_adds_bloques(self):
+        """POST with docente + 2 schedule blocks → blocks created in DB."""
+        bloques = [
+            {"dia": "lunes", "inicio": "08:00", "fin": "10:00"},
+            {"dia": "miercoles", "inicio": "08:00", "fin": "10:00"},
+        ]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 2
+
+    def test_update_paralelo_replaces_bloques(self):
+        """Create existing blocks, POST new ones → old deleted, new created."""
+        BloqueHorario.objects.create(
+            paralelo=self.paralelo,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 1
+
+        bloques = [
+            {"dia": "martes", "inicio": "14:00", "fin": "16:00"},
+            {"dia": "jueves", "inicio": "14:00", "fin": "16:00"},
+        ]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        db_bloques = BloqueHorario.objects.filter(paralelo=self.paralelo)
+        assert db_bloques.count() == 2
+        assert not db_bloques.filter(dia_semana="lunes").exists()
+
+    def test_update_paralelo_conflict_detected(self):
+        """Block on another paralelo in same group with overlapping time → error, blocks NOT saved."""
+        # Create another asignatura in same group
+        asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
+        asig2.tipos_licencia.add(self.tipo_licencia)
+        paralelo2 = Paralelo.objects.create(
+            asignatura=asig2,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        BloqueHorario.objects.create(
+            paralelo=paralelo2,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+
+        # Try to add overlapping block
+        bloques = [{"dia": "lunes", "inicio": "09:00", "fin": "11:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 200  # re-rendered form
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 0
+        assert "Conflicto de horario" in response.content.decode()
+
+    def test_update_paralelo_no_conflict_different_day(self):
+        """Same group but different day → no conflict, saves OK."""
+        asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-002")
+        asig2.tipos_licencia.add(self.tipo_licencia)
+        paralelo2 = Paralelo.objects.create(
+            asignatura=asig2,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        BloqueHorario.objects.create(
+            paralelo=paralelo2,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+
+        # Different day → no conflict
+        bloques = [{"dia": "martes", "inicio": "08:00", "fin": "10:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 1
+
+    def test_update_paralelo_invalid_times(self):
+        """hora_inicio >= hora_fin → error shown, blocks NOT saved."""
+        bloques = [{"dia": "lunes", "inicio": "10:00", "fin": "08:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 200  # re-rendered form
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 0
+        assert "Horario inválido" in response.content.decode()

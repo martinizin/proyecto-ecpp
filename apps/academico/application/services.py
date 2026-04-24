@@ -307,7 +307,6 @@ class ParaleloAppService:
         docente_rol: str,
         tipo_licencia_id: int,
         nombre: str,
-        horario: str,
         capacidad_maxima: int,
         periodo_id: int,
         periodo_activo: bool,
@@ -336,7 +335,6 @@ class ParaleloAppService:
             periodo_nombre=periodo_nombre,
             docente_username=docente_username,
             nombre=nombre,
-            horario=horario,
             tipo_licencia_id=tipo_licencia_id,
             capacidad_maxima=capacidad_maxima,
         )
@@ -359,7 +357,6 @@ class ParaleloAppService:
         tipo_licencia,
         docente,
         nombre: str,
-        horario: str,
         capacidad_maxima: int,
         usuario_id: int,
     ):
@@ -396,7 +393,6 @@ class ParaleloAppService:
                 periodo_nombre=periodo.nombre,
                 docente_username=docente.username,
                 nombre=nombre,
-                horario=horario,
                 tipo_licencia_id=tipo_licencia.pk,
                 capacidad_maxima=capacidad_maxima,
             )
@@ -427,7 +423,6 @@ class ParaleloAppService:
         docente_rol: str,
         tipo_licencia_id: int,
         nombre: str,
-        horario: str,
         capacidad_maxima: int,
         periodo_id: int,
         periodo_activo: bool,
@@ -457,7 +452,6 @@ class ParaleloAppService:
             periodo_nombre=periodo_nombre,
             docente_username=docente_username,
             nombre=nombre,
-            horario=horario,
             tipo_licencia_id=tipo_licencia_id,
             capacidad_maxima=capacidad_maxima,
         )

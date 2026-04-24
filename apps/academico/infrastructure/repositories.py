@@ -195,7 +195,6 @@ class DjangoParaleloRepository(ParaleloRepository):
             periodo_nombre=obj.periodo.nombre,
             docente_username=obj.docente.username,
             nombre=obj.nombre,
-            horario=obj.horario,
             tipo_licencia_id=obj.tipo_licencia_id,
             capacidad_maxima=obj.capacidad_maxima,
         )
@@ -231,7 +230,6 @@ class DjangoParaleloRepository(ParaleloRepository):
             docente=Usuario.objects.get(username=entity.docente_username),
             tipo_licencia_id=entity.tipo_licencia_id,
             nombre=entity.nombre,
-            horario=entity.horario,
             capacidad_maxima=entity.capacidad_maxima,
         )
         return self._to_entity(obj)
@@ -248,7 +246,6 @@ class DjangoParaleloRepository(ParaleloRepository):
         obj.docente = Usuario.objects.get(username=entity.docente_username)
         obj.tipo_licencia_id = entity.tipo_licencia_id
         obj.nombre = entity.nombre
-        obj.horario = entity.horario
         obj.capacidad_maxima = entity.capacidad_maxima
         obj.save()
         return self._to_entity(obj)

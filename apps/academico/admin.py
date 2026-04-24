@@ -9,6 +9,7 @@ from apps.academico.domain.exceptions import (
 from apps.academico.domain.services import MatriculaService
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
     Matricula,
     Paralelo,
     Periodo,
@@ -39,6 +40,15 @@ class ParaleloAdmin(admin.ModelAdmin):
     list_display = ("asignatura", "periodo", "nombre", "docente")
     list_filter = ("periodo", "asignatura")
     search_fields = ("nombre", "asignatura__nombre", "docente__username")
+
+
+@admin.register(BloqueHorario)
+class BloqueHorarioAdmin(admin.ModelAdmin):
+    """Admin configuration for BloqueHorario."""
+
+    list_display = ("paralelo", "dia_semana", "hora_inicio", "hora_fin")
+    list_filter = ("dia_semana",)
+    search_fields = ("paralelo__asignatura__nombre", "paralelo__nombre")
 
 
 @admin.register(Matricula)

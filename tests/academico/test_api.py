@@ -428,7 +428,6 @@ class TestParaleloAPI:
             "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
             "nombre": "A",
-            "horario": "Lun-Mie 08:00-10:00",
             "capacidad_maxima": 30,
         }
         data.update(overrides)
@@ -443,7 +442,6 @@ class TestParaleloAPI:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
@@ -545,7 +543,6 @@ class TestParaleloAPI:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun 08:00",
             capacidad_maxima=30,
         )
 
