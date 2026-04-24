@@ -66,6 +66,15 @@
                         {% if paralelo.docente %}
                         <span class="text-gray-500 text-sm ml-2">— {{ paralelo.docente.get_full_name }}</span>
                         {% endif %}
+                        <div class="mt-0.5">
+                            {% if paralelo.bloques_horario.all %}
+                            <span class="text-xs text-gray-500">
+                                {% for bloque in paralelo.bloques_horario.all %}{{ bloque.get_dia_semana_display|truncatechars:3 }} {{ bloque.hora_inicio|time:"H:i" }}-{{ bloque.hora_fin|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                            </span>
+                            {% else %}
+                            <span class="text-xs text-gray-400">Sin horario</span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 <a href="{% url 'academico:paralelo_update' paralelo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors shrink-0">Editar</a>

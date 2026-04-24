@@ -1,13 +1,15 @@
-"""Tests for Periodo, Asignatura, Paralelo, and Matricula models."""
+"""Tests for Periodo, Asignatura, Paralelo, BloqueHorario, and Matricula models."""
 
 import datetime
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
-from apps.academico.infrastructure.models import Asignatura, Matricula, Paralelo, Periodo
+from apps.academico.infrastructure.models import Asignatura, BloqueHorario, Matricula, Paralelo, Periodo
 from tests.factories import (
     AsignaturaFactory,
+    BloqueHorarioFactory,
     DocenteFactory,
     EstudianteFactory,
     MatriculaFactory,
@@ -156,3 +158,24 @@ class TestMatricula:
         matriculas = list(Matricula.objects.all())
         assert matriculas[0] == m2
         assert matriculas[1] == m1
+
+
+class TestBloqueHorario:
+    """Tests for BloqueHorario model."""
+
+    def test_bloque_horario_str(self):
+        bloque = BloqueHorarioFactory(
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+        assert str(bloque) == "Lunes 08:00-10:00"
+
+    def test_bloque_horario_clean_invalid(self):
+        """hora_inicio >= hora_fin should raise ValidationError."""
+        bloque = BloqueHorarioFactory.build(
+            hora_inicio=datetime.time(10, 0),
+            hora_fin=datetime.time(8, 0),
+        )
+        with pytest.raises(ValidationError):
+            bloque.clean()

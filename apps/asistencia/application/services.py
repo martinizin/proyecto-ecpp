@@ -192,6 +192,7 @@ class RegistroAsistenciaAppService:
                 periodo__activo=True,
             )
             .select_related("asignatura", "periodo", "tipo_licencia")
+            .prefetch_related("bloques_horario")
             .order_by("asignatura__codigo", "nombre")
         )
 
@@ -200,6 +201,7 @@ class RegistroAsistenciaAppService:
         return (
             Paralelo.objects.filter(periodo__activo=True)
             .select_related("asignatura", "periodo", "tipo_licencia", "docente")
+            .prefetch_related("bloques_horario")
             .order_by("asignatura__codigo", "nombre")
         )
 
