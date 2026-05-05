@@ -43,18 +43,69 @@
                 {% endif %}
             </div>
 
-            <div class="mb-4">
-                <label for="id_paralelo" class="block text-sm font-medium text-gray-700 mb-1">Asignatura y Paralelo</label>
-                <p class="text-xs text-gray-500 mb-1.5">Seleccione la asignatura y el paralelo donde se inscribirá al estudiante.</p>
-                <select name="paralelo" id="id_paralelo" class="form-select w-full">
-                    <option value="">Seleccione una asignatura y paralelo</option>
-                    {% for p in paralelos %}
-                        <option value="{{ p.id }}" {% if form.paralelo.value|stringformat:"d" == p.id|stringformat:"d" %}selected{% endif %}>{{ p.asignatura.nombre }} ({{ p.asignatura.codigo }}) — Paralelo {{ p.nombre }} — {{ p.periodo }}</option>
-                    {% endfor %}
-                </select>
-                {% if form.paralelo.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.paralelo.errors.0 }}</p>
-                {% endif %}
+            <div x-data="{
+                periodoId: '',
+                asignaturaId: '',
+                paraleloId: '{{ form.paralelo.value|default_if_none:"" }}',
+                paralelos: [],
+                get asignaturas() {
+                    const seen = new Set();
+                    return this.paralelos.filter(p => {
+                        if (seen.has(p.asignatura_codigo)) return false;
+                        seen.add(p.asignatura_codigo);
+                        return true;
+                    }).map(p => ({ codigo: p.asignatura_codigo, nombre: p.asignatura_nombre }));
+                },
+                get paralelosFiltrados() {
+                    if (!this.asignaturaId) return [];
+                    return this.paralelos.filter(p => p.asignatura_codigo === this.asignaturaId);
+                },
+                async fetchParalelos() {
+                    this.asignaturaId = '';
+                    this.paraleloId = '';
+                    this.paralelos = [];
+                    if (!this.periodoId) return;
+                    const url = `{% url 'secretaria:paralelos_por_periodo' %}?periodo_id=${this.periodoId}`;
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    this.paralelos = data.paralelos;
+                }
+            }">
+                <div class="mb-4">
+                    <label for="id_periodo" class="block text-sm font-medium text-gray-700 mb-1">Periodo Académico</label>
+                    <select id="id_periodo" x-model="periodoId" @change="fetchParalelos()" class="form-select w-full">
+                        <option value="">Seleccione un periodo</option>
+                        {% for periodo in periodos %}
+                            <option value="{{ periodo.id }}">{{ periodo }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Seleccione un periodo para ver las asignaturas disponibles.</p>
+                </div>
+
+                <div class="mb-4">
+                    <label for="id_asignatura" class="block text-sm font-medium text-gray-700 mb-1">Asignatura</label>
+                    <select id="id_asignatura" x-model="asignaturaId" @change="paraleloId = ''" :disabled="!periodoId || asignaturas.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed">
+                        <option value="">Seleccione una asignatura</option>
+                        <template x-for="a in asignaturas" :key="a.codigo">
+                            <option :value="a.codigo" x-text="`${a.nombre} (${a.codigo})`"></option>
+                        </template>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500" x-show="!periodoId">Primero seleccione un periodo académico.</p>
+                </div>
+
+                <div class="mb-4">
+                    <label for="id_paralelo" class="block text-sm font-medium text-gray-700 mb-1">Paralelo</label>
+                    <select name="paralelo" id="id_paralelo" x-model="paraleloId" :disabled="!asignaturaId || paralelosFiltrados.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed">
+                        <option value="">Seleccione un paralelo</option>
+                        <template x-for="p in paralelosFiltrados" :key="p.id">
+                            <option :value="p.id" x-text="`Paralelo ${p.nombre} — ${p.docente}`"></option>
+                        </template>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500" x-show="!asignaturaId">Primero seleccione una asignatura.</p>
+                    {% if form.paralelo.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.paralelo.errors.0 }}</p>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="flex items-center gap-4 mt-6">

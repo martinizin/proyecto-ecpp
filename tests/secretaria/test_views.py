@@ -239,7 +239,7 @@ class TestMatriculaCreateView:
         response = client.get(self.url)
         assert response.status_code == 200
         assert "estudiantes" in response.context
-        assert "paralelos" in response.context
+        assert "periodos" in response.context
 
     def test_post_creates_matricula(self, client):
         """Valid POST creates enrollment and redirects."""

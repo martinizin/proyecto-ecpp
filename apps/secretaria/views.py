@@ -263,7 +263,7 @@ class MatriculaCreateView(RolRequeridoMixin, View):
         return render(request, self.template_name, {
             "form": form,
             "estudiantes": service.obtener_estudiantes_disponibles(),
-            "paralelos": service.obtener_paralelos_activos(),
+            "periodos": service.obtener_periodos_activos(),
         })
 
     def post(self, request):
@@ -274,7 +274,7 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             return render(request, self.template_name, {
                 "form": form,
                 "estudiantes": service.obtener_estudiantes_disponibles(),
-                "paralelos": service.obtener_paralelos_activos(),
+                "periodos": service.obtener_periodos_activos(),
             })
 
         try:
@@ -290,7 +290,7 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             return render(request, self.template_name, {
                 "form": form,
                 "estudiantes": service.obtener_estudiantes_disponibles(),
-                "paralelos": service.obtener_paralelos_activos(),
+                "periodos": service.obtener_periodos_activos(),
             })
 
 
