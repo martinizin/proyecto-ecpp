@@ -7,6 +7,7 @@ Sprint 2: Attendance registration (HU08), history view.
 from datetime import date
 
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
@@ -235,3 +236,29 @@ class SupervisionAsistenciaView(RolRequeridoMixin, View):
         datos["normales"] = datos["total_estudiantes"] - en_riesgo
 
         return render(request, self.template_name, datos)
+
+
+class DetalleInasistenciaEstudianteView(RolRequeridoMixin, View):
+    """API endpoint: returns per-subject absence breakdown for a student (inspector only)."""
+
+    rol_requerido = "inspector"
+
+    def get(self, request, estudiante_id):
+        service = RegistroAsistenciaAppService()
+        datos = service.obtener_datos_asistencia_estudiante(estudiante_id)
+
+        asignaturas = []
+        for asig in datos["asignaturas"]:
+            paralelo = asig["paralelo"]
+            asignaturas.append({
+                "asignatura": str(paralelo.asignatura),
+                "codigo": paralelo.asignatura.codigo,
+                "paralelo": paralelo.nombre,
+                "docente": paralelo.docente.get_full_name() if paralelo.docente else "—",
+                "sesiones_asistidas": asig["sesiones_asistidas"],
+                "total_sesiones": asig["total_sesiones"],
+                "porcentaje_inasistencia": asig["porcentaje_inasistencia"],
+                "riesgo": asig["riesgo"],
+            })
+
+        return JsonResponse({"asignaturas": asignaturas})
