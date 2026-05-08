@@ -620,7 +620,8 @@ class TestParaleloLoteViews:
         assert response.status_code == 403
 
     def test_asignaturas_por_tipo_json(self):
-        """GET /academico/asignaturas-por-tipo/?tipo_licencia=X → JSON with filtered asignaturas."""
+        """GET /academico/asignaturas-por-tipo/?tipo_licencia=X
+        → JSON with filtered asignaturas."""
         url = reverse("academico:asignaturas_por_tipo")
         response = self.client.get(url, {"tipo_licencia": self.tipo_licencia.pk})
 
@@ -706,7 +707,8 @@ class TestParaleloBloqueHorarioViews:
         assert not db_bloques.filter(dia_semana="lunes").exists()
 
     def test_update_paralelo_conflict_detected(self):
-        """Block on another paralelo in same group with overlapping time → error, blocks NOT saved."""
+        """Block on another paralelo in same group with
+        overlapping time → error, blocks NOT saved."""
         # Create another asignatura in same group
         asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
         asig2.tipos_licencia.add(self.tipo_licencia)

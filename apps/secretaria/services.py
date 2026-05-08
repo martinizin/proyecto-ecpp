@@ -324,7 +324,8 @@ class GestionMatriculasService:
                 ).exists()
                 if mat_asignatura:
                     omitidos.append(
-                        f"{paralelo.asignatura.codigo}: ya inscrito en esta asignatura en otro paralelo"
+                        f"{paralelo.asignatura.codigo}: ya inscrito en "
+                        f"esta asignatura en otro paralelo"
                     )
                     continue
 

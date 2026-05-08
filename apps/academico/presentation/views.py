@@ -8,7 +8,6 @@ from collections import OrderedDict
 from datetime import time
 
 from django.contrib import messages
-from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
@@ -282,7 +281,10 @@ class ParaleloListView(MultiRolRequeridoMixin, ListView):
     def get_queryset(self):
         return Paralelo.objects.select_related(
             "asignatura", "periodo", "docente", "tipo_licencia"
-        ).prefetch_related("bloques_horario").order_by("periodo__nombre", "tipo_licencia__codigo", "nombre", "asignatura__codigo")
+        ).prefetch_related("bloques_horario").order_by(
+            "periodo__nombre", "tipo_licencia__codigo",
+            "nombre", "asignatura__codigo",
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

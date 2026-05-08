@@ -6,12 +6,14 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
-from apps.academico.infrastructure.models import Asignatura, BloqueHorario, Matricula, Paralelo, Periodo
+from apps.academico.infrastructure.models import (
+    Asignatura,
+    Matricula,
+    Periodo,
+)
 from tests.factories import (
     AsignaturaFactory,
     BloqueHorarioFactory,
-    DocenteFactory,
-    EstudianteFactory,
     MatriculaFactory,
     ParaleloFactory,
     PeriodoFactory,
@@ -143,7 +145,11 @@ class TestMatricula:
     def test_estado_choices(self):
         """All three states should be valid."""
         paralelo = ParaleloFactory()
-        for estado in [Matricula.Estado.ACTIVA, Matricula.Estado.RETIRADA, Matricula.Estado.SUSPENDIDA]:
+        for estado in [
+            Matricula.Estado.ACTIVA,
+            Matricula.Estado.RETIRADA,
+            Matricula.Estado.SUSPENDIDA,
+        ]:
             m = MatriculaFactory(paralelo=paralelo, estado=estado)
             assert m.estado == estado
 

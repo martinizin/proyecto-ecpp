@@ -91,7 +91,8 @@ class UsuarioCreateView(RolRequeridoMixin, View):
         if email_sent:
             messages.success(
                 request,
-                f"Usuario creado exitosamente. Las credenciales fueron enviadas a {usuario.email}.",
+                f"Usuario creado exitosamente. Las credenciales "
+                f"fueron enviadas a {usuario.email}.",
             )
         else:
             messages.warning(
@@ -285,7 +286,12 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             )
             messages.success(request, "Matrícula registrada exitosamente.")
             return redirect("secretaria:matricula_list")
-        except (CupoExcedidoError, MatriculaDuplicadaError, MatriculaAsignaturaDuplicadaError, PeriodoInactivoError) as e:
+        except (
+            CupoExcedidoError,
+            MatriculaDuplicadaError,
+            MatriculaAsignaturaDuplicadaError,
+            PeriodoInactivoError,
+        ) as e:
             form.add_error(None, str(e))
             return render(request, self.template_name, {
                 "form": form,

@@ -5,7 +5,6 @@ These services orchestrate domain services + infrastructure (repositories, email
 to implement complete use cases. They are the entry point from the presentation layer.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from django.conf import settings

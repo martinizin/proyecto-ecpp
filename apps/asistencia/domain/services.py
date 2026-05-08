@@ -8,8 +8,6 @@ AsistenciaCalculoService: calculates attendance percentages (HU10).
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List
 
-from .exceptions import AsistenciaDuplicadaError
-
 
 class AsistenciaCalculoService:
     """

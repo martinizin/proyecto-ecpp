@@ -28,9 +28,20 @@ class PeriodoForm(forms.ModelForm):
         model = Periodo
         fields = ["nombre", "tipo_licencia", "fecha_inicio", "fecha_fin"]
         widgets = {
-            "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: Periodo 2026-A"}),
-            "fecha_inicio": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
-            "fecha_fin": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
+            "nombre": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej: Periodo 2026-A",
+                }
+            ),
+            "fecha_inicio": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+                format="%Y-%m-%d",
+            ),
+            "fecha_fin": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+                format="%Y-%m-%d",
+            ),
         }
 
     def clean_nombre(self):
@@ -72,9 +83,25 @@ class AsignaturaForm(forms.ModelForm):
         model = Asignatura
         fields = ["nombre", "codigo", "descripcion", "horas_lectivas", "tipos_licencia"]
         widgets = {
-            "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre de la asignatura"}),
-            "codigo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: LEG-001"}),
-            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Descripción opcional"}),
+            "nombre": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Nombre de la asignatura",
+                }
+            ),
+            "codigo": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej: LEG-001",
+                }
+            ),
+            "descripcion": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Descripción opcional",
+                }
+            ),
             "horas_lectivas": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
 
@@ -129,8 +156,15 @@ class ParaleloForm(forms.ModelForm):
         ]
         widgets = {
             "asignatura": forms.Select(attrs={"class": "form-select"}),
-            "nombre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: A, B, GR1"}),
-            "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
+            "nombre": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej: A, B, GR1",
+                }
+            ),
+            "capacidad_maxima": forms.NumberInput(
+                attrs={"class": "form-control", "min": "1"}
+            ),
         }
 
     def clean_capacidad_maxima(self):

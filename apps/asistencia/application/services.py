@@ -5,8 +5,7 @@ Orchestrates: save attendance → recalculate % → evaluate alerts.
 """
 
 from datetime import date
-from decimal import Decimal
-from typing import List, Optional
+from typing import List
 
 from django.db import transaction
 from django.db.models import Q

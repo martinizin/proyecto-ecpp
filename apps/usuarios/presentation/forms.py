@@ -8,7 +8,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 
-from apps.core.validators import validate_nombre, validate_cedula_ecuatoriana, validate_telefono, sanitize_text
+from apps.core.validators import (
+    validate_nombre,
+    validate_cedula_ecuatoriana,
+    validate_telefono,
+    sanitize_text,
+)
 
 Usuario = get_user_model()
 
@@ -28,7 +33,12 @@ class RegistroForm(forms.Form):
     )
     email = forms.EmailField(
         label="Correo electrónico",
-        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "correo@ejemplo.com"}),
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "correo@ejemplo.com",
+            }
+        ),
     )
     cedula = forms.CharField(
         max_length=10,
@@ -53,7 +63,12 @@ class RegistroForm(forms.Form):
     )
     password2 = forms.CharField(
         label="Confirmar contraseña",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Repetir contraseña"}),
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Repetir contraseña",
+            }
+        ),
     )
 
     def clean_email(self):
@@ -130,11 +145,21 @@ class LoginForm(forms.Form):
 
     email = forms.EmailField(
         label="Correo electrónico",
-        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "correo@ejemplo.com"}),
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "correo@ejemplo.com",
+            }
+        ),
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Contraseña"}),
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Contraseña",
+            }
+        ),
     )
     tipo_usuario = forms.ChoiceField(
         choices=Usuario.Rol.choices,

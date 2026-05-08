@@ -2,7 +2,12 @@
 
 from django import forms
 
-from apps.core.validators import validate_cedula_ecuatoriana, validate_nombre, validate_telefono, sanitize_text
+from apps.core.validators import (
+    validate_cedula_ecuatoriana,
+    validate_nombre,
+    validate_telefono,
+    sanitize_text,
+)
 from apps.usuarios.infrastructure.models import Usuario
 
 

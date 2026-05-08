@@ -3,10 +3,7 @@ Concrete repository implementations for the Usuarios bounded context.
 Django ORM implementations of the abstract repositories defined in domain/.
 """
 
-from datetime import datetime
 from typing import List, Optional
-
-from django.utils import timezone
 
 from apps.usuarios.domain.entities import (
     OTPTokenEntity,

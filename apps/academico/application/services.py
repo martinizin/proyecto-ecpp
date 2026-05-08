@@ -24,7 +24,6 @@ from apps.academico.infrastructure.repositories import (
     DjangoAsignaturaRepository,
     DjangoParaleloRepository,
     DjangoPeriodoRepository,
-    DjangoTipoLicenciaRepository,
 )
 from apps.usuarios.domain.entities import RegistroAuditoriaEntity
 from apps.usuarios.infrastructure.repositories import DjangoAuditoriaRepository

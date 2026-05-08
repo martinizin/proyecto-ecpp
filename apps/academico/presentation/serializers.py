@@ -63,7 +63,10 @@ class PeriodoSerializer(serializers.ModelSerializer):
             "creado_por_nombre",
             "modificado_en",
         ]
-        read_only_fields = ["id", "activo", "creado_por", "creado_por_nombre", "tipo_licencia_codigo", "modificado_en"]
+        read_only_fields = [
+            "id", "activo", "creado_por", "creado_por_nombre",
+            "tipo_licencia_codigo", "modificado_en",
+        ]
 
     def validate(self, attrs):
         fecha_inicio = attrs.get("fecha_inicio")

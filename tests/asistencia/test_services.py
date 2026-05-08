@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from apps.academico.infrastructure.models import Matricula, Paralelo
+from apps.academico.infrastructure.models import Matricula
 from apps.asistencia.application.services import RegistroAsistenciaAppService
 from apps.asistencia.infrastructure.models import Asistencia
 from tests.factories import (

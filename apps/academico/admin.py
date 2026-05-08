@@ -1,11 +1,5 @@
 from django.contrib import admin
-from django.core.exceptions import ValidationError
 
-from apps.academico.domain.exceptions import (
-    CupoExcedidoError,
-    EstadoMatriculaInvalidoError,
-    MatriculaDuplicadaError,
-)
 from apps.academico.domain.services import MatriculaService
 from apps.academico.infrastructure.models import (
     Asignatura,

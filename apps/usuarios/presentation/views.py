@@ -238,7 +238,14 @@ class CambiarContrasenaView(View):
             request.user.save(update_fields=["debe_cambiar_password"])
 
         # Re-login to update session hash
-        login(request, request.user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        login(
+            request,
+            request.user,
+            backend=(
+                "apps.usuarios.infrastructure"
+                ".auth_backend.ECPPPAuthBackend"
+            ),
+        )
         messages.success(request, "Contraseña cambiada exitosamente.")
         return redirect("usuarios:perfil")
 

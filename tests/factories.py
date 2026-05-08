@@ -9,7 +9,14 @@ from decimal import Decimal
 import factory
 from django.utils import timezone
 
-from apps.academico.infrastructure.models import Asignatura, BloqueHorario, Matricula, Paralelo, Periodo, TipoLicencia
+from apps.academico.infrastructure.models import (
+    Asignatura,
+    BloqueHorario,
+    Matricula,
+    Paralelo,
+    Periodo,
+    TipoLicencia,
+)
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
 from apps.solicitudes.infrastructure.models import Solicitud

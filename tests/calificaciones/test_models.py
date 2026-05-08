@@ -5,10 +5,9 @@ from decimal import Decimal
 import pytest
 from django.db import IntegrityError
 
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
+from apps.calificaciones.infrastructure.models import Evaluacion
 from tests.factories import (
     CalificacionFactory,
-    EstudianteFactory,
     EvaluacionFactory,
 )
 
