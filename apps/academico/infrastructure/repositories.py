@@ -33,6 +33,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
             nombre=obj.nombre,
             fecha_inicio=obj.fecha_inicio,
             fecha_fin=obj.fecha_fin,
+            tipo_licencia_id=obj.tipo_licencia_id,
             activo=obj.activo,
             creado_por_id=obj.creado_por_id,
         )
@@ -44,9 +45,9 @@ class DjangoPeriodoRepository(PeriodoRepository):
         except Periodo.DoesNotExist:
             return None
 
-    def get_activo(self) -> Optional[PeriodoEntity]:
+    def get_activo_por_tipo(self, tipo_licencia_id: int) -> Optional[PeriodoEntity]:
         try:
-            obj = Periodo.objects.get(activo=True)
+            obj = Periodo.objects.get(activo=True, tipo_licencia_id=tipo_licencia_id)
             return self._to_entity(obj)
         except Periodo.DoesNotExist:
             return None
@@ -59,6 +60,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
             nombre=entity.nombre,
             fecha_inicio=entity.fecha_inicio,
             fecha_fin=entity.fecha_fin,
+            tipo_licencia_id=entity.tipo_licencia_id,
             activo=entity.activo,
             creado_por_id=entity.creado_por_id,
         )
@@ -69,6 +71,7 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.nombre = entity.nombre
         obj.fecha_inicio = entity.fecha_inicio
         obj.fecha_fin = entity.fecha_fin
+        obj.tipo_licencia_id = entity.tipo_licencia_id
         obj.activo = entity.activo
         obj.save()
         return self._to_entity(obj)
@@ -80,8 +83,8 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.activo = True
         obj.save(update_fields=["activo", "modificado_en"])
 
-    def desactivar_todos(self) -> None:
-        Periodo.objects.filter(activo=True).update(activo=False)
+    def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
+        Periodo.objects.filter(activo=True, tipo_licencia_id=tipo_licencia_id).update(activo=False)
 
 
 class DjangoTipoLicenciaRepository(TipoLicenciaRepository):
@@ -111,10 +114,7 @@ class DjangoTipoLicenciaRepository(TipoLicenciaRepository):
             return None
 
     def list_activos(self) -> List[TipoLicenciaEntity]:
-        return [
-            self._to_entity(obj)
-            for obj in TipoLicencia.objects.filter(activo=True)
-        ]
+        return [self._to_entity(obj) for obj in TipoLicencia.objects.filter(activo=True)]
 
 
 class DjangoAsignaturaRepository(AsignaturaRepository):
@@ -126,9 +126,7 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
             codigo=obj.codigo,
             descripcion=obj.descripcion,
             horas_lectivas=obj.horas_lectivas,
-            tipos_licencia_ids=list(
-                obj.tipos_licencia.values_list("id", flat=True)
-            ),
+            tipos_licencia_ids=list(obj.tipos_licencia.values_list("id", flat=True)),
         )
 
     def get_by_id(self, asignatura_id: int) -> Optional[AsignaturaEntity]:
@@ -159,9 +157,7 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
             obj.tipos_licencia.set(entity.tipos_licencia_ids)
         return self._to_entity(obj)
 
-    def update(
-        self, asignatura_id: int, entity: AsignaturaEntity
-    ) -> AsignaturaEntity:
+    def update(self, asignatura_id: int, entity: AsignaturaEntity) -> AsignaturaEntity:
         obj = Asignatura.objects.get(pk=asignatura_id)
         obj.nombre = entity.nombre
         obj.codigo = entity.codigo
@@ -172,9 +168,7 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
             obj.tipos_licencia.set(entity.tipos_licencia_ids)
         return self._to_entity(obj)
 
-    def codigo_exists(
-        self, codigo: str, exclude_id: Optional[int] = None
-    ) -> bool:
+    def codigo_exists(self, codigo: str, exclude_id: Optional[int] = None) -> bool:
         qs = Asignatura.objects.filter(codigo=codigo)
         if exclude_id:
             qs = qs.exclude(pk=exclude_id)
@@ -190,30 +184,27 @@ class DjangoParaleloRepository(ParaleloRepository):
             periodo_nombre=obj.periodo.nombre,
             docente_username=obj.docente.username,
             nombre=obj.nombre,
-            horario=obj.horario,
             tipo_licencia_id=obj.tipo_licencia_id,
             capacidad_maxima=obj.capacidad_maxima,
         )
 
     def get_by_id(self, paralelo_id: int) -> Optional[ParaleloEntity]:
         try:
-            obj = Paralelo.objects.select_related(
-                "asignatura", "periodo", "docente"
-            ).get(pk=paralelo_id)
+            obj = Paralelo.objects.select_related("asignatura", "periodo", "docente").get(
+                pk=paralelo_id
+            )
             return self._to_entity(obj)
         except Paralelo.DoesNotExist:
             return None
 
     def list_by_periodo(self, periodo_nombre: str) -> List[ParaleloEntity]:
-        objs = Paralelo.objects.select_related(
-            "asignatura", "periodo", "docente"
-        ).filter(periodo__nombre=periodo_nombre)
+        objs = Paralelo.objects.select_related("asignatura", "periodo", "docente").filter(
+            periodo__nombre=periodo_nombre
+        )
         return [self._to_entity(obj) for obj in objs]
 
     def list_all(self) -> List[ParaleloEntity]:
-        objs = Paralelo.objects.select_related(
-            "asignatura", "periodo", "docente"
-        ).all()
+        objs = Paralelo.objects.select_related("asignatura", "periodo", "docente").all()
         return [self._to_entity(obj) for obj in objs]
 
     def create(self, entity: ParaleloEntity) -> ParaleloEntity:
@@ -226,14 +217,11 @@ class DjangoParaleloRepository(ParaleloRepository):
             docente=Usuario.objects.get(username=entity.docente_username),
             tipo_licencia_id=entity.tipo_licencia_id,
             nombre=entity.nombre,
-            horario=entity.horario,
             capacidad_maxima=entity.capacidad_maxima,
         )
         return self._to_entity(obj)
 
-    def update(
-        self, paralelo_id: int, entity: ParaleloEntity
-    ) -> ParaleloEntity:
+    def update(self, paralelo_id: int, entity: ParaleloEntity) -> ParaleloEntity:
         from apps.academico.infrastructure.models import Asignatura, Periodo
         from apps.usuarios.infrastructure.models import Usuario
 
@@ -243,7 +231,6 @@ class DjangoParaleloRepository(ParaleloRepository):
         obj.docente = Usuario.objects.get(username=entity.docente_username)
         obj.tipo_licencia_id = entity.tipo_licencia_id
         obj.nombre = entity.nombre
-        obj.horario = entity.horario
         obj.capacidad_maxima = entity.capacidad_maxima
         obj.save()
         return self._to_entity(obj)
@@ -311,3 +298,13 @@ class DjangoMatriculaRepository(MatriculaRepository):
             paralelo_id=paralelo_id,
             estado=Matricula.Estado.ACTIVA,
         ).count()
+
+    def exists_by_estudiante_asignatura_periodo(
+        self, estudiante_id: int, asignatura_id: int, periodo_id: int
+    ) -> bool:
+        return Matricula.objects.filter(
+            estudiante_id=estudiante_id,
+            paralelo__asignatura_id=asignatura_id,
+            paralelo__periodo_id=periodo_id,
+            estado=Matricula.Estado.ACTIVA,
+        ).exists()

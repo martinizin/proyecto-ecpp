@@ -51,7 +51,15 @@ class UsuarioAdmin(UserAdmin):
     add_form = UsuarioCreationForm
 
     # List view
-    list_display = ("email", "first_name", "last_name", "rol", "cedula", "is_active", "debe_cambiar_password")
+    list_display = (
+        "email",
+        "first_name",
+        "last_name",
+        "rol",
+        "cedula",
+        "is_active",
+        "debe_cambiar_password",
+    )
     list_filter = ("rol", "is_active", "is_staff", "debe_cambiar_password")
     search_fields = ("email", "first_name", "last_name", "cedula")
     ordering = ("-date_joined",)
@@ -75,7 +83,13 @@ class UsuarioAdmin(UserAdmin):
                 "classes": ("collapse",),
             },
         ),
-        ("Fechas importantes", {"fields": ("last_login", "date_joined"), "classes": ("collapse",)}),
+        (
+            "Fechas importantes",
+            {
+                "fields": ("last_login", "date_joined"),
+                "classes": ("collapse",),
+            },
+        ),
     )
 
     # Creation view — new users (secretariat workflow)

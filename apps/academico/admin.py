@@ -1,14 +1,9 @@
 from django.contrib import admin
-from django.core.exceptions import ValidationError
 
-from apps.academico.domain.exceptions import (
-    CupoExcedidoError,
-    EstadoMatriculaInvalidoError,
-    MatriculaDuplicadaError,
-)
 from apps.academico.domain.services import MatriculaService
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
     Matricula,
     Paralelo,
     Periodo,
@@ -39,6 +34,15 @@ class ParaleloAdmin(admin.ModelAdmin):
     list_display = ("asignatura", "periodo", "nombre", "docente")
     list_filter = ("periodo", "asignatura")
     search_fields = ("nombre", "asignatura__nombre", "docente__username")
+
+
+@admin.register(BloqueHorario)
+class BloqueHorarioAdmin(admin.ModelAdmin):
+    """Admin configuration for BloqueHorario."""
+
+    list_display = ("paralelo", "dia_semana", "hora_inicio", "hora_fin")
+    list_filter = ("dia_semana",)
+    search_fields = ("paralelo__asignatura__nombre", "paralelo__nombre")
 
 
 @admin.register(Matricula)
@@ -82,9 +86,7 @@ class MatriculaAdmin(admin.ModelAdmin):
             service.validar_no_duplicada(existe)
 
         # Validate capacity (only on creation or when reactivating)
-        if not change or (
-            change and obj.estado == Matricula.Estado.ACTIVA
-        ):
+        if not change or (change and obj.estado == Matricula.Estado.ACTIVA):
             activas = Matricula.objects.filter(
                 paralelo=obj.paralelo,
                 estado=Matricula.Estado.ACTIVA,
@@ -101,7 +103,7 @@ class MatriculaAdmin(admin.ModelAdmin):
                 # Map user to domain role: superusers act as secretaría
                 rol_dominio = (
                     "secretaria"
-                    if request.user.is_superuser
+                    if request.user.is_superuser or request.user.rol == "secretaria"
                     else request.user.rol
                 )
                 service.validar_transicion_estado(

@@ -79,8 +79,8 @@ class LoginView(View):
             form.add_error(None, "Credenciales inválidas o tipo de usuario incorrecto.")
             return render(request, self.template_name, {"form": form})
 
-        # 2FA for students — send OTP before completing login
-        if user.rol == "estudiante":
+        # 2FA for estudiante, docente, inspector — send OTP before completing login
+        if user.rol in ("estudiante", "docente", "inspector"):
             service_2fa = Login2FAService()
             service_2fa.generar_otp_login(user.pk)
             request.session["2fa_user_id"] = user.pk
@@ -90,7 +90,7 @@ class LoginView(View):
             )
             return redirect("usuarios:verificar_2fa")
 
-        # Non-student roles — direct login
+        # Secretaría — direct login (2FA pending until real email is configured)
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
@@ -138,6 +138,7 @@ class Verificacion2FAView(View):
 
         # OTP verified — complete login
         from django.contrib.auth import get_user_model
+
         Usuario = get_user_model()
         user = Usuario.objects.get(pk=user_id)
 
@@ -159,8 +160,10 @@ class DashboardRedirectView(RedirectView):
             return "/academico/periodos/"
         elif user.rol == "docente":
             return "/asistencia/paralelos/"
+        elif user.rol == "secretaria":
+            return "/secretaria/usuarios/"
         else:
-            # Estudiante — redirect to attendance dashboard
+            # Estudiante
             return "/asistencia/mi-asistencia/"
 
 
@@ -236,7 +239,11 @@ class CambiarContrasenaView(View):
             request.user.save(update_fields=["debe_cambiar_password"])
 
         # Re-login to update session hash
-        login(request, request.user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        login(
+            request,
+            request.user,
+            backend=("apps.usuarios.infrastructure" ".auth_backend.ECPPPAuthBackend"),
+        )
         messages.success(request, "Contraseña cambiada exitosamente.")
         return redirect("usuarios:perfil")
 

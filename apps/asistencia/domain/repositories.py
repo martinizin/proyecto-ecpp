@@ -15,5 +15,4 @@ class AsistenciaRepository(ABC):
     """Abstract repository for Asistencia aggregate."""
 
     @abstractmethod
-    def list_by_paralelo(self, paralelo_id: int) -> List[AsistenciaEntity]:
-        ...
+    def list_by_paralelo(self, paralelo_id: int) -> List[AsistenciaEntity]: ...

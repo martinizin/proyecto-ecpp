@@ -44,9 +44,7 @@ class TestMatriculaAdminSaveModel:
 
     def test_create_matricula_sets_matriculado_por(self):
         """save_model should auto-set matriculado_por to request.user."""
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
         estudiante = EstudianteFactory()
@@ -63,9 +61,7 @@ class TestMatriculaAdminSaveModel:
         """Cannot enroll in a paralelo of an inactive period."""
         from apps.academico.domain.exceptions import PeriodoInactivoError
 
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=False)
         paralelo = ParaleloFactory(periodo=periodo)
         estudiante = EstudianteFactory()
@@ -78,9 +74,7 @@ class TestMatriculaAdminSaveModel:
 
     def test_create_matricula_duplicada_raises(self):
         """Cannot enroll the same student twice in the same paralelo."""
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
         estudiante = EstudianteFactory()
@@ -97,9 +91,7 @@ class TestMatriculaAdminSaveModel:
 
     def test_create_matricula_cupo_excedido_raises(self):
         """Cannot enroll if paralelo is at capacity."""
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo, capacidad_maxima=2)
 
@@ -117,14 +109,10 @@ class TestMatriculaAdminSaveModel:
 
     def test_superuser_transition_activa_to_retirada(self):
         """Superuser (secretaria) can change activa -> retirada."""
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
-        matricula = MatriculaFactory(
-            paralelo=paralelo, estado=Matricula.Estado.ACTIVA
-        )
+        matricula = MatriculaFactory(paralelo=paralelo, estado=Matricula.Estado.ACTIVA)
 
         matricula.estado = Matricula.Estado.RETIRADA
         request = self._make_request(superuser)
@@ -138,9 +126,7 @@ class TestMatriculaAdminSaveModel:
         inspector = InspectorFactory(is_staff=True)
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
-        matricula = MatriculaFactory(
-            paralelo=paralelo, estado=Matricula.Estado.ACTIVA
-        )
+        matricula = MatriculaFactory(paralelo=paralelo, estado=Matricula.Estado.ACTIVA)
 
         matricula.estado = Matricula.Estado.SUSPENDIDA
         request = self._make_request(inspector)
@@ -154,9 +140,7 @@ class TestMatriculaAdminSaveModel:
         inspector = InspectorFactory(is_staff=True)
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
-        matricula = MatriculaFactory(
-            paralelo=paralelo, estado=Matricula.Estado.ACTIVA
-        )
+        matricula = MatriculaFactory(paralelo=paralelo, estado=Matricula.Estado.ACTIVA)
 
         matricula.estado = Matricula.Estado.RETIRADA
         request = self._make_request(inspector)
@@ -166,9 +150,7 @@ class TestMatriculaAdminSaveModel:
 
     def test_reactivar_checks_cupo(self):
         """Reactivating a matricula should check capacity."""
-        superuser = UsuarioFactory(
-            is_staff=True, is_superuser=True, rol="inspector"
-        )
+        superuser = UsuarioFactory(is_staff=True, is_superuser=True, rol="inspector")
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo, capacidad_maxima=1)
 
@@ -176,9 +158,7 @@ class TestMatriculaAdminSaveModel:
         MatriculaFactory(paralelo=paralelo, estado=Matricula.Estado.ACTIVA)
 
         # A retired enrollment trying to reactivate
-        matricula = MatriculaFactory(
-            paralelo=paralelo, estado=Matricula.Estado.RETIRADA
-        )
+        matricula = MatriculaFactory(paralelo=paralelo, estado=Matricula.Estado.RETIRADA)
         matricula.estado = Matricula.Estado.ACTIVA
         request = self._make_request(superuser)
 

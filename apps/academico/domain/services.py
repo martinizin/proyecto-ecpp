@@ -13,6 +13,7 @@ from .exceptions import (
     CupoExcedidoError,
     DocenteInvalidoError,
     EstadoMatriculaInvalidoError,
+    MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
@@ -24,15 +25,13 @@ from .exceptions import (
 class PeriodoService:
     """
     Domain rules for academic periods.
-    Enforces single-active invariant and date validation.
+    Enforces one-active-per-tipo-licencia invariant and date validation.
     """
 
     def validar_fechas(self, fecha_inicio: date, fecha_fin: date) -> None:
         """Validate that fecha_inicio < fecha_fin."""
         if fecha_inicio >= fecha_fin:
-            raise PeriodoSolapadoError(
-                "La fecha de inicio debe ser anterior a la fecha de fin."
-            )
+            raise PeriodoSolapadoError("La fecha de inicio debe ser anterior a la fecha de fin.")
 
     def verificar_activacion(
         self,
@@ -40,30 +39,28 @@ class PeriodoService:
         confirmar_desactivacion: bool,
     ) -> bool:
         """
-        Check if activation can proceed.
+        Check if activation can proceed for a given tipo_licencia.
 
         Args:
-            periodo_activo_actual: Name of the currently active period, or None.
+            periodo_activo_actual: Name of the currently active period
+                for this tipo_licencia, or None.
             confirmar_desactivacion: Whether the user confirmed deactivation.
 
         Returns:
             True if activation can proceed.
 
         Raises:
-            PeriodoActivoExistenteError: If there's an active period and
-                user hasn't confirmed deactivation.
+            PeriodoActivoExistenteError: If there's an active period for
+                this tipo_licencia and user hasn't confirmed deactivation.
         """
         if periodo_activo_actual is None:
-            # No active period — activate directly (SCN-PER-08)
             return True
 
         if confirmar_desactivacion:
-            # User confirmed — proceed (SCN-PER-06)
             return True
 
-        # Active period exists but no confirmation (SCN-PER-05)
         raise PeriodoActivoExistenteError(
-            f"El período '{periodo_activo_actual}' está activo. "
+            f"El período '{periodo_activo_actual}' ya está activo para este tipo de licencia. "
             "¿Desea desactivarlo para activar el nuevo período?"
         )
 
@@ -94,14 +91,10 @@ class AsignaturaService:
             )
 
         if horas_lectivas <= 0:
-            raise ValueError(
-                "Las horas lectivas deben ser mayores a 0."
-            )
+            raise ValueError("Las horas lectivas deben ser mayores a 0.")
 
         if not tipos_licencia_ids:
-            raise ValueError(
-                "La asignatura debe estar asociada a al menos un tipo de licencia."
-            )
+            raise ValueError("La asignatura debe estar asociada a al menos un tipo de licencia.")
 
 
 class ParaleloService:
@@ -113,16 +106,12 @@ class ParaleloService:
     def validar_docente(self, docente_rol: str) -> None:
         """Validate that the assigned user has the docente role."""
         if docente_rol != "docente":
-            raise DocenteInvalidoError(
-                "El usuario asignado debe tener el rol 'docente'."
-            )
+            raise DocenteInvalidoError("El usuario asignado debe tener el rol 'docente'.")
 
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the associated period is active."""
         if not periodo_activo:
-            raise PeriodoInactivoError(
-                "Solo se pueden crear paralelos en un período activo."
-            )
+            raise PeriodoInactivoError("Solo se pueden crear paralelos en un período activo.")
 
     def validar_unicidad(
         self,
@@ -178,21 +167,34 @@ class MatriculaService:
     def validar_no_duplicada(self, matricula_existente: bool) -> None:
         """Validate that the student is not already enrolled in the paralelo."""
         if matricula_existente:
-            raise MatriculaDuplicadaError(
-                "El estudiante ya tiene una matrícula en este paralelo."
-            )
+            raise MatriculaDuplicadaError("El estudiante ya tiene una matrícula en este paralelo.")
+
+    def validar_asignatura_no_duplicada(
+        self,
+        ya_inscrito: bool,
+        asignatura_nombre: str = "",
+        paralelo_existente: str = "",
+    ) -> None:
+        """Validate that the student is not already enrolled in the same asignatura."""
+        if ya_inscrito:
+            msg = "El estudiante ya se encuentra inscrito en esta asignatura"
+            if asignatura_nombre and paralelo_existente:
+                msg = (
+                    f"El estudiante ya se encuentra inscrito en la asignatura "
+                    f"{asignatura_nombre} en el paralelo {paralelo_existente}."
+                )
+            else:
+                msg += "."
+            raise MatriculaAsignaturaDuplicadaError(msg)
 
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the paralelo belongs to an active period."""
         if not periodo_activo:
             raise PeriodoInactivoError(
-                "Solo se pueden registrar matrículas en paralelos "
-                "de un período activo."
+                "Solo se pueden registrar matrículas en paralelos " "de un período activo."
             )
 
-    def validar_transicion_estado(
-        self, estado_actual: str, nuevo_estado: str, rol: str
-    ) -> None:
+    def validar_transicion_estado(self, estado_actual: str, nuevo_estado: str, rol: str) -> None:
         """Validate that the state transition is allowed for the given role."""
         if estado_actual == nuevo_estado:
             return
@@ -203,8 +205,7 @@ class MatriculaService:
             transiciones = self.TRANSICIONES_INSPECTOR
         else:
             raise EstadoMatriculaInvalidoError(
-                f"El rol '{rol}' no tiene permisos para cambiar "
-                f"el estado de matrículas."
+                f"El rol '{rol}' no tiene permisos para cambiar " f"el estado de matrículas."
             )
 
         estados_permitidos = transiciones.get(estado_actual, [])

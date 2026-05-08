@@ -5,10 +5,9 @@ from decimal import Decimal
 import pytest
 from django.db import IntegrityError
 
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
+from apps.calificaciones.infrastructure.models import Evaluacion
 from tests.factories import (
     CalificacionFactory,
-    EstudianteFactory,
     EvaluacionFactory,
 )
 
@@ -62,8 +61,7 @@ class TestCalificacion:
     def test_str(self):
         calificacion = CalificacionFactory()
         expected = (
-            f"{calificacion.estudiante} - {calificacion.evaluacion}: "
-            f"{calificacion.nota}"
+            f"{calificacion.estudiante} - {calificacion.evaluacion}: " f"{calificacion.nota}"
         )
         assert str(calificacion) == expected
 

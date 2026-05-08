@@ -6,8 +6,6 @@ Each filter class receives query_params and applies filters to a queryset.
 Ref: AC-CAT-05
 """
 
-from apps.academico.infrastructure.models import Asignatura, Paralelo
-
 
 class AsignaturaFilter:
     """

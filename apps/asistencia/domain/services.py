@@ -8,8 +8,6 @@ AsistenciaCalculoService: calculates attendance percentages (HU10).
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List
 
-from .exceptions import AsistenciaDuplicadaError
-
 
 class AsistenciaCalculoService:
     """
@@ -55,16 +53,10 @@ class AsistenciaCalculoService:
             Absence percentage (0-100), rounded to 2 decimals.
             Returns 0 if total_sesiones == 0.
         """
-        asistencia = self.calcular_porcentaje_asistencia(
-            sesiones_asistidas, total_sesiones
-        )
-        return (Decimal("100.00") - asistencia).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        asistencia = self.calcular_porcentaje_asistencia(sesiones_asistidas, total_sesiones)
+        return (Decimal("100.00") - asistencia).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def calcular_porcentaje_general(
-        self, datos_por_asignatura: List[dict]
-    ) -> Decimal:
+    def calcular_porcentaje_general(self, datos_por_asignatura: List[dict]) -> Decimal:
         """
         Calculate overall attendance percentage across all subjects.
 
@@ -82,9 +74,7 @@ class AsistenciaCalculoService:
 
         return self.calcular_porcentaje_asistencia(total_asistidas, total_sesiones)
 
-    def calcular_inasistencia_general(
-        self, datos_por_asignatura: List[dict]
-    ) -> Decimal:
+    def calcular_inasistencia_general(self, datos_por_asignatura: List[dict]) -> Decimal:
         """
         Calculate overall absence percentage across all subjects.
 
@@ -92,9 +82,7 @@ class AsistenciaCalculoService:
             Overall absence percentage (0-100), rounded to 2 decimals.
         """
         asistencia = self.calcular_porcentaje_general(datos_por_asignatura)
-        return (Decimal("100.00") - asistencia).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        return (Decimal("100.00") - asistencia).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     def evaluar_riesgo(self, porcentaje_inasistencia: Decimal) -> str:
         """

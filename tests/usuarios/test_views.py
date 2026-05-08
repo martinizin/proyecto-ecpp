@@ -53,7 +53,7 @@ def _create_active_user(
 
 @pytest.mark.django_db
 class TestLoginView:
-    """View tests for login (HU02) — includes 2FA redirect for students."""
+    """View tests for login (HU02) — includes 2FA redirect for all roles."""
 
     def setup_method(self):
         self.client = Client()
@@ -76,10 +76,11 @@ class TestLoginView:
         assert response.status_code == 302
         assert response.url == reverse("usuarios:dashboard")
 
+    @patch("apps.usuarios.application.services.send_otp_email")
     @patch("apps.usuarios.application.services.send_lockout_notification")
-    def test_post_login_exitoso_docente(self, mock_lockout):
-        """POST valid credentials (docente) → direct login, redirects to dashboard."""
-        user = _create_active_user("login@test.com", rol="docente")
+    def test_post_login_exitoso_docente_redirige_a_2fa(self, mock_lockout, mock_otp):
+        """POST valid credentials (docente) → redirects to 2FA verification."""
+        _create_active_user("login@test.com", rol="docente")
 
         data = {
             "email": "login@test.com",
@@ -89,13 +90,9 @@ class TestLoginView:
 
         response = self.client.post(self.url, data)
 
-        # Redirects to dashboard (direct login, no 2FA)
         assert response.status_code == 302
-        assert response.url == reverse("usuarios:dashboard")
-
-        # User is authenticated in session
-        assert response.wsgi_request.user.is_authenticated
-        assert response.wsgi_request.user.pk == user.pk
+        assert response.url == reverse("usuarios:verificar_2fa")
+        mock_otp.assert_called_once()
 
     @patch("apps.usuarios.application.services.send_otp_email")
     @patch("apps.usuarios.application.services.send_lockout_notification")
@@ -289,24 +286,24 @@ class TestDashboardRedirectView:
         assert response.url == "/academico/periodos/"
 
     def test_dashboard_docente_redirect(self):
-        """Docente → /academico/paralelos/."""
+        """Docente → /asistencia/paralelos/."""
         user = _create_active_user("doc@test.com", rol="docente")
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
         assert response.status_code == 302
-        assert response.url == "/academico/paralelos/"
+        assert response.url == "/asistencia/paralelos/"
 
     def test_dashboard_estudiante_redirect(self):
-        """Estudiante → /."""
+        """Estudiante → /asistencia/mi-asistencia/."""
         user = _create_active_user("est@test.com", rol="estudiante")
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
         assert response.status_code == 302
-        assert response.url == "/"
+        assert response.url == "/asistencia/mi-asistencia/"
 
     def test_dashboard_anonymous_redirect(self):
         """Anonymous user → login page."""
@@ -430,9 +427,7 @@ class TestCambiarContrasenaView:
 
         # Re-renders change password page (no redirect)
         assert response.status_code == 200
-        assert "usuarios/cambiar_contrasena.html" in [
-            t.name for t in response.templates
-        ]
+        assert "usuarios/cambiar_contrasena.html" in [t.name for t in response.templates]
 
         # Password unchanged
         self.user.refresh_from_db()
@@ -481,9 +476,7 @@ class TestPasswordRecovery:
         response = self.client.get(url)
 
         assert response.status_code == 200
-        assert "registration/password_reset_form.html" in [
-            t.name for t in response.templates
-        ]
+        assert "registration/password_reset_form.html" in [t.name for t in response.templates]
 
 
 # =============================================================================
@@ -564,6 +557,7 @@ class TestUsuarioAdmin:
         request.user = superuser
         # Django messages framework needs session middleware
         from django.contrib.messages.storage.fallback import FallbackStorage
+
         setattr(request, "session", "session")
         setattr(request, "_messages", FallbackStorage(request))
 
@@ -618,6 +612,7 @@ class TestUsuarioAdmin:
         request = self.factory.post("/admin/usuarios/usuario/add/")
         request.user = superuser
         from django.contrib.messages.storage.fallback import FallbackStorage
+
         setattr(request, "session", "session")
         setattr(request, "_messages", FallbackStorage(request))
 

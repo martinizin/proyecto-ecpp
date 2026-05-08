@@ -1,11 +1,16 @@
 """
 Views for the Academico bounded context.
 CRUD views for periods, subjects, parallels, and license types.
-All write operations restricted to Inspector role via RolRequeridoMixin.
+All write operations restricted to Inspector role via MultiRolRequeridoMixin.
 """
 
+from collections import OrderedDict
+from datetime import time
+
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views import View
 from django.views.generic import ListView
 
 from apps.academico.application.services import (
@@ -19,13 +24,22 @@ from apps.academico.domain.exceptions import (
 )
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
+    Matricula,
     Paralelo,
     Periodo,
     TipoLicencia,
 )
-from apps.usuarios.presentation.permissions import RolRequeridoMixin
+from apps.usuarios.infrastructure.models import Usuario
+from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
 
-from .forms import AsignaturaForm, ParaleloForm, PeriodoForm
+from .forms import (
+    AsignaturaForm,
+    ParaleloAsignaturaEditForm,
+    ParaleloForm,
+    ParaleloLoteForm,
+    PeriodoForm,
+)
 
 
 # =============================================================================
@@ -33,19 +47,22 @@ from .forms import AsignaturaForm, ParaleloForm, PeriodoForm
 # =============================================================================
 
 
-class PeriodoListView(RolRequeridoMixin, ListView):
+class PeriodoListView(MultiRolRequeridoMixin, ListView):
     """List all academic periods — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Periodo
     template_name = "academico/periodo_list.html"
     context_object_name = "periodos"
 
+    def get_queryset(self):
+        return Periodo.objects.select_related("tipo_licencia").all()
 
-class PeriodoCreateView(RolRequeridoMixin, ListView):
+
+class PeriodoCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new academic period — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/periodo_form.html"
     model = Periodo  # Required by ListView but unused
 
@@ -64,6 +81,7 @@ class PeriodoCreateView(RolRequeridoMixin, ListView):
                 nombre=form.cleaned_data["nombre"],
                 fecha_inicio=form.cleaned_data["fecha_inicio"],
                 fecha_fin=form.cleaned_data["fecha_fin"],
+                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 creado_por_id=request.user.pk,
             )
         except AcademicoError as e:
@@ -74,31 +92,39 @@ class PeriodoCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:periodo_list")
 
 
-class PeriodoUpdateView(RolRequeridoMixin, ListView):
+class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
     """Update an academic period — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/periodo_form.html"
     model = Periodo  # Required by ListView but unused
 
     def get(self, request, pk):
         periodo = get_object_or_404(Periodo, pk=pk)
         form = PeriodoForm(instance=periodo)
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "periodo": periodo,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": True,
+                "periodo": periodo,
+            },
+        )
 
     def post(self, request, pk):
         periodo = get_object_or_404(Periodo, pk=pk)
         form = PeriodoForm(request.POST, instance=periodo)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "periodo": periodo,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "periodo": periodo,
+                },
+            )
 
         service = PeriodoAppService()
 
@@ -112,6 +138,7 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
                 nombre=form.cleaned_data["nombre"],
                 fecha_inicio=form.cleaned_data["fecha_inicio"],
                 fecha_fin=form.cleaned_data["fecha_fin"],
+                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 usuario_id=request.user.pk,
             )
 
@@ -125,20 +152,29 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
 
         except PeriodoActivoExistenteError as e:
             # Return to form with confirmation needed
-            return render(request, self.template_name, {
-                "form": PeriodoForm(instance=periodo),
-                "editing": True,
-                "periodo": periodo,
-                "confirmation_needed": True,
-                "confirmation_message": str(e),
-            })
+            periodo.refresh_from_db()
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": PeriodoForm(instance=periodo),
+                    "editing": True,
+                    "periodo": periodo,
+                    "confirmation_needed": True,
+                    "confirmation_message": str(e),
+                },
+            )
         except AcademicoError as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "periodo": periodo,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "periodo": periodo,
+                },
+            )
 
         messages.success(request, "Período actualizado exitosamente.")
         return redirect("academico:periodo_list")
@@ -149,19 +185,19 @@ class PeriodoUpdateView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class AsignaturaListView(RolRequeridoMixin, ListView):
+class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     """List all subjects — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Asignatura
     template_name = "academico/asignatura_list.html"
     context_object_name = "asignaturas"
 
 
-class AsignaturaCreateView(RolRequeridoMixin, ListView):
+class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new subject — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
@@ -194,31 +230,39 @@ class AsignaturaCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:asignatura_list")
 
 
-class AsignaturaUpdateView(RolRequeridoMixin, ListView):
+class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
     """Update a subject — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
     def get(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(instance=asignatura)
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "asignatura": asignatura,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": True,
+                "asignatura": asignatura,
+            },
+        )
 
     def post(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(request.POST, instance=asignatura)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "asignatura": asignatura,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "asignatura": asignatura,
+                },
+            )
 
         service = AsignaturaAppService()
         try:
@@ -235,11 +279,15 @@ class AsignaturaUpdateView(RolRequeridoMixin, ListView):
             )
         except (AcademicoError, ValueError) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "asignatura": asignatura,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "asignatura": asignatura,
+                },
+            )
 
         messages.success(request, "Asignatura actualizada exitosamente.")
         return redirect("academico:asignatura_list")
@@ -250,24 +298,51 @@ class AsignaturaUpdateView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class ParaleloListView(RolRequeridoMixin, ListView):
-    """List all parallels — Inspector only."""
+class ParaleloListView(MultiRolRequeridoMixin, ListView):
+    """List all parallels grouped by identity — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = Paralelo
     template_name = "academico/paralelo_list.html"
     context_object_name = "paralelos"
 
     def get_queryset(self):
-        return Paralelo.objects.select_related(
-            "asignatura", "periodo", "docente", "tipo_licencia"
-        ).all()
+        return (
+            Paralelo.objects.select_related("asignatura", "periodo", "docente", "tipo_licencia")
+            .prefetch_related("bloques_horario")
+            .order_by(
+                "periodo__nombre",
+                "tipo_licencia__codigo",
+                "nombre",
+                "asignatura__codigo",
+            )
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paralelos = context["paralelos"]
+
+        groups = OrderedDict()
+        for p in paralelos:
+            key = (p.periodo_id, p.tipo_licencia_id, p.nombre)
+            if key not in groups:
+                groups[key] = {
+                    "nombre": p.nombre,
+                    "periodo": p.periodo,
+                    "tipo_licencia": p.tipo_licencia,
+                    "capacidad_maxima": p.capacidad_maxima,
+                    "asignaturas": [],
+                }
+            groups[key]["asignaturas"].append(p)
+
+        context["paralelo_groups"] = list(groups.values())
+        return context
 
 
-class ParaleloCreateView(RolRequeridoMixin, ListView):
+class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new parallel — Inspector only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     template_name = "academico/paralelo_form.html"
     model = Paralelo
 
@@ -293,7 +368,6 @@ class ParaleloCreateView(RolRequeridoMixin, ListView):
                 docente_rol=docente.rol,
                 tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
                 nombre=form.cleaned_data["nombre"],
-                horario=form.cleaned_data.get("horario", ""),
                 capacidad_maxima=form.cleaned_data["capacidad_maxima"],
                 periodo_id=periodo.pk,
                 periodo_activo=periodo.activo,
@@ -308,65 +382,195 @@ class ParaleloCreateView(RolRequeridoMixin, ListView):
         return redirect("academico:paralelo_list")
 
 
-class ParaleloUpdateView(RolRequeridoMixin, ListView):
-    """Update a parallel — Inspector only."""
+class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
+    """Batch-create paralelos: one per selected asignatura — Inspector only."""
 
-    rol_requerido = "inspector"
-    template_name = "academico/paralelo_form.html"
-    model = Paralelo
+    roles_permitidos = ["inspector", "secretaria"]
+    template_name = "academico/paralelo_form_lote.html"
 
-    def get(self, request, pk):
-        paralelo = get_object_or_404(Paralelo, pk=pk)
-        form = ParaleloForm(instance=paralelo)
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "paralelo": paralelo,
-        })
+    def get(self, request):
+        form = ParaleloLoteForm()
+        return render(request, self.template_name, {"form": form})
 
-    def post(self, request, pk):
-        paralelo = get_object_or_404(
-            Paralelo.objects.select_related("asignatura", "periodo", "docente"),
-            pk=pk,
-        )
-        form = ParaleloForm(request.POST, instance=paralelo)
+    def post(self, request):
+        form = ParaleloLoteForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "paralelo": paralelo,
-            })
+            return render(request, self.template_name, {"form": form})
 
         service = ParaleloAppService()
-        docente = form.cleaned_data["docente"]
-        periodo = form.cleaned_data["periodo"]
-        asignatura = form.cleaned_data["asignatura"]
-
         try:
-            service.actualizar(
-                paralelo_id=pk,
-                asignatura_codigo=asignatura.codigo,
-                periodo_nombre=periodo.nombre,
-                docente_username=docente.username,
-                docente_rol=docente.rol,
-                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
+            creados, duplicados = service.crear_lote(
+                asignaturas=form.cleaned_data["asignaturas"],
+                periodo=form.cleaned_data["periodo"],
+                tipo_licencia=form.cleaned_data["tipo_licencia"],
+                docente=form.cleaned_data["docente"],
                 nombre=form.cleaned_data["nombre"],
-                horario=form.cleaned_data.get("horario", ""),
                 capacidad_maxima=form.cleaned_data["capacidad_maxima"],
-                periodo_id=periodo.pk,
-                periodo_activo=periodo.activo,
-                asignatura_id=asignatura.pk,
                 usuario_id=request.user.pk,
             )
         except (AcademicoError, ValueError) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "paralelo": paralelo,
-            })
+            return render(request, self.template_name, {"form": form})
 
-        messages.success(request, "Paralelo actualizado exitosamente.")
+        if creados:
+            messages.success(
+                request,
+                f"Se crearon {len(creados)} paralelos exitosamente.",
+            )
+        if duplicados:
+            messages.warning(
+                request,
+                f"Se omitieron {len(duplicados)} paralelos duplicados: {', '.join(duplicados)}.",
+            )
+        if not creados and not duplicados:
+            messages.info(request, "No se crearon paralelos.")
+
+        return redirect("academico:paralelo_list")
+
+
+class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
+    """JSON endpoint: returns asignaturas filtered by tipo_licencia ID."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def get(self, request):
+        tipo_id = request.GET.get("tipo_licencia")
+        if not tipo_id:
+            return JsonResponse({"asignaturas": []})
+        asignaturas = (
+            Asignatura.objects.filter(tipos_licencia__id=tipo_id)
+            .distinct()
+            .values("id", "codigo", "nombre")
+        )
+        return JsonResponse({"asignaturas": list(asignaturas)})
+
+
+class ParaleloUpdateView(MultiRolRequeridoMixin, View):
+    """Edit docente and schedule blocks for a paralelo — Inspector only."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+    template_name = "academico/paralelo_asignatura_edit.html"
+
+    def _get_paralelo(self, pk):
+        return get_object_or_404(
+            Paralelo.objects.select_related(
+                "asignatura",
+                "periodo",
+                "tipo_licencia",
+                "docente",
+            ),
+            pk=pk,
+        )
+
+    def get(self, request, pk):
+        paralelo = self._get_paralelo(pk)
+        form = ParaleloAsignaturaEditForm(instance=paralelo)
+        bloques = paralelo.bloques_horario.all()
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "paralelo": paralelo,
+                "bloques": bloques,
+            },
+        )
+
+    def post(self, request, pk):
+        paralelo = self._get_paralelo(pk)
+        form = ParaleloAsignaturaEditForm(request.POST, instance=paralelo)
+        if not form.is_valid():
+            bloques = paralelo.bloques_horario.all()
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "paralelo": paralelo,
+                    "bloques": bloques,
+                },
+            )
+
+        # Parse schedule blocks from POST
+        bloques_data = []
+        idx = 0
+        while f"bloque_dia_{idx}" in request.POST:
+            dia = request.POST.get(f"bloque_dia_{idx}", "").strip()
+            inicio_str = request.POST.get(f"bloque_inicio_{idx}", "").strip()
+            fin_str = request.POST.get(f"bloque_fin_{idx}", "").strip()
+            if dia and inicio_str and fin_str:
+                try:
+                    h_inicio = time.fromisoformat(inicio_str)
+                    h_fin = time.fromisoformat(fin_str)
+                    bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
+                except ValueError:
+                    pass
+            idx += 1
+
+        # Validate blocks
+        errores = []
+        for b in bloques_data:
+            if b["inicio"] >= b["fin"]:
+                dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                errores.append(
+                    f"Horario inválido: la hora de inicio ({b['inicio']:%H:%M}) "
+                    f"debe ser anterior a la hora de fin ({b['fin']:%H:%M}) "
+                    f"el {dia_display}."
+                )
+
+        # Conflict validation: check other paralelos in the same group
+        if not errores:
+            same_group_paralelos = Paralelo.objects.filter(
+                periodo_id=paralelo.periodo_id,
+                tipo_licencia_id=paralelo.tipo_licencia_id,
+                nombre=paralelo.nombre,
+            ).exclude(asignatura_id=paralelo.asignatura_id)
+
+            for b in bloques_data:
+                conflicting_blocks = BloqueHorario.objects.filter(
+                    paralelo__in=same_group_paralelos,
+                    dia_semana=b["dia"],
+                    hora_inicio__lt=b["fin"],
+                    hora_fin__gt=b["inicio"],
+                ).select_related("paralelo__asignatura")
+
+                for cb in conflicting_blocks:
+                    dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                    errores.append(
+                        f"Conflicto de horario: {cb.paralelo.asignatura.nombre} "
+                        f"ya tiene clase el {dia_display} de "
+                        f"{cb.hora_inicio:%H:%M} a {cb.hora_fin:%H:%M}"
+                    )
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+            bloques = paralelo.bloques_horario.all()
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "paralelo": paralelo,
+                    "bloques": bloques,
+                    "errores_horario": errores,
+                },
+            )
+
+        # Save docente
+        form.save()
+
+        # Replace schedule blocks
+        paralelo.bloques_horario.all().delete()
+        for b in bloques_data:
+            BloqueHorario.objects.create(
+                paralelo=paralelo,
+                dia_semana=b["dia"],
+                hora_inicio=b["inicio"],
+                hora_fin=b["fin"],
+            )
+
+        messages.success(request, "Docente y horario actualizados exitosamente.")
         return redirect("academico:paralelo_list")
 
 
@@ -375,13 +579,142 @@ class ParaleloUpdateView(RolRequeridoMixin, ListView):
 # =============================================================================
 
 
-class TipoLicenciaListView(RolRequeridoMixin, ListView):
+class TipoLicenciaListView(MultiRolRequeridoMixin, ListView):
     """List all license types — Inspector only, read-only."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "secretaria"]
     model = TipoLicencia
     template_name = "academico/tipo_licencia_list.html"
     context_object_name = "tipos_licencia"
 
     def get_queryset(self):
         return TipoLicencia.objects.all()
+
+
+# =============================================================================
+# Paralelo Grupo Edit View
+# =============================================================================
+
+
+class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
+    """Edit a paralelo group: manage asignaturas and capacidad_maxima — Inspector only."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+    template_name = "academico/paralelo_grupo_edit.html"
+
+    def _get_group_context(self, periodo_id, tipo_licencia_id, nombre):
+        """Build common context for GET and POST."""
+        periodo = get_object_or_404(Periodo, pk=periodo_id)
+        tipo_licencia = get_object_or_404(TipoLicencia, pk=tipo_licencia_id)
+
+        # All Paralelo rows in this group
+        group_rows = Paralelo.objects.filter(
+            periodo_id=periodo_id,
+            tipo_licencia_id=tipo_licencia_id,
+            nombre=nombre,
+        ).select_related("asignatura", "docente")
+
+        # All asignaturas for this tipo_licencia
+        all_asignaturas = (
+            Asignatura.objects.filter(tipos_licencia=tipo_licencia).distinct().order_by("codigo")
+        )
+
+        # IDs already in the group
+        existing_asignatura_ids = set(group_rows.values_list("asignatura_id", flat=True))
+
+        # Current capacidad from any row (they share the value)
+        capacidad_maxima = group_rows.first().capacidad_maxima if group_rows.exists() else 30
+
+        # Docentes for the default docente select
+        docentes = Usuario.objects.filter(rol="docente", is_active=True).order_by(
+            "last_name", "first_name"
+        )
+
+        return {
+            "periodo": periodo,
+            "tipo_licencia": tipo_licencia,
+            "nombre": nombre,
+            "group_rows": group_rows,
+            "all_asignaturas": all_asignaturas,
+            "existing_asignatura_ids": existing_asignatura_ids,
+            "capacidad_maxima": capacidad_maxima,
+            "docentes": docentes,
+        }
+
+    def get(self, request, periodo_id, tipo_licencia_id, nombre):
+        ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+        return render(request, self.template_name, ctx)
+
+    def post(self, request, periodo_id, tipo_licencia_id, nombre):
+        ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+
+        selected_ids = set(int(x) for x in request.POST.getlist("asignaturas") if x.isdigit())
+        new_capacidad = request.POST.get("capacidad_maxima", "30")
+        default_docente_id = request.POST.get("docente_default", "")
+
+        # Validate capacidad
+        try:
+            new_capacidad = int(new_capacidad)
+            if new_capacidad < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            new_capacidad = 30
+
+        existing_ids = ctx["existing_asignatura_ids"]
+        errors = []
+
+        # --- Remove deselected asignaturas ---
+        to_remove = existing_ids - selected_ids
+        for asig_id in to_remove:
+            row = ctx["group_rows"].filter(asignatura_id=asig_id).first()
+            if row:
+                active_matriculas = Matricula.objects.filter(
+                    paralelo=row, estado=Matricula.Estado.ACTIVA
+                ).exists()
+                if active_matriculas:
+                    asig = row.asignatura
+                    errors.append(
+                        f"No se puede quitar {asig.nombre} ({asig.codigo}) "
+                        f"porque tiene matrículas activas."
+                    )
+                else:
+                    row.delete()
+
+        if errors:
+            # Re-fetch context after partial deletes
+            ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+            ctx["errors"] = errors
+            ctx["selected_ids"] = selected_ids
+            ctx["capacidad_maxima"] = new_capacidad
+            return render(request, self.template_name, ctx)
+
+        # --- Add newly selected asignaturas ---
+        to_add = selected_ids - existing_ids
+        if to_add:
+            if not default_docente_id:
+                ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
+                ctx["errors"] = ["Debe seleccionar un docente para las nuevas asignaturas."]
+                ctx["selected_ids"] = selected_ids
+                ctx["capacidad_maxima"] = new_capacidad
+                return render(request, self.template_name, ctx)
+
+            docente = get_object_or_404(Usuario, pk=default_docente_id, rol="docente")
+            for asig_id in to_add:
+                Paralelo.objects.create(
+                    asignatura_id=asig_id,
+                    periodo_id=periodo_id,
+                    tipo_licencia_id=tipo_licencia_id,
+                    docente=docente,
+                    nombre=nombre,
+                    capacidad_maxima=new_capacidad,
+                )
+
+        # --- Update capacidad_maxima on all rows ---
+        Paralelo.objects.filter(
+            periodo_id=periodo_id,
+            tipo_licencia_id=tipo_licencia_id,
+            nombre=nombre,
+        ).update(capacidad_maxima=new_capacidad)
+
+        messages.success(request, f"Paralelo {nombre} actualizado exitosamente.")
+        return redirect("academico:paralelo_list")

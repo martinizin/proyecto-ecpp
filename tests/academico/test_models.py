@@ -1,15 +1,19 @@
-"""Tests for Periodo, Asignatura, Paralelo, and Matricula models."""
+"""Tests for Periodo, Asignatura, Paralelo, BloqueHorario, and Matricula models."""
 
 import datetime
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
-from apps.academico.infrastructure.models import Asignatura, Matricula, Paralelo, Periodo
+from apps.academico.infrastructure.models import (
+    Asignatura,
+    Matricula,
+    Periodo,
+)
 from tests.factories import (
     AsignaturaFactory,
-    DocenteFactory,
-    EstudianteFactory,
+    BloqueHorarioFactory,
     MatriculaFactory,
     ParaleloFactory,
     PeriodoFactory,
@@ -28,14 +32,15 @@ class TestPeriodo:
         assert periodo.activo is True
         assert periodo.fecha_inicio == datetime.date(2026, 3, 1)
 
-    def test_nombre_unique(self):
-        PeriodoFactory(nombre="2026-1")
+    def test_unique_together_nombre_tipo_licencia(self):
+        """Same nombre + tipo_licencia should be rejected."""
+        periodo = PeriodoFactory(nombre="2026-1")
         with pytest.raises(IntegrityError):
-            PeriodoFactory(nombre="2026-1")
+            PeriodoFactory(nombre="2026-1", tipo_licencia=periodo.tipo_licencia)
 
     def test_str(self):
         periodo = PeriodoFactory(nombre="2026-1")
-        assert str(periodo) == "2026-1"
+        assert str(periodo) == f"2026-1 — {periodo.tipo_licencia.codigo}"
 
     def test_ordering_by_fecha_inicio_desc(self):
         """Periods should be ordered by fecha_inicio descending."""
@@ -89,9 +94,7 @@ class TestParalelo:
 
     def test_str(self):
         paralelo = ParaleloFactory()
-        expected = (
-            f"{paralelo.asignatura.codigo} - {paralelo.nombre} ({paralelo.periodo})"
-        )
+        expected = f"{paralelo.asignatura.codigo} - {paralelo.nombre} ({paralelo.periodo})"
         assert str(paralelo) == expected
 
     def test_unique_together(self):
@@ -140,7 +143,11 @@ class TestMatricula:
     def test_estado_choices(self):
         """All three states should be valid."""
         paralelo = ParaleloFactory()
-        for estado in [Matricula.Estado.ACTIVA, Matricula.Estado.RETIRADA, Matricula.Estado.SUSPENDIDA]:
+        for estado in [
+            Matricula.Estado.ACTIVA,
+            Matricula.Estado.RETIRADA,
+            Matricula.Estado.SUSPENDIDA,
+        ]:
             m = MatriculaFactory(paralelo=paralelo, estado=estado)
             assert m.estado == estado
 
@@ -155,3 +162,24 @@ class TestMatricula:
         matriculas = list(Matricula.objects.all())
         assert matriculas[0] == m2
         assert matriculas[1] == m1
+
+
+class TestBloqueHorario:
+    """Tests for BloqueHorario model."""
+
+    def test_bloque_horario_str(self):
+        bloque = BloqueHorarioFactory(
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+        assert str(bloque) == "Lunes 08:00-10:00"
+
+    def test_bloque_horario_clean_invalid(self):
+        """hora_inicio >= hora_fin should raise ValidationError."""
+        bloque = BloqueHorarioFactory.build(
+            hora_inicio=datetime.time(10, 0),
+            hora_fin=datetime.time(8, 0),
+        )
+        with pytest.raises(ValidationError):
+            bloque.clean()

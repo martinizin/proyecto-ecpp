@@ -1,8 +1,6 @@
 """
 Data migration: seed 3 TipoLicencia rows (C, E, EC).
 Ref: AC-CAT-01, NFR-CAT-03, AD4.
-
-Note: duracion_meses for EC = 0 (placeholder pending stakeholder confirmation).
 """
 
 from django.db import migrations
@@ -13,24 +11,24 @@ def seed_tipos_licencia(apps, schema_editor):
 
     tipos = [
         {
-            "nombre": "Conducción",
+            "nombre": "Licencia tipo C",
             "codigo": "C",
             "duracion_meses": 6,
-            "num_asignaturas": 8,
+            "num_asignaturas": 13,
             "activo": True,
         },
         {
-            "nombre": "Educación",
+            "nombre": "Licencia tipo E",
             "codigo": "E",
-            "duracion_meses": 12,
-            "num_asignaturas": 15,
+            "duracion_meses": 5,
+            "num_asignaturas": 17,
             "activo": True,
         },
         {
-            "nombre": "Educación Convalidada",
+            "nombre": "Licencia tipo EC",
             "codigo": "EC",
-            "duracion_meses": 0,  # TODO: confirmar con stakeholders
-            "num_asignaturas": 10,
+            "duracion_meses": 5,  # Convalidada: sin duración propia definida por stakeholders
+            "num_asignaturas": 8,
             "activo": True,
         },
     ]

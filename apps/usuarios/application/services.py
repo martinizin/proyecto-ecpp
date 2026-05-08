@@ -5,7 +5,6 @@ These services orchestrate domain services + infrastructure (repositories, email
 to implement complete use cases. They are the entry point from the presentation layer.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from django.conf import settings
@@ -292,9 +291,7 @@ class PerfilAppService:
         user.direccion = direccion
         user.save(update_fields=["first_name", "last_name", "telefono", "direccion"])
 
-    def cambiar_contrasena(
-        self, user_id: int, old_password: str, new_password: str
-    ) -> bool:
+    def cambiar_contrasena(self, user_id: int, old_password: str, new_password: str) -> bool:
         """
         Change user's password after validating old password.
 

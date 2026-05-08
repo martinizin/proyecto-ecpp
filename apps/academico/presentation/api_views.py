@@ -18,7 +18,7 @@ from apps.academico.infrastructure.models import (
     Periodo,
     TipoLicencia,
 )
-from apps.usuarios.presentation.permissions import IsInspector
+from apps.usuarios.presentation.permissions import IsInspectorOrSecretaria
 
 from .filters import AsignaturaFilter, ParaleloFilter
 from .serializers import (
@@ -35,9 +35,9 @@ class PeriodoViewSet(viewsets.ModelViewSet):
 
     GET /api/periodos/ — list all (IsAuthenticated)
     GET /api/periodos/{id}/ — retrieve (IsAuthenticated)
-    POST /api/periodos/ — create (IsInspector)
-    PUT/PATCH /api/periodos/{id}/ — update (IsInspector)
-    DELETE /api/periodos/{id}/ — delete (IsInspector)
+    POST /api/periodos/ — create (IsInspectorOrSecretaria)
+    PUT/PATCH /api/periodos/{id}/ — update (IsInspectorOrSecretaria)
+    DELETE /api/periodos/{id}/ — delete (IsInspectorOrSecretaria)
     GET /api/periodos/activo/ — get active period (IsAuthenticated)
     """
 
@@ -47,21 +47,25 @@ class PeriodoViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve", "activo"):
             return [IsAuthenticated()]
-        return [IsInspector()]
+        return [IsInspectorOrSecretaria()]
 
     def perform_create(self, serializer):
         serializer.save(creado_por=self.request.user)
 
     @action(detail=False, methods=["get"], url_path="activo")
     def activo(self, request):
-        """Return the currently active period, or 404 if none."""
-        periodo = Periodo.objects.filter(activo=True).select_related("creado_por").first()
-        if not periodo:
+        """Return active periods. Optionally filter by ?tipo_licencia={id}."""
+        qs = Periodo.objects.filter(activo=True).select_related("creado_por", "tipo_licencia")
+        tipo_id = request.query_params.get("tipo_licencia")
+        if tipo_id:
+            qs = qs.filter(tipo_licencia_id=tipo_id)
+        periodos = qs.all()
+        if not periodos:
             return Response(
-                {"detail": "No hay período activo actualmente."},
+                {"detail": "No hay períodos activos."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        serializer = self.get_serializer(periodo)
+        serializer = self.get_serializer(periodos, many=True)
         return Response(serializer.data)
 
 
@@ -84,9 +88,9 @@ class AsignaturaViewSet(viewsets.ModelViewSet):
 
     GET /api/asignaturas/ — list all, filterable by ?tipo_licencia={id}
     GET /api/asignaturas/{id}/ — retrieve
-    POST /api/asignaturas/ — create (IsInspector)
-    PUT/PATCH /api/asignaturas/{id}/ — update (IsInspector)
-    DELETE /api/asignaturas/{id}/ — delete (IsInspector)
+    POST /api/asignaturas/ — create (IsInspectorOrSecretaria)
+    PUT/PATCH /api/asignaturas/{id}/ — update (IsInspectorOrSecretaria)
+    DELETE /api/asignaturas/{id}/ — delete (IsInspectorOrSecretaria)
     """
 
     queryset = Asignatura.objects.prefetch_related("tipos_licencia").all()
@@ -95,7 +99,7 @@ class AsignaturaViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [IsAuthenticated()]
-        return [IsInspector()]
+        return [IsInspectorOrSecretaria()]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -108,9 +112,9 @@ class ParaleloViewSet(viewsets.ModelViewSet):
 
     GET /api/paralelos/ — list all, filterable by ?periodo={id}&tipo_licencia={id}
     GET /api/paralelos/{id}/ — retrieve
-    POST /api/paralelos/ — create (IsInspector)
-    PUT/PATCH /api/paralelos/{id}/ — update (IsInspector)
-    DELETE /api/paralelos/{id}/ — delete (IsInspector)
+    POST /api/paralelos/ — create (IsInspectorOrSecretaria)
+    PUT/PATCH /api/paralelos/{id}/ — update (IsInspectorOrSecretaria)
+    DELETE /api/paralelos/{id}/ — delete (IsInspectorOrSecretaria)
     """
 
     queryset = Paralelo.objects.select_related(
@@ -121,7 +125,7 @@ class ParaleloViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [IsAuthenticated()]
-        return [IsInspector()]
+        return [IsInspectorOrSecretaria()]
 
     def get_queryset(self):
         qs = super().get_queryset()

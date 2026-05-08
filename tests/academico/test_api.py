@@ -70,7 +70,8 @@ def _make_tipo_licencia(**kwargs):
     defaults.update(kwargs)
     codigo = defaults.pop("codigo")
     obj, _ = TipoLicencia.objects.get_or_create(
-        codigo=codigo, defaults=defaults,
+        codigo=codigo,
+        defaults=defaults,
     )
     # Apply overrides if the object already existed
     for key, val in defaults.items():
@@ -79,7 +80,7 @@ def _make_tipo_licencia(**kwargs):
     return obj
 
 
-def _make_periodo(creado_por=None, **kwargs):
+def _make_periodo(creado_por=None, tipo_licencia=None, **kwargs):
     defaults = {
         "nombre": "2026-A",
         "fecha_inicio": datetime.date(2026, 3, 1),
@@ -89,6 +90,9 @@ def _make_periodo(creado_por=None, **kwargs):
     defaults.update(kwargs)
     if creado_por:
         defaults["creado_por"] = creado_por
+    if tipo_licencia is None:
+        tipo_licencia = _make_tipo_licencia()
+    defaults["tipo_licencia"] = tipo_licencia
     return Periodo.objects.create(**defaults)
 
 
@@ -143,9 +147,11 @@ class TestPeriodoAPI:
     def test_create_periodo_inspector(self):
         """POST /api/periodos/ as inspector → 201, creates in DB, creado_por set."""
         self.client.force_authenticate(user=self.inspector)
+        tipo_licencia = _make_tipo_licencia()
         url = reverse("academico:api-periodo-list")
         data = {
             "nombre": "2026-B",
+            "tipo_licencia": tipo_licencia.pk,
             "fecha_inicio": "2026-09-01",
             "fecha_fin": "2027-02-28",
         }
@@ -193,9 +199,7 @@ class TestPeriodoAPI:
         periodo = _make_periodo(creado_por=self.inspector)
 
         url = reverse("academico:api-periodo-detail", args=[periodo.pk])
-        response = self.client.patch(
-            url, {"nombre": "2026-A-Modificado"}, format="json"
-        )
+        response = self.client.patch(url, {"nombre": "2026-A-Modificado"}, format="json")
 
         assert response.status_code == status.HTTP_200_OK
         periodo.refresh_from_db()
@@ -217,7 +221,7 @@ class TestPeriodoAPI:
     # --- Activo endpoint ---
 
     def test_activo_endpoint_exists(self):
-        """GET /api/periodos/activo/ with active period → 200 + data."""
+        """GET /api/periodos/activo/ with active period → 200 + data list."""
         self.client.force_authenticate(user=self.inspector)
         periodo = _make_periodo(creado_por=self.inspector, activo=True)
 
@@ -225,8 +229,10 @@ class TestPeriodoAPI:
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["id"] == periodo.pk
-        assert response.data["activo"] is True
+        assert isinstance(response.data, list)
+        assert len(response.data) >= 1
+        ids = [item["id"] for item in response.data]
+        assert periodo.pk in ids
 
     def test_activo_endpoint_no_active(self):
         """GET /api/periodos/activo/ without active period → 404."""
@@ -421,7 +427,6 @@ class TestParaleloAPI:
             "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
             "nombre": "A",
-            "horario": "Lun-Mie 08:00-10:00",
             "capacidad_maxima": 30,
         }
         data.update(overrides)
@@ -436,7 +441,6 @@ class TestParaleloAPI:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
@@ -538,7 +542,6 @@ class TestParaleloAPI:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun 08:00",
             capacidad_maxima=30,
         )
 

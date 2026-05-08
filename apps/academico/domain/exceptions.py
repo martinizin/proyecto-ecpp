@@ -40,5 +40,9 @@ class MatriculaDuplicadaError(AcademicoError):
     """Raised when a student is already enrolled in a paralelo."""
 
 
+class MatriculaAsignaturaDuplicadaError(AcademicoError):
+    """Raised when a student is already enrolled in the same asignatura (any paralelo)."""
+
+
 class EstadoMatriculaInvalidoError(AcademicoError):
     """Raised when an invalid state transition is attempted on a matricula."""

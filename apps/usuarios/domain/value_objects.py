@@ -21,9 +21,7 @@ class Cedula:
             return  # Allow empty — field is optional
 
         if not re.fullmatch(r"\d{10}", self.valor):
-            raise ValueError(
-                "La cédula debe contener exactamente 10 dígitos numéricos."
-            )
+            raise ValueError("La cédula debe contener exactamente 10 dígitos numéricos.")
 
         provincia = int(self.valor[:2])
         if provincia < 1 or provincia > 24:
@@ -64,15 +62,11 @@ class Email:
 
     valor: str
 
-    _EMAIL_REGEX = re.compile(
-        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    )
+    _EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
     def __post_init__(self) -> None:
         if not self.valor:
             raise ValueError("El correo electrónico es obligatorio.")
 
         if not self._EMAIL_REGEX.fullmatch(self.valor):
-            raise ValueError(
-                f"El formato del correo electrónico '{self.valor}' no es válido."
-            )
+            raise ValueError(f"El formato del correo electrónico '{self.valor}' no es válido.")

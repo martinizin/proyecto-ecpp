@@ -3,9 +3,14 @@ from django.db import models
 
 
 class Periodo(models.Model):
-    """Academic period (e.g. '2026-1')."""
+    """Academic period linked to a specific license type (e.g. '2026-A — Licencia E')."""
 
-    nombre = models.CharField(max_length=100, unique=True)
+    nombre = models.CharField(max_length=100)
+    tipo_licencia = models.ForeignKey(
+        "TipoLicencia",
+        on_delete=models.CASCADE,
+        related_name="periodos",
+    )
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     activo = models.BooleanField(default=False)
@@ -21,10 +26,11 @@ class Periodo(models.Model):
     class Meta:
         verbose_name = "Periodo Academico"
         verbose_name_plural = "Periodos Academicos"
+        unique_together = ["nombre", "tipo_licencia"]
         ordering = ["-fecha_inicio"]
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} — {self.tipo_licencia.codigo}"
 
 
 class TipoLicencia(models.Model):
@@ -70,12 +76,8 @@ class Asignatura(models.Model):
 class Paralelo(models.Model):
     """Class section — links a subject, period, license type, teacher, and students."""
 
-    asignatura = models.ForeignKey(
-        Asignatura, on_delete=models.CASCADE, related_name="paralelos"
-    )
-    periodo = models.ForeignKey(
-        Periodo, on_delete=models.CASCADE, related_name="paralelos"
-    )
+    asignatura = models.ForeignKey(Asignatura, on_delete=models.CASCADE, related_name="paralelos")
+    periodo = models.ForeignKey(Periodo, on_delete=models.CASCADE, related_name="paralelos")
     tipo_licencia = models.ForeignKey(
         TipoLicencia, on_delete=models.CASCADE, related_name="paralelos"
     )
@@ -86,7 +88,6 @@ class Paralelo(models.Model):
         limit_choices_to={"rol": "docente"},
     )
     nombre = models.CharField(max_length=10)  # e.g. "A", "B", "GR1"
-    horario = models.TextField(blank=True)
     capacidad_maxima = models.PositiveIntegerField(default=30)
 
     class Meta:
@@ -97,6 +98,42 @@ class Paralelo(models.Model):
 
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
+
+
+class BloqueHorario(models.Model):
+    """A time block for a paralelo (subject-section). Supports multiple blocks per paralelo."""
+
+    class DiaSemana(models.TextChoices):
+        LUNES = "lunes", "Lunes"
+        MARTES = "martes", "Martes"
+        MIERCOLES = "miercoles", "Miércoles"
+        JUEVES = "jueves", "Jueves"
+        VIERNES = "viernes", "Viernes"
+        SABADO = "sabado", "Sábado"
+
+    paralelo = models.ForeignKey(
+        Paralelo,
+        on_delete=models.CASCADE,
+        related_name="bloques_horario",
+    )
+    dia_semana = models.CharField(max_length=10, choices=DiaSemana.choices)
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+
+    class Meta:
+        verbose_name = "Bloque Horario"
+        verbose_name_plural = "Bloques Horarios"
+        unique_together = ["paralelo", "dia_semana", "hora_inicio"]
+        ordering = ["dia_semana", "hora_inicio"]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.hora_inicio and self.hora_fin and self.hora_inicio >= self.hora_fin:
+            raise ValidationError("La hora de inicio debe ser anterior a la hora de fin.")
+
+    def __str__(self):
+        return f"{self.get_dia_semana_display()} {self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}"
 
 
 class Matricula(models.Model):

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Crear Paralelos en Lote{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'academico:paralelo_list' %}" class="hover:text-primary transition-colors">Paralelos</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Crear en Lote</li>
+    </ol>
+</nav>
+
+<div class="max-w-3xl mx-auto"
+     x-data="{
+         tipoLicenciaId: '{{ form.tipo_licencia.value|default:'' }}',
+         asignaturas: [],
+         loading: false,
+         async fetchAsignaturas() {
+             if (!this.tipoLicenciaId) { this.asignaturas = []; return; }
+             this.loading = true;
+             try {
+                 const resp = await fetch('{% url "academico:asignaturas_por_tipo" %}?tipo_licencia=' + this.tipoLicenciaId);
+                 const data = await resp.json();
+                 this.asignaturas = data.asignaturas;
+             } catch(e) {
+                 this.asignaturas = [];
+             }
+             this.loading = false;
+         },
+         selectAll() {
+             document.querySelectorAll('input[name=asignaturas]').forEach(cb => cb.checked = true);
+         },
+         deselectAll() {
+             document.querySelectorAll('input[name=asignaturas]').forEach(cb => cb.checked = false);
+         }
+     }"
+     x-init="if (tipoLicenciaId) fetchAsignaturas()">
+
+    <div class="bg-white rounded-xl shadow-md p-8">
+        <h1 class="text-xl font-semibold text-gray-800 mb-2">Crear Paralelos en Lote</h1>
+        <p class="text-sm text-gray-500 mb-6">Seleccione las asignaturas y se creará un paralelo por cada una, con los mismos datos compartidos.</p>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <!-- Período -->
+            <div class="mb-4">
+                <label for="id_periodo" class="block text-sm font-medium text-gray-700 mb-1">{{ form.periodo.label }}</label>
+                {{ form.periodo }}
+                {% if form.periodo.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.periodo.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Tipo de Licencia -->
+            <div class="mb-4">
+                <label for="id_tipo_licencia" class="block text-sm font-medium text-gray-700 mb-1">{{ form.tipo_licencia.label }}</label>
+                <select name="tipo_licencia" id="id_tipo_licencia" class="form-select"
+                        x-model="tipoLicenciaId"
+                        @change="fetchAsignaturas()">
+                    <option value="">Seleccione un tipo de licencia</option>
+                    {% for choice in form.tipo_licencia.field.queryset %}
+                    <option value="{{ choice.pk }}" {% if form.tipo_licencia.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ choice }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if form.tipo_licencia.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.tipo_licencia.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Asignaturas (dinámicas) -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.asignaturas.label }}</label>
+
+                <template x-if="!tipoLicenciaId">
+                    <p class="text-sm text-gray-400 italic">Seleccione un tipo de licencia para ver las asignaturas disponibles.</p>
+                </template>
+
+                <template x-if="loading">
+                    <p class="text-sm text-gray-400 italic">Cargando asignaturas...</p>
+                </template>
+
+                <template x-if="tipoLicenciaId && !loading && asignaturas.length === 0">
+                    <p class="text-sm text-warning italic">No hay asignaturas asociadas a este tipo de licencia.</p>
+                </template>
+
+                <template x-if="tipoLicenciaId && !loading && asignaturas.length > 0">
+                    <div>
+                        <div class="flex gap-3 mb-2">
+                            <button type="button" @click="selectAll()"
+                                    class="text-xs text-primary hover:underline font-medium">Seleccionar todas</button>
+                            <button type="button" @click="deselectAll()"
+                                    class="text-xs text-gray-500 hover:underline font-medium">Deseleccionar todas</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                            <template x-for="asig in asignaturas" :key="asig.id">
+                                <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                                    <input type="checkbox" name="asignaturas" :value="asig.id"
+                                           class="form-check-input rounded border-gray-300 text-primary focus:ring-primary">
+                                    <span>
+                                        <span class="font-medium text-gray-700" x-text="asig.codigo"></span>
+                                        <span class="text-gray-500" x-text="' — ' + asig.nombre"></span>
+                                    </span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                {% if form.asignaturas.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.asignaturas.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Nombre -->
+            <div class="mb-4">
+                <label for="id_nombre" class="block text-sm font-medium text-gray-700 mb-1">{{ form.nombre.label }}</label>
+                {{ form.nombre }}
+                {% if form.nombre.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.nombre.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Docente -->
+            <div class="mb-4">
+                <label for="id_docente" class="block text-sm font-medium text-gray-700 mb-1">{{ form.docente.label }}</label>
+                {{ form.docente }}
+                {% if form.docente.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.docente.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Capacidad máxima -->
+            <div class="mb-4">
+                <label for="id_capacidad_maxima" class="block text-sm font-medium text-gray-700 mb-1">{{ form.capacidad_maxima.label }}</label>
+                {{ form.capacidad_maxima }}
+                {% if form.capacidad_maxima.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.capacidad_maxima.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-4 mt-6">
+                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Crear Paralelos
+                </button>
+                <a href="{% url 'academico:paralelo_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

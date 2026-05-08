@@ -3,10 +3,7 @@ Concrete repository implementations for the Usuarios bounded context.
 Django ORM implementations of the abstract repositories defined in domain/.
 """
 
-from datetime import datetime
 from typing import List, Optional
-
-from django.utils import timezone
 
 from apps.usuarios.domain.entities import (
     OTPTokenEntity,
@@ -87,9 +84,7 @@ class DjangoOTPTokenRepository(OTPTokenRepository):
         )
         return self._to_entity(obj)
 
-    def get_valid_token(
-        self, usuario_id: int, codigo: str
-    ) -> Optional[OTPTokenEntity]:
+    def get_valid_token(self, usuario_id: int, codigo: str) -> Optional[OTPTokenEntity]:
         try:
             token = OTPToken.objects.get(
                 usuario_id=usuario_id,
@@ -137,7 +132,7 @@ class DjangoAuditoriaRepository(AuditoriaRepository):
     def listar_por_usuario(
         self, usuario_id: int, limit: int = 50
     ) -> List[RegistroAuditoriaEntity]:
-        records = RegistroAuditoria.objects.filter(
-            usuario_id=usuario_id
-        ).order_by("-timestamp")[:limit]
+        records = RegistroAuditoria.objects.filter(usuario_id=usuario_id).order_by("-timestamp")[
+            :limit
+        ]
         return [self._to_entity(r) for r in records]

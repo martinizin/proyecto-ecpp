@@ -24,7 +24,6 @@ from apps.academico.infrastructure.repositories import (
     DjangoAsignaturaRepository,
     DjangoParaleloRepository,
     DjangoPeriodoRepository,
-    DjangoTipoLicenciaRepository,
 )
 from apps.usuarios.domain.entities import RegistroAuditoriaEntity
 from apps.usuarios.infrastructure.repositories import DjangoAuditoriaRepository
@@ -52,10 +51,11 @@ class PeriodoAppService:
         nombre: str,
         fecha_inicio: date,
         fecha_fin: date,
+        tipo_licencia_id: int,
         creado_por_id: int,
     ) -> PeriodoEntity:
         """
-        Create a new academic period.
+        Create a new academic period linked to a license type.
 
         Raises:
             PeriodoSolapadoError: If fecha_inicio >= fecha_fin.
@@ -66,6 +66,7 @@ class PeriodoAppService:
             nombre=nombre,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
+            tipo_licencia_id=tipo_licencia_id,
             activo=False,
             creado_por_id=creado_por_id,
         )
@@ -88,6 +89,7 @@ class PeriodoAppService:
         fecha_inicio: date,
         fecha_fin: date,
         usuario_id: int,
+        tipo_licencia_id: int | None = None,
     ) -> PeriodoEntity:
         """
         Update an existing period.
@@ -102,6 +104,7 @@ class PeriodoAppService:
             nombre=nombre,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
+            tipo_licencia_id=tipo_licencia_id or (existing.tipo_licencia_id if existing else None),
             activo=existing.activo if existing else False,
             creado_por_id=existing.creado_por_id if existing else None,
         )
@@ -125,7 +128,7 @@ class PeriodoAppService:
         confirmar_desactivacion: bool = False,
     ) -> bool:
         """
-        Activate a period, enforcing single-active invariant.
+        Activate a period, enforcing one-active-per-tipo-licencia invariant.
 
         Args:
             periodo_id: ID of the period to activate.
@@ -136,9 +139,11 @@ class PeriodoAppService:
             True if activation succeeded.
 
         Raises:
-            PeriodoActivoExistenteError: If another period is active and not confirmed.
+            PeriodoActivoExistenteError: If another period of the same tipo_licencia
+                is active and not confirmed.
         """
-        activo = self.periodo_repo.get_activo()
+        periodo = self.periodo_repo.get_by_id(periodo_id)
+        activo = self.periodo_repo.get_activo_por_tipo(periodo.tipo_licencia_id)
         periodo_activo_nombre = activo.nombre if activo else None
 
         # Domain check — may raise PeriodoActivoExistenteError
@@ -147,9 +152,9 @@ class PeriodoAppService:
             confirmar_desactivacion=confirmar_desactivacion,
         )
 
-        # Deactivate current if exists
+        # Deactivate current for this tipo_licencia if exists
         if activo:
-            self.periodo_repo.desactivar_todos()
+            self.periodo_repo.desactivar_por_tipo(periodo.tipo_licencia_id)
             self.auditoria_repo.registrar(
                 RegistroAuditoriaEntity(
                     accion="cambio_estado_periodo",
@@ -250,9 +255,7 @@ class AsignaturaAppService:
             codigo=codigo,
             horas_lectivas=horas_lectivas,
             tipos_licencia_ids=tipos_licencia_ids,
-            codigo_exists=self.asignatura_repo.codigo_exists(
-                codigo, exclude_id=asignatura_id
-            ),
+            codigo_exists=self.asignatura_repo.codigo_exists(codigo, exclude_id=asignatura_id),
         )
 
         entity = AsignaturaEntity(
@@ -301,7 +304,6 @@ class ParaleloAppService:
         docente_rol: str,
         tipo_licencia_id: int,
         nombre: str,
-        horario: str,
         capacidad_maxima: int,
         periodo_id: int,
         periodo_activo: bool,
@@ -330,7 +332,6 @@ class ParaleloAppService:
             periodo_nombre=periodo_nombre,
             docente_username=docente_username,
             nombre=nombre,
-            horario=horario,
             tipo_licencia_id=tipo_licencia_id,
             capacidad_maxima=capacidad_maxima,
         )
@@ -346,6 +347,70 @@ class ParaleloAppService:
 
         return created
 
+    def crear_lote(
+        self,
+        asignaturas: list,
+        periodo,
+        tipo_licencia,
+        docente,
+        nombre: str,
+        capacidad_maxima: int,
+        usuario_id: int,
+    ):
+        """
+        Create one paralelo per selected asignatura (batch creation).
+
+        Validates docente role and active period once, then checks uniqueness
+        per asignatura. Skips duplicates and reports them.
+
+        Returns:
+            Tuple of (list of created ParaleloEntity, list of skipped asignatura codigos).
+
+        Raises:
+            DocenteInvalidoError, PeriodoInactivoError
+        """
+        self.paralelo_service.validar_docente(docente.rol)
+        self.paralelo_service.validar_periodo_activo(periodo.activo)
+
+        created_list = []
+        duplicados = []
+
+        for asignatura in asignaturas:
+            if self.paralelo_repo.exists(
+                periodo_id=periodo.pk,
+                tipo_licencia_id=tipo_licencia.pk,
+                asignatura_id=asignatura.pk,
+                nombre=nombre,
+            ):
+                duplicados.append(asignatura.codigo)
+                continue
+
+            entity = ParaleloEntity(
+                asignatura_codigo=asignatura.codigo,
+                periodo_nombre=periodo.nombre,
+                docente_username=docente.username,
+                nombre=nombre,
+                tipo_licencia_id=tipo_licencia.pk,
+                capacidad_maxima=capacidad_maxima,
+            )
+            created = self.paralelo_repo.create(entity)
+            created_list.append(created)
+
+        if created_list:
+            codigos = ", ".join(c.asignatura_codigo for c in created_list)
+            self.auditoria_repo.registrar(
+                RegistroAuditoriaEntity(
+                    accion="creacion_paralelos_lote",
+                    usuario_id=usuario_id,
+                    detalle=(
+                        f"Lote de {len(created_list)} paralelos creados: "
+                        f"{codigos} — {nombre} ({periodo.nombre})"
+                    ),
+                )
+            )
+
+        return created_list, duplicados
+
     def actualizar(
         self,
         paralelo_id: int,
@@ -355,7 +420,6 @@ class ParaleloAppService:
         docente_rol: str,
         tipo_licencia_id: int,
         nombre: str,
-        horario: str,
         capacidad_maxima: int,
         periodo_id: int,
         periodo_activo: bool,
@@ -385,7 +449,6 @@ class ParaleloAppService:
             periodo_nombre=periodo_nombre,
             docente_username=docente_username,
             nombre=nombre,
-            horario=horario,
             tipo_licencia_id=tipo_licencia_id,
             capacidad_maxima=capacidad_maxima,
         )

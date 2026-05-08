@@ -44,12 +44,18 @@ class PeriodoSerializer(serializers.ModelSerializer):
         read_only=True,
         default="",
     )
+    tipo_licencia_codigo = serializers.CharField(
+        source="tipo_licencia.codigo",
+        read_only=True,
+    )
 
     class Meta:
         model = Periodo
         fields = [
             "id",
             "nombre",
+            "tipo_licencia",
+            "tipo_licencia_codigo",
             "fecha_inicio",
             "fecha_fin",
             "activo",
@@ -57,7 +63,14 @@ class PeriodoSerializer(serializers.ModelSerializer):
             "creado_por_nombre",
             "modificado_en",
         ]
-        read_only_fields = ["id", "activo", "creado_por", "creado_por_nombre", "modificado_en"]
+        read_only_fields = [
+            "id",
+            "activo",
+            "creado_por",
+            "creado_por_nombre",
+            "tipo_licencia_codigo",
+            "modificado_en",
+        ]
 
     def validate(self, attrs):
         fecha_inicio = attrs.get("fecha_inicio")
@@ -106,9 +119,7 @@ class AsignaturaSerializer(serializers.ModelSerializer):
 
     def validate_tipos_licencia(self, value):
         if not value:
-            raise serializers.ValidationError(
-                "Debe asignar al menos un tipo de licencia."
-            )
+            raise serializers.ValidationError("Debe asignar al menos un tipo de licencia.")
         return value
 
 
@@ -150,13 +161,10 @@ class ParaleloSerializer(serializers.ModelSerializer):
             "docente",
             "docente_nombre",
             "nombre",
-            "horario",
             "capacidad_maxima",
         ]
 
     def validate_capacidad_maxima(self, value):
         if value <= 0:
-            raise serializers.ValidationError(
-                "La capacidad máxima debe ser mayor a 0."
-            )
+            raise serializers.ValidationError("La capacidad máxima debe ser mayor a 0.")
         return value

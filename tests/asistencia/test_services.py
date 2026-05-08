@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from apps.academico.infrastructure.models import Matricula, Paralelo
+from apps.academico.infrastructure.models import Matricula
 from apps.asistencia.application.services import RegistroAsistenciaAppService
 from apps.asistencia.infrastructure.models import Asistencia
 from tests.factories import (
@@ -31,9 +31,7 @@ class TestObtenerEstudiantesMatriculados:
         """Returns only active matriculas, excludes retired."""
         m1 = MatriculaFactory(paralelo=self.paralelo)
         m2 = MatriculaFactory(paralelo=self.paralelo)
-        MatriculaFactory(
-            paralelo=self.paralelo, estado=Matricula.Estado.RETIRADA
-        )
+        MatriculaFactory(paralelo=self.paralelo, estado=Matricula.Estado.RETIRADA)
 
         result = self.service.obtener_estudiantes_matriculados(self.paralelo.pk)
         ids = [m.estudiante_id for m in result]
@@ -66,10 +64,7 @@ class TestRegistrarAsistencia:
         self.service = RegistroAsistenciaAppService()
         self.paralelo = ParaleloFactory()
         self.docente = self.paralelo.docente
-        self.estudiantes = [
-            MatriculaFactory(paralelo=self.paralelo).estudiante
-            for _ in range(3)
-        ]
+        self.estudiantes = [MatriculaFactory(paralelo=self.paralelo).estudiante for _ in range(3)]
 
     def test_registrar_asistencia_crea_registros(self):
         """Creates records for all enrolled students: 2 present, 1 absent."""
@@ -84,12 +79,18 @@ class TestRegistrarAsistencia:
         )
 
         assert resultado["registros_creados"] == 3
-        assert Asistencia.objects.filter(
-            paralelo=self.paralelo, fecha=fecha, estado=Asistencia.Estado.PRESENTE
-        ).count() == 2
-        assert Asistencia.objects.filter(
-            paralelo=self.paralelo, fecha=fecha, estado=Asistencia.Estado.AUSENTE
-        ).count() == 1
+        assert (
+            Asistencia.objects.filter(
+                paralelo=self.paralelo, fecha=fecha, estado=Asistencia.Estado.PRESENTE
+            ).count()
+            == 2
+        )
+        assert (
+            Asistencia.objects.filter(
+                paralelo=self.paralelo, fecha=fecha, estado=Asistencia.Estado.AUSENTE
+            ).count()
+            == 1
+        )
 
     def test_registrar_asistencia_retoma(self):
         """Second registration on same date replaces the first (no duplicates)."""
@@ -188,9 +189,7 @@ class TestObtenerTodosParalelosActivos:
         ids = [p.pk for p in result]
         assert p1.pk in ids
         # The inactive paralelo should not appear
-        assert all(
-            p.periodo.activo for p in result
-        )
+        assert all(p.periodo.activo for p in result)
 
 
 class TestObtenerDatosAsistenciaEstudiante:
@@ -262,13 +261,15 @@ class TestObtenerDatosAsistenciaEstudiante:
         MatriculaFactory(estudiante=estudiante, paralelo=p1)
         for i in range(8):
             AsistenciaFactory(
-                estudiante=estudiante, paralelo=p1,
+                estudiante=estudiante,
+                paralelo=p1,
                 fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
                 estado=Asistencia.Estado.PRESENTE,
             )
         for i in range(2):
             AsistenciaFactory(
-                estudiante=estudiante, paralelo=p1,
+                estudiante=estudiante,
+                paralelo=p1,
                 fecha=datetime.date(2026, 5, 1) + datetime.timedelta(days=i),
                 estado=Asistencia.Estado.AUSENTE,
             )
@@ -278,7 +279,8 @@ class TestObtenerDatosAsistenciaEstudiante:
         MatriculaFactory(estudiante=estudiante, paralelo=p2)
         for i in range(10):
             AsistenciaFactory(
-                estudiante=estudiante, paralelo=p2,
+                estudiante=estudiante,
+                paralelo=p2,
                 fecha=datetime.date(2026, 4, 1) + datetime.timedelta(days=i),
                 estado=Asistencia.Estado.PRESENTE,
             )
@@ -334,6 +336,7 @@ class TestObtenerDatosSupervision:
         """No active matriculas → empty estudiantes, tipos_licencia exists."""
         # Create a TipoLicencia so it appears in the dropdown
         from tests.factories import TipoLicenciaFactory
+
         TipoLicenciaFactory()
 
         resultado = self.service.obtener_datos_supervision()
@@ -418,6 +421,7 @@ class TestObtenerDatosSupervision:
     def test_filtro_tipo_licencia(self):
         """2 students in different tipo_licencia paralelos, filter → only matching."""
         from tests.factories import TipoLicenciaFactory
+
         periodo = PeriodoFactory(activo=True)
 
         tl_a = TipoLicenciaFactory(nombre="Tipo A", codigo="TA")
@@ -454,6 +458,7 @@ class TestObtenerDatosSupervision:
     def test_tipo_licencia_seleccionado_en_resultado(self):
         """Passing tipo_licencia_id returns it in result dict."""
         from tests.factories import TipoLicenciaFactory
+
         tl = TipoLicenciaFactory()
 
         resultado = self.service.obtener_datos_supervision(tipo_licencia_id=tl.pk)

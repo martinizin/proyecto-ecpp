@@ -129,25 +129,19 @@ class TestOTPService:
         self.now = datetime(2026, 4, 1, 12, 0, 0)
 
     def test_generar_codigo_6_digitos(self):
-        codigo, _ = self.service.generar(
-            usuario_id=1, now=self.now, expiration_minutes=10
-        )
+        codigo, _ = self.service.generar(usuario_id=1, now=self.now, expiration_minutes=10)
         assert len(codigo) == 6
         assert codigo.isdigit()
 
     def test_generar_expiracion_correcta(self):
-        _, expira_en = self.service.generar(
-            usuario_id=1, now=self.now, expiration_minutes=10
-        )
+        _, expira_en = self.service.generar(usuario_id=1, now=self.now, expiration_minutes=10)
         assert expira_en == self.now + timedelta(minutes=10)
 
     def test_generar_codigos_diferentes(self):
         """Two consecutive generations should (almost always) produce different codes."""
         codigos = set()
         for _ in range(20):
-            codigo, _ = self.service.generar(
-                usuario_id=1, now=self.now, expiration_minutes=10
-            )
+            codigo, _ = self.service.generar(usuario_id=1, now=self.now, expiration_minutes=10)
             codigos.add(codigo)
         # With 20 attempts and 1M possible codes, collision is extremely unlikely
         assert len(codigos) > 1
@@ -243,13 +237,11 @@ class TestLoginService:
             (0, 5, 1, False),
             (1, 5, 2, False),
             (3, 5, 4, False),
-            (4, 5, 5, True),   # 5th attempt → lock
+            (4, 5, 5, True),  # 5th attempt → lock
             (9, 5, 10, True),  # Already over max → lock
         ],
     )
-    def test_registrar_intento_fallido(
-        self, intentos, max_intentos, expected_count, should_lock
-    ):
+    def test_registrar_intento_fallido(self, intentos, max_intentos, expected_count, should_lock):
         count, bloqueado = self.service.registrar_intento_fallido(
             intentos_fallidos=intentos,
             max_intentos=max_intentos,

@@ -5,7 +5,7 @@ Tests: PeriodoListView, PeriodoCreateView, PeriodoUpdateView,
        AsignaturaListView, AsignaturaCreateView, AsignaturaUpdateView,
        ParaleloListView, ParaleloCreateView, ParaleloUpdateView,
        TipoLicenciaListView.
-Role enforcement: all views require Inspector — non-inspectors get 403.
+Role enforcement: all views require Inspector or Secretaria — other roles get 403.
 Refs: HU05, HU06, SCN-PER-01→04, SCN-CAT-01→10
 """
 
@@ -17,6 +17,7 @@ from django.urls import reverse
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    BloqueHorario,
     Paralelo,
     Periodo,
     TipoLicencia,
@@ -67,6 +68,18 @@ def _create_estudiante() -> Usuario:
     )
 
 
+def _create_secretaria() -> Usuario:
+    return Usuario.objects.create_user(
+        username="secretaria_v",
+        email="secretaria@v.com",
+        password=PASSWORD,
+        first_name="Ana",
+        last_name="Martinez",
+        rol="secretaria",
+        is_active=True,
+    )
+
+
 def _create_tipo_licencia(**kwargs) -> TipoLicencia:
     defaults = {
         "nombre": "Conducción",
@@ -78,7 +91,8 @@ def _create_tipo_licencia(**kwargs) -> TipoLicencia:
     defaults.update(kwargs)
     codigo = defaults.pop("codigo")
     obj, _ = TipoLicencia.objects.get_or_create(
-        codigo=codigo, defaults=defaults,
+        codigo=codigo,
+        defaults=defaults,
     )
     for key, val in defaults.items():
         setattr(obj, key, val)
@@ -86,7 +100,7 @@ def _create_tipo_licencia(**kwargs) -> TipoLicencia:
     return obj
 
 
-def _create_periodo(creado_por=None, **kwargs) -> Periodo:
+def _create_periodo(creado_por=None, tipo_licencia=None, **kwargs) -> Periodo:
     defaults = {
         "nombre": "2026-A",
         "fecha_inicio": datetime.date(2026, 3, 1),
@@ -96,6 +110,9 @@ def _create_periodo(creado_por=None, **kwargs) -> Periodo:
     defaults.update(kwargs)
     if creado_por:
         defaults["creado_por"] = creado_por
+    if tipo_licencia is None:
+        tipo_licencia = _create_tipo_licencia()
+    defaults["tipo_licencia"] = tipo_licencia
     return Periodo.objects.create(**defaults)
 
 
@@ -170,9 +187,11 @@ class TestPeriodoViews:
 
     def test_create_periodo_post_exitoso(self):
         """POST valid data → redirects to periodo_list, period created in DB."""
+        tipo_licencia = _create_tipo_licencia()
         url = reverse("academico:periodo_create")
         data = {
             "nombre": "2026-B",
+            "tipo_licencia": tipo_licencia.pk,
             "fecha_inicio": "2026-09-01",
             "fecha_fin": "2027-02-28",
         }
@@ -203,6 +222,7 @@ class TestPeriodoViews:
         url = reverse("academico:periodo_update", args=[periodo.pk])
         data = {
             "nombre": "2026-A-Modificado",
+            "tipo_licencia": periodo.tipo_licencia.pk,
             "fecha_inicio": "2026-03-01",
             "fecha_fin": "2026-08-31",
         }
@@ -334,7 +354,6 @@ class TestParaleloViews:
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
@@ -366,7 +385,6 @@ class TestParaleloViews:
             "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
             "nombre": "B",
-            "horario": "Mar-Jue 10:00-12:00",
             "capacidad_maxima": 25,
         }
 
@@ -382,26 +400,19 @@ class TestParaleloViews:
     # --- Update ---
 
     def test_update_paralelo_post_exitoso(self):
-        """POST updated data → redirect to paralelo_list, DB updated."""
+        """POST updated docente → redirect to paralelo_list, DB updated."""
         paralelo = Paralelo.objects.create(
             asignatura=self.asignatura,
             periodo=self.periodo,
             tipo_licencia=self.tipo_licencia,
             docente=self.docente,
             nombre="A",
-            horario="Lun-Mie 08:00-10:00",
             capacidad_maxima=30,
         )
 
         url = reverse("academico:paralelo_update", args=[paralelo.pk])
         data = {
-            "asignatura": self.asignatura.pk,
-            "periodo": self.periodo.pk,
-            "tipo_licencia": self.tipo_licencia.pk,
             "docente": self.docente.pk,
-            "nombre": "A",
-            "horario": "Lun-Vie 14:00-16:00",
-            "capacidad_maxima": 35,
         }
 
         response = self.client.post(url, data)
@@ -410,8 +421,7 @@ class TestParaleloViews:
         assert reverse("academico:paralelo_list") in response.url
 
         paralelo.refresh_from_db()
-        assert paralelo.capacidad_maxima == 35
-        assert paralelo.horario == "Lun-Vie 14:00-16:00"
+        assert paralelo.docente == self.docente
 
 
 # =============================================================================
@@ -436,9 +446,7 @@ class TestTipoLicenciaViews:
         response = self.client.get(url)
 
         assert response.status_code == 200
-        assert "academico/tipo_licencia_list.html" in [
-            t.name for t in response.templates
-        ]
+        assert "academico/tipo_licencia_list.html" in [t.name for t in response.templates]
         assert "tipos_licencia" in response.context
 
     def test_list_tipos_licencia_docente_forbidden(self):
@@ -451,3 +459,310 @@ class TestTipoLicenciaViews:
         response = docente_client.get(url)
 
         assert response.status_code == 403
+
+
+# =============================================================================
+# TestSecretariaAccess — 3 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSecretariaAccess:
+    """Verify secretaria role can access all academic views."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.secretaria = _create_secretaria()
+        self.client.force_login(self.secretaria)
+
+        self.inspector = _create_inspector()
+        self.tipo_licencia = _create_tipo_licencia()
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+        self.asignatura = _create_asignatura()
+        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        self.docente = _create_docente()
+
+    def test_secretaria_can_list_periodos(self):
+        """GET /academico/periodos/ as secretaria → 200."""
+        url = reverse("academico:periodo_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
+
+    def test_secretaria_can_list_asignaturas(self):
+        """GET /academico/asignaturas/ as secretaria → 200."""
+        url = reverse("academico:asignatura_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
+
+    def test_secretaria_can_list_paralelos(self):
+        """GET /academico/paralelos/ as secretaria → 200."""
+        Paralelo.objects.create(
+            asignatura=self.asignatura,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        url = reverse("academico:paralelo_list")
+        response = self.client.get(url)
+        assert response.status_code == 200
+
+
+# =============================================================================
+# TestParaleloLoteViews — 7 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestParaleloLoteViews:
+    """View tests for batch paralelo creation."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.inspector = _create_inspector()
+        self.client.force_login(self.inspector)
+
+        self.docente = _create_docente()
+        self.tipo_licencia = _create_tipo_licencia(num_asignaturas=5)
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+
+        self.asig1 = _create_asignatura(nombre="Legislación", codigo="LEG-001")
+        self.asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
+        self.asig3 = _create_asignatura(nombre="Primeros Auxilios", codigo="PAU-001")
+        self.asig1.tipos_licencia.add(self.tipo_licencia)
+        self.asig2.tipos_licencia.add(self.tipo_licencia)
+        self.asig3.tipos_licencia.add(self.tipo_licencia)
+
+    def _lote_url(self):
+        return reverse("academico:paralelo_create_lote")
+
+    def _post_data(self, asignatura_ids):
+        return {
+            "periodo": self.periodo.pk,
+            "tipo_licencia": self.tipo_licencia.pk,
+            "asignaturas": asignatura_ids,
+            "nombre": "A",
+            "docente": self.docente.pk,
+            "capacidad_maxima": 30,
+        }
+
+    def test_get_form_lote(self):
+        """GET /academico/paralelos/crear-lote/ as inspector → 200."""
+        response = self.client.get(self._lote_url())
+        assert response.status_code == 200
+        assert "academico/paralelo_form_lote.html" in [t.name for t in response.templates]
+
+    def test_create_lote_exitoso(self):
+        """POST with 3 asignaturas → creates 3 paralelos, redirect."""
+        data = self._post_data([self.asig1.pk, self.asig2.pk, self.asig3.pk])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 302
+        assert reverse("academico:paralelo_list") in response.url
+        assert Paralelo.objects.count() == 3
+        assert Paralelo.objects.filter(nombre="A", tipo_licencia=self.tipo_licencia).count() == 3
+
+    def test_create_lote_skips_duplicates(self):
+        """POST with existing paralelo → skips duplicate, creates the rest."""
+        Paralelo.objects.create(
+            asignatura=self.asig1,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+
+        data = self._post_data([self.asig1.pk, self.asig2.pk])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 302
+        assert Paralelo.objects.count() == 2  # 1 existing + 1 new
+
+    def test_create_lote_no_asignaturas_selected(self):
+        """POST without asignaturas → form error, no paralelos created."""
+        data = self._post_data([])
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 200  # re-render form
+        assert Paralelo.objects.count() == 0
+
+    def test_create_lote_exceeds_max_asignaturas(self):
+        """POST with more asignaturas than tipo_licencia.num_asignaturas → form error."""
+        # tipo_licencia has num_asignaturas=5, create 6 asignaturas
+        extra_asigs = []
+        for i in range(4, 7):
+            asig = _create_asignatura(nombre=f"Extra {i}", codigo=f"EXT-{i:03d}")
+            asig.tipos_licencia.add(self.tipo_licencia)
+            extra_asigs.append(asig)
+
+        all_ids = [self.asig1.pk, self.asig2.pk, self.asig3.pk] + [a.pk for a in extra_asigs]
+        assert len(all_ids) == 6  # exceeds 5
+
+        data = self._post_data(all_ids)
+        response = self.client.post(self._lote_url(), data)
+
+        assert response.status_code == 200  # re-render form with error
+        assert Paralelo.objects.count() == 0
+
+    def test_create_lote_docente_forbidden(self):
+        """POST as docente → 403."""
+        docente_client = Client()
+        docente_client.force_login(self.docente)
+
+        data = self._post_data([self.asig1.pk])
+        response = docente_client.post(self._lote_url(), data)
+
+        assert response.status_code == 403
+
+    def test_asignaturas_por_tipo_json(self):
+        """GET /academico/asignaturas-por-tipo/?tipo_licencia=X
+        → JSON with filtered asignaturas."""
+        url = reverse("academico:asignaturas_por_tipo")
+        response = self.client.get(url, {"tipo_licencia": self.tipo_licencia.pk})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["asignaturas"]) == 3
+        codigos = {a["codigo"] for a in data["asignaturas"]}
+        assert codigos == {"LEG-001", "MEC-001", "PAU-001"}
+
+
+# =============================================================================
+# TestParaleloBloqueHorarioViews — 5 tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestParaleloBloqueHorarioViews:
+    """View tests for BloqueHorario management in ParaleloUpdateView."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.inspector = _create_inspector()
+        self.client.force_login(self.inspector)
+
+        self.docente = _create_docente()
+        self.tipo_licencia = _create_tipo_licencia()
+        self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
+        self.asignatura = _create_asignatura(nombre="Legislación", codigo="LEG-001")
+        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+
+        self.paralelo = Paralelo.objects.create(
+            asignatura=self.asignatura,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+
+    def _update_url(self):
+        return reverse("academico:paralelo_update", args=[self.paralelo.pk])
+
+    def _post_with_bloques(self, bloques):
+        """Helper: POST docente + schedule blocks."""
+        data = {"docente": self.docente.pk}
+        for i, b in enumerate(bloques):
+            data[f"bloque_dia_{i}"] = b["dia"]
+            data[f"bloque_inicio_{i}"] = b["inicio"]
+            data[f"bloque_fin_{i}"] = b["fin"]
+        data["bloques_count"] = len(bloques)
+        return self.client.post(self._update_url(), data)
+
+    def test_update_paralelo_adds_bloques(self):
+        """POST with docente + 2 schedule blocks → blocks created in DB."""
+        bloques = [
+            {"dia": "lunes", "inicio": "08:00", "fin": "10:00"},
+            {"dia": "miercoles", "inicio": "08:00", "fin": "10:00"},
+        ]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 2
+
+    def test_update_paralelo_replaces_bloques(self):
+        """Create existing blocks, POST new ones → old deleted, new created."""
+        BloqueHorario.objects.create(
+            paralelo=self.paralelo,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 1
+
+        bloques = [
+            {"dia": "martes", "inicio": "14:00", "fin": "16:00"},
+            {"dia": "jueves", "inicio": "14:00", "fin": "16:00"},
+        ]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        db_bloques = BloqueHorario.objects.filter(paralelo=self.paralelo)
+        assert db_bloques.count() == 2
+        assert not db_bloques.filter(dia_semana="lunes").exists()
+
+    def test_update_paralelo_conflict_detected(self):
+        """Block on another paralelo in same group with
+        overlapping time → error, blocks NOT saved."""
+        # Create another asignatura in same group
+        asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
+        asig2.tipos_licencia.add(self.tipo_licencia)
+        paralelo2 = Paralelo.objects.create(
+            asignatura=asig2,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        BloqueHorario.objects.create(
+            paralelo=paralelo2,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+
+        # Try to add overlapping block
+        bloques = [{"dia": "lunes", "inicio": "09:00", "fin": "11:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 200  # re-rendered form
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 0
+        assert "Conflicto de horario" in response.content.decode()
+
+    def test_update_paralelo_no_conflict_different_day(self):
+        """Same group but different day → no conflict, saves OK."""
+        asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-002")
+        asig2.tipos_licencia.add(self.tipo_licencia)
+        paralelo2 = Paralelo.objects.create(
+            asignatura=asig2,
+            periodo=self.periodo,
+            tipo_licencia=self.tipo_licencia,
+            docente=self.docente,
+            nombre="A",
+            capacidad_maxima=30,
+        )
+        BloqueHorario.objects.create(
+            paralelo=paralelo2,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
+            hora_fin=datetime.time(10, 0),
+        )
+
+        # Different day → no conflict
+        bloques = [{"dia": "martes", "inicio": "08:00", "fin": "10:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 302
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 1
+
+    def test_update_paralelo_invalid_times(self):
+        """hora_inicio >= hora_fin → error shown, blocks NOT saved."""
+        bloques = [{"dia": "lunes", "inicio": "10:00", "fin": "08:00"}]
+        response = self._post_with_bloques(bloques)
+
+        assert response.status_code == 200  # re-rendered form
+        assert BloqueHorario.objects.filter(paralelo=self.paralelo).count() == 0
+        assert "Horario inválido" in response.content.decode()

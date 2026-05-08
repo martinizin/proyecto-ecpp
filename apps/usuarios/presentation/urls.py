@@ -42,5 +42,9 @@ urlpatterns = [
         ECPPPPasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    path("recuperar/completo/", ECPPPPasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    path(
+        "recuperar/completo/",
+        ECPPPPasswordResetCompleteView.as_view(),
+        name="password_reset_complete",
+    ),
 ]
