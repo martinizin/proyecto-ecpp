@@ -27,9 +27,7 @@ class GestionUsuariosService:
             qs = qs.filter(rol=rol_filter)
         return qs
 
-    def crear_usuario(
-        self, email, first_name, last_name, rol, cedula, telefono=""
-    ) -> tuple:
+    def crear_usuario(self, email, first_name, last_name, rol, cedula, telefono="") -> tuple:
         """
         Create a new user with auto-generated temp password.
         Returns (usuario, temp_password, email_sent: bool).
@@ -152,19 +150,21 @@ class GestionMatriculasService:
         self.domain_service.validar_no_duplicada(existe)
 
         # Check same asignatura in same periodo (any paralelo)
-        ya_inscrito_asignatura = Matricula.objects.filter(
-            estudiante_id=estudiante_id,
-            paralelo__asignatura_id=paralelo.asignatura_id,
-            paralelo__periodo_id=paralelo.periodo_id,
-            estado=Matricula.Estado.ACTIVA,
-        ).select_related("paralelo").first()
+        ya_inscrito_asignatura = (
+            Matricula.objects.filter(
+                estudiante_id=estudiante_id,
+                paralelo__asignatura_id=paralelo.asignatura_id,
+                paralelo__periodo_id=paralelo.periodo_id,
+                estado=Matricula.Estado.ACTIVA,
+            )
+            .select_related("paralelo")
+            .first()
+        )
         self.domain_service.validar_asignatura_no_duplicada(
             ya_inscrito=ya_inscrito_asignatura is not None,
             asignatura_nombre=paralelo.asignatura.nombre,
             paralelo_existente=(
-                ya_inscrito_asignatura.paralelo.nombre
-                if ya_inscrito_asignatura
-                else ""
+                ya_inscrito_asignatura.paralelo.nombre if ya_inscrito_asignatura else ""
             ),
         )
 
@@ -225,9 +225,7 @@ class GestionMatriculasService:
         """
         from apps.academico.infrastructure.models import Matricula, Paralelo
 
-        matricula = Matricula.objects.select_related("paralelo__periodo").get(
-            pk=matricula_id
-        )
+        matricula = Matricula.objects.select_related("paralelo__periodo").get(pk=matricula_id)
 
         # Only active enrollments can change paralelo
         if matricula.estado != Matricula.Estado.ACTIVA:
@@ -237,17 +235,13 @@ class GestionMatriculasService:
                 "Solo se puede cambiar el paralelo de matrículas activas."
             )
 
-        nuevo_paralelo = Paralelo.objects.select_related("periodo").get(
-            pk=nuevo_paralelo_id
-        )
+        nuevo_paralelo = Paralelo.objects.select_related("periodo").get(pk=nuevo_paralelo_id)
 
         # Cannot move to same paralelo
         if matricula.paralelo_id == nuevo_paralelo.pk:
             from apps.academico.domain.exceptions import MatriculaDuplicadaError
 
-            raise MatriculaDuplicadaError(
-                "El estudiante ya se encuentra en este paralelo."
-            )
+            raise MatriculaDuplicadaError("El estudiante ya se encuentra en este paralelo.")
 
         # Check no duplicate in target paralelo
         existe = Matricula.objects.filter(
@@ -294,9 +288,9 @@ class GestionMatriculasService:
         from django.db import transaction
         from apps.academico.infrastructure.models import Matricula, Paralelo
 
-        paralelos = Paralelo.objects.filter(
-            pk__in=paralelo_ids
-        ).select_related("periodo", "asignatura")
+        paralelos = Paralelo.objects.filter(pk__in=paralelo_ids).select_related(
+            "periodo", "asignatura"
+        )
 
         creados = 0
         omitidos = []

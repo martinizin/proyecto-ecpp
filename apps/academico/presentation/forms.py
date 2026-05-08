@@ -55,9 +55,7 @@ class PeriodoForm(forms.ModelForm):
         fecha_inicio = cleaned_data.get("fecha_inicio")
         fecha_fin = cleaned_data.get("fecha_fin")
         if fecha_inicio and fecha_fin and fecha_inicio >= fecha_fin:
-            raise forms.ValidationError(
-                "La fecha de inicio debe ser anterior a la fecha de fin."
-            )
+            raise forms.ValidationError("La fecha de inicio debe ser anterior a la fecha de fin.")
         min_date = datetime.date(2020, 1, 1)
         max_date = datetime.date(2040, 12, 31)
         for field_name, fecha in [("fecha_inicio", fecha_inicio), ("fecha_fin", fecha_fin)]:
@@ -162,9 +160,7 @@ class ParaleloForm(forms.ModelForm):
                     "placeholder": "Ej: A, B, GR1",
                 }
             ),
-            "capacidad_maxima": forms.NumberInput(
-                attrs={"class": "form-control", "min": "1"}
-            ),
+            "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
 
     def clean_capacidad_maxima(self):

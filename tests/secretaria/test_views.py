@@ -101,13 +101,16 @@ class TestUsuarioCreateView:
 
         from apps.usuarios.infrastructure.models import Usuario
 
-        response = client.post(self.url, {
-            "email": "newuser@test.com",
-            "first_name": "Nuevo",
-            "last_name": "Usuario",
-            "rol": "estudiante",
-            "cedula": "1710034065",
-        })
+        response = client.post(
+            self.url,
+            {
+                "email": "newuser@test.com",
+                "first_name": "Nuevo",
+                "last_name": "Usuario",
+                "rol": "estudiante",
+                "cedula": "1710034065",
+            },
+        )
         assert response.status_code == 302
         assert Usuario.objects.filter(email="newuser@test.com").exists()
 
@@ -117,13 +120,16 @@ class TestUsuarioCreateView:
         UsuarioFactory(email="dup@test.com", username="dup@test.com")
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "email": "dup@test.com",
-            "first_name": "Test",
-            "last_name": "User",
-            "rol": "estudiante",
-            "cedula": "0502672230",
-        })
+        response = client.post(
+            self.url,
+            {
+                "email": "dup@test.com",
+                "first_name": "Test",
+                "last_name": "User",
+                "rol": "estudiante",
+                "cedula": "0502672230",
+            },
+        )
         assert response.status_code == 200
         assert "email" in response.context["form"].errors
 
@@ -133,13 +139,16 @@ class TestUsuarioCreateView:
         UsuarioFactory(cedula="0555555555")
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "email": "unique@test.com",
-            "first_name": "Test",
-            "last_name": "User",
-            "rol": "estudiante",
-            "cedula": "0555555555",
-        })
+        response = client.post(
+            self.url,
+            {
+                "email": "unique@test.com",
+                "first_name": "Test",
+                "last_name": "User",
+                "rol": "estudiante",
+                "cedula": "0555555555",
+            },
+        )
         assert response.status_code == 200
         assert "cedula" in response.context["form"].errors
 
@@ -165,13 +174,16 @@ class TestUsuarioEditView:
         client.force_login(sec)
 
         url = reverse("secretaria:usuario_edit", kwargs={"pk": target.pk})
-        response = client.post(url, {
-            "first_name": "Nuevo",
-            "last_name": "Apellido",
-            "rol": "docente",
-            "telefono": "0991234567",
-            "direccion": "Calle 123",
-        })
+        response = client.post(
+            url,
+            {
+                "first_name": "Nuevo",
+                "last_name": "Apellido",
+                "rol": "docente",
+                "telefono": "0991234567",
+                "direccion": "Calle 123",
+            },
+        )
         assert response.status_code == 302
         target.refresh_from_db()
         assert target.first_name == "Nuevo"
@@ -248,14 +260,15 @@ class TestMatriculaCreateView:
         paralelo = ParaleloFactory()
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "estudiante": estudiante.pk,
-            "paralelo": paralelo.pk,
-        })
+        response = client.post(
+            self.url,
+            {
+                "estudiante": estudiante.pk,
+                "paralelo": paralelo.pk,
+            },
+        )
         assert response.status_code == 302
-        assert Matricula.objects.filter(
-            estudiante=estudiante, paralelo=paralelo
-        ).exists()
+        assert Matricula.objects.filter(estudiante=estudiante, paralelo=paralelo).exists()
 
     def test_post_duplicada(self, client):
         """Duplicate enrollment shows error message."""
@@ -263,10 +276,13 @@ class TestMatriculaCreateView:
         mat = MatriculaFactory()
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "estudiante": mat.estudiante_id,
-            "paralelo": mat.paralelo_id,
-        })
+        response = client.post(
+            self.url,
+            {
+                "estudiante": mat.estudiante_id,
+                "paralelo": mat.paralelo_id,
+            },
+        )
         assert response.status_code == 200
         # Form should have non-field errors
         assert response.context["form"].non_field_errors()
@@ -279,10 +295,13 @@ class TestMatriculaCreateView:
         nuevo_est = EstudianteFactory()
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "estudiante": nuevo_est.pk,
-            "paralelo": paralelo.pk,
-        })
+        response = client.post(
+            self.url,
+            {
+                "estudiante": nuevo_est.pk,
+                "paralelo": paralelo.pk,
+            },
+        )
         assert response.status_code == 200
         assert response.context["form"].non_field_errors()
 
@@ -291,20 +310,19 @@ class TestMatriculaCreateView:
         sec = make_secretaria()
         periodo = PeriodoFactory(activo=True)
         asignatura = AsignaturaFactory()
-        paralelo_a = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="A"
-        )
-        paralelo_b = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="B"
-        )
+        paralelo_a = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="A")
+        paralelo_b = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="B")
         est = EstudianteFactory()
         MatriculaFactory(estudiante=est, paralelo=paralelo_a)
 
         client.force_login(sec)
-        response = client.post(self.url, {
-            "estudiante": est.pk,
-            "paralelo": paralelo_b.pk,
-        })
+        response = client.post(
+            self.url,
+            {
+                "estudiante": est.pk,
+                "paralelo": paralelo_b.pk,
+            },
+        )
         assert response.status_code == 200
         assert response.context["form"].non_field_errors()
 
@@ -433,12 +451,16 @@ class TestMatriculaLoteView:
 
         client.force_login(sec)
         url = reverse("secretaria:matricula_create_lote")
-        response = client.post(url, {
-            "estudiante": est.pk,
-            "paralelos": [p1.pk, p2.pk],
-        })
+        response = client.post(
+            url,
+            {
+                "estudiante": est.pk,
+                "paralelos": [p1.pk, p2.pk],
+            },
+        )
         assert response.status_code == 302
         from apps.academico.infrastructure.models import Matricula as Mat
+
         assert Mat.objects.filter(estudiante=est).count() == 2
 
     def test_post_no_estudiante_shows_error(self, client):

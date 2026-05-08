@@ -45,13 +45,9 @@ class RegistroService:
 
         # Uniqueness rules
         if email_exists:
-            raise CorreoDuplicadoError(
-                f"El correo electrónico '{email}' ya está registrado."
-            )
+            raise CorreoDuplicadoError(f"El correo electrónico '{email}' ya está registrado.")
         if cedula and cedula_exists:
-            raise CedulaDuplicadaError(
-                f"La cédula '{cedula}' ya está registrada."
-            )
+            raise CedulaDuplicadaError(f"La cédula '{cedula}' ya está registrada.")
 
 
 class LoginService:
@@ -69,9 +65,7 @@ class LoginService:
         Raises CuentaBloqueadaError if locked.
         """
         if bloqueado_hasta and bloqueado_hasta > now:
-            minutos_restantes = int(
-                (bloqueado_hasta - now).total_seconds() / 60
-            )
+            minutos_restantes = int((bloqueado_hasta - now).total_seconds() / 60)
             raise CuentaBloqueadaError(
                 f"Cuenta bloqueada. Intente nuevamente en {minutos_restantes + 1} minuto(s)."
             )
@@ -138,9 +132,7 @@ class OTPService:
             raise OTPInvalidoError("Este código OTP ya fue utilizado.")
 
         if now > expira_en:
-            raise OTPExpiradoError(
-                "El código OTP ha expirado. Solicite uno nuevo."
-            )
+            raise OTPExpiradoError("El código OTP ha expirado. Solicite uno nuevo.")
 
         if codigo_ingresado != codigo_almacenado:
             raise OTPInvalidoError("El código OTP ingresado es incorrecto.")

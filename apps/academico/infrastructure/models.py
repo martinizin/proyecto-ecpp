@@ -76,12 +76,8 @@ class Asignatura(models.Model):
 class Paralelo(models.Model):
     """Class section — links a subject, period, license type, teacher, and students."""
 
-    asignatura = models.ForeignKey(
-        Asignatura, on_delete=models.CASCADE, related_name="paralelos"
-    )
-    periodo = models.ForeignKey(
-        Periodo, on_delete=models.CASCADE, related_name="paralelos"
-    )
+    asignatura = models.ForeignKey(Asignatura, on_delete=models.CASCADE, related_name="paralelos")
+    periodo = models.ForeignKey(Periodo, on_delete=models.CASCADE, related_name="paralelos")
     tipo_licencia = models.ForeignKey(
         TipoLicencia, on_delete=models.CASCADE, related_name="paralelos"
     )
@@ -132,6 +128,7 @@ class BloqueHorario(models.Model):
 
     def clean(self):
         from django.core.exceptions import ValidationError
+
         if self.hora_inicio and self.hora_fin and self.hora_inicio >= self.hora_fin:
             raise ValidationError("La hora de inicio debe ser anterior a la hora de fin.")
 

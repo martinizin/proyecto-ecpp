@@ -91,7 +91,8 @@ def _create_tipo_licencia(**kwargs) -> TipoLicencia:
     defaults.update(kwargs)
     codigo = defaults.pop("codigo")
     obj, _ = TipoLicencia.objects.get_or_create(
-        codigo=codigo, defaults=defaults,
+        codigo=codigo,
+        defaults=defaults,
     )
     for key, val in defaults.items():
         setattr(obj, key, val)
@@ -445,9 +446,7 @@ class TestTipoLicenciaViews:
         response = self.client.get(url)
 
         assert response.status_code == 200
-        assert "academico/tipo_licencia_list.html" in [
-            t.name for t in response.templates
-        ]
+        assert "academico/tipo_licencia_list.html" in [t.name for t in response.templates]
         assert "tipos_licencia" in response.context
 
     def test_list_tipos_licencia_docente_forbidden(self):
@@ -552,9 +551,7 @@ class TestParaleloLoteViews:
         """GET /academico/paralelos/crear-lote/ as inspector → 200."""
         response = self.client.get(self._lote_url())
         assert response.status_code == 200
-        assert "academico/paralelo_form_lote.html" in [
-            t.name for t in response.templates
-        ]
+        assert "academico/paralelo_form_lote.html" in [t.name for t in response.templates]
 
     def test_create_lote_exitoso(self):
         """POST with 3 asignaturas → creates 3 paralelos, redirect."""

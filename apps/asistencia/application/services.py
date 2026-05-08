@@ -40,15 +40,13 @@ class RegistroAsistenciaAppService:
 
     def asistencia_ya_registrada(self, paralelo_id: int, fecha: date) -> bool:
         """Check if attendance has already been taken for this paralelo on this date."""
-        return Asistencia.objects.filter(
-            paralelo_id=paralelo_id, fecha=fecha
-        ).exists()
+        return Asistencia.objects.filter(paralelo_id=paralelo_id, fecha=fecha).exists()
 
     def obtener_asistencia_existente(self, paralelo_id: int, fecha: date):
         """Get existing attendance records for editing."""
-        return Asistencia.objects.filter(
-            paralelo_id=paralelo_id, fecha=fecha
-        ).select_related("estudiante")
+        return Asistencia.objects.filter(paralelo_id=paralelo_id, fecha=fecha).select_related(
+            "estudiante"
+        )
 
     @transaction.atomic
     def registrar_asistencia(
@@ -98,9 +96,7 @@ class RegistroAsistenciaAppService:
         # Recalculate percentages and check alerts for absent students
         alertas = []
         estudiantes_ausentes_ids = [
-            m.estudiante_id
-            for m in matriculas
-            if m.estudiante_id not in estudiantes_presentes_ids
+            m.estudiante_id for m in matriculas if m.estudiante_id not in estudiantes_presentes_ids
         ]
 
         for estudiante_id in estudiantes_ausentes_ids:
@@ -123,22 +119,21 @@ class RegistroAsistenciaAppService:
             "alertas": alertas,
         }
 
-    def _calcular_datos_estudiante(
-        self, estudiante_id: int, paralelo_id: int
-    ) -> dict:
+    def _calcular_datos_estudiante(self, estudiante_id: int, paralelo_id: int) -> dict:
         """Calculate attendance data for a single student in a paralelo."""
         total = Asistencia.objects.filter(
             estudiante_id=estudiante_id,
             paralelo_id=paralelo_id,
         ).count()
 
-        asistidas = Asistencia.objects.filter(
-            estudiante_id=estudiante_id,
-            paralelo_id=paralelo_id,
-        ).filter(
-            Q(estado=Asistencia.Estado.PRESENTE)
-            | Q(estado=Asistencia.Estado.JUSTIFICADO)
-        ).count()
+        asistidas = (
+            Asistencia.objects.filter(
+                estudiante_id=estudiante_id,
+                paralelo_id=paralelo_id,
+            )
+            .filter(Q(estado=Asistencia.Estado.PRESENTE) | Q(estado=Asistencia.Estado.JUSTIFICADO))
+            .count()
+        )
 
         return {
             "sesiones_asistidas": asistidas,
@@ -167,8 +162,7 @@ class RegistroAsistenciaAppService:
                 .order_by("estudiante__last_name", "estudiante__first_name")
             )
             presentes = registros.filter(
-                Q(estado=Asistencia.Estado.PRESENTE)
-                | Q(estado=Asistencia.Estado.JUSTIFICADO)
+                Q(estado=Asistencia.Estado.PRESENTE) | Q(estado=Asistencia.Estado.JUSTIFICADO)
             ).count()
             total = registros.count()
 
@@ -238,19 +232,19 @@ class RegistroAsistenciaAppService:
             riesgo = self.calculo_service.evaluar_riesgo(inasistencia_general)
 
             # Collect distinct tipo_licencia names
-            tipos = sorted(set(
-                str(mat.paralelo.tipo_licencia)
-                for mat in mats
-                if mat.paralelo.tipo_licencia
-            ))
+            tipos = sorted(
+                set(str(mat.paralelo.tipo_licencia) for mat in mats if mat.paralelo.tipo_licencia)
+            )
             tipo_licencia_str = ", ".join(tipos) if tipos else "—"
 
-            estudiantes.append({
-                "estudiante": estudiante,
-                "tipo_licencia": tipo_licencia_str,
-                "inasistencia_general": inasistencia_general,
-                "riesgo": riesgo,
-            })
+            estudiantes.append(
+                {
+                    "estudiante": estudiante,
+                    "tipo_licencia": tipo_licencia_str,
+                    "inasistencia_general": inasistencia_general,
+                    "riesgo": riesgo,
+                }
+            )
 
         # Sort by inasistencia descending (most at risk first)
         estudiantes.sort(key=lambda e: e["inasistencia_general"], reverse=True)
@@ -270,14 +264,11 @@ class RegistroAsistenciaAppService:
         Returns dict with 'asignaturas' (per-subject cards),
         'inasistencia_general', and 'riesgo_general'.
         """
-        matriculas = (
-            Matricula.objects.filter(
-                estudiante_id=estudiante_id,
-                estado=Matricula.Estado.ACTIVA,
-                paralelo__periodo__activo=True,
-            )
-            .select_related("paralelo__asignatura", "paralelo__periodo", "paralelo__docente")
-        )
+        matriculas = Matricula.objects.filter(
+            estudiante_id=estudiante_id,
+            estado=Matricula.Estado.ACTIVA,
+            paralelo__periodo__activo=True,
+        ).select_related("paralelo__asignatura", "paralelo__periodo", "paralelo__docente")
 
         asignaturas = []
         for matricula in matriculas:

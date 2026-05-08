@@ -6,13 +6,17 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('usuarios', '0002_usuario_bloqueado_hasta_usuario_direccion_and_more'),
+        ("usuarios", "0002_usuario_bloqueado_hasta_usuario_direccion_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='usuario',
-            name='debe_cambiar_password',
-            field=models.BooleanField(default=False, help_text='Se activa cuando la secretaría crea el usuario con contraseña temporal.', verbose_name='Debe cambiar contraseña'),
+            model_name="usuario",
+            name="debe_cambiar_password",
+            field=models.BooleanField(
+                default=False,
+                help_text="Se activa cuando la secretaría crea el usuario con contraseña temporal.",
+                verbose_name="Debe cambiar contraseña",
+            ),
         ),
     ]

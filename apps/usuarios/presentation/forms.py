@@ -256,10 +256,12 @@ class ECPPPPasswordResetForm(PasswordResetForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["email"].widget.attrs.update({
-            "class": "form-control",
-            "placeholder": "correo@ejemplo.com",
-        })
+        self.fields["email"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "correo@ejemplo.com",
+            }
+        )
 
 
 class ECPPPSetPasswordForm(SetPasswordForm):
@@ -267,11 +269,15 @@ class ECPPPSetPasswordForm(SetPasswordForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["new_password1"].widget.attrs.update({
-            "class": "form-control",
-            "placeholder": "Nueva contraseña",
-        })
-        self.fields["new_password2"].widget.attrs.update({
-            "class": "form-control",
-            "placeholder": "Confirmar nueva contraseña",
-        })
+        self.fields["new_password1"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Nueva contraseña",
+            }
+        )
+        self.fields["new_password2"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Confirmar nueva contraseña",
+            }
+        )

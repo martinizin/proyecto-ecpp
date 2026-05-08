@@ -31,9 +31,7 @@ class PeriodoService:
     def validar_fechas(self, fecha_inicio: date, fecha_fin: date) -> None:
         """Validate that fecha_inicio < fecha_fin."""
         if fecha_inicio >= fecha_fin:
-            raise PeriodoSolapadoError(
-                "La fecha de inicio debe ser anterior a la fecha de fin."
-            )
+            raise PeriodoSolapadoError("La fecha de inicio debe ser anterior a la fecha de fin.")
 
     def verificar_activacion(
         self,
@@ -93,14 +91,10 @@ class AsignaturaService:
             )
 
         if horas_lectivas <= 0:
-            raise ValueError(
-                "Las horas lectivas deben ser mayores a 0."
-            )
+            raise ValueError("Las horas lectivas deben ser mayores a 0.")
 
         if not tipos_licencia_ids:
-            raise ValueError(
-                "La asignatura debe estar asociada a al menos un tipo de licencia."
-            )
+            raise ValueError("La asignatura debe estar asociada a al menos un tipo de licencia.")
 
 
 class ParaleloService:
@@ -112,16 +106,12 @@ class ParaleloService:
     def validar_docente(self, docente_rol: str) -> None:
         """Validate that the assigned user has the docente role."""
         if docente_rol != "docente":
-            raise DocenteInvalidoError(
-                "El usuario asignado debe tener el rol 'docente'."
-            )
+            raise DocenteInvalidoError("El usuario asignado debe tener el rol 'docente'.")
 
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the associated period is active."""
         if not periodo_activo:
-            raise PeriodoInactivoError(
-                "Solo se pueden crear paralelos en un período activo."
-            )
+            raise PeriodoInactivoError("Solo se pueden crear paralelos en un período activo.")
 
     def validar_unicidad(
         self,
@@ -177,9 +167,7 @@ class MatriculaService:
     def validar_no_duplicada(self, matricula_existente: bool) -> None:
         """Validate that the student is not already enrolled in the paralelo."""
         if matricula_existente:
-            raise MatriculaDuplicadaError(
-                "El estudiante ya tiene una matrícula en este paralelo."
-            )
+            raise MatriculaDuplicadaError("El estudiante ya tiene una matrícula en este paralelo.")
 
     def validar_asignatura_no_duplicada(
         self,
@@ -203,13 +191,10 @@ class MatriculaService:
         """Validate that the paralelo belongs to an active period."""
         if not periodo_activo:
             raise PeriodoInactivoError(
-                "Solo se pueden registrar matrículas en paralelos "
-                "de un período activo."
+                "Solo se pueden registrar matrículas en paralelos " "de un período activo."
             )
 
-    def validar_transicion_estado(
-        self, estado_actual: str, nuevo_estado: str, rol: str
-    ) -> None:
+    def validar_transicion_estado(self, estado_actual: str, nuevo_estado: str, rol: str) -> None:
         """Validate that the state transition is allowed for the given role."""
         if estado_actual == nuevo_estado:
             return
@@ -220,8 +205,7 @@ class MatriculaService:
             transiciones = self.TRANSICIONES_INSPECTOR
         else:
             raise EstadoMatriculaInvalidoError(
-                f"El rol '{rol}' no tiene permisos para cambiar "
-                f"el estado de matrículas."
+                f"El rol '{rol}' no tiene permisos para cambiar " f"el estado de matrículas."
             )
 
         estados_permitidos = transiciones.get(estado_actual, [])

@@ -94,9 +94,7 @@ class TestParalelo:
 
     def test_str(self):
         paralelo = ParaleloFactory()
-        expected = (
-            f"{paralelo.asignatura.codigo} - {paralelo.nombre} ({paralelo.periodo})"
-        )
+        expected = f"{paralelo.asignatura.codigo} - {paralelo.nombre} ({paralelo.periodo})"
         assert str(paralelo) == expected
 
     def test_unique_together(self):

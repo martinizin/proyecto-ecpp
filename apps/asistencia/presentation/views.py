@@ -52,10 +52,7 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
         )
 
         # Docente can only access their own paralelos
-        if (
-            request.user.rol == "docente"
-            and paralelo.docente_id != request.user.id
-        ):
+        if request.user.rol == "docente" and paralelo.docente_id != request.user.id:
             messages.error(request, "No tiene permiso para este paralelo.")
             return redirect("asistencia:seleccionar_paralelo")
 
@@ -73,13 +70,11 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             fecha = date.today()
 
         # Check if attendance already exists for this date (for pre-filling)
-        asistencia_existente = service.obtener_asistencia_existente(
-            paralelo_id, fecha
-        )
+        asistencia_existente = service.obtener_asistencia_existente(paralelo_id, fecha)
         presentes_ids = set(
-            asistencia_existente.filter(
-                estado__in=["presente", "justificado"]
-            ).values_list("estudiante_id", flat=True)
+            asistencia_existente.filter(estado__in=["presente", "justificado"]).values_list(
+                "estudiante_id", flat=True
+            )
         )
         ya_registrada = asistencia_existente.exists()
 
@@ -102,10 +97,7 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
         )
 
         # Docente can only access their own paralelos
-        if (
-            request.user.rol == "docente"
-            and paralelo.docente_id != request.user.id
-        ):
+        if request.user.rol == "docente" and paralelo.docente_id != request.user.id:
             messages.error(request, "No tiene permiso para este paralelo.")
             return redirect("asistencia:seleccionar_paralelo")
 
@@ -114,15 +106,11 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             fecha = date.fromisoformat(fecha_str)
         except ValueError:
             messages.error(request, "Fecha inválida.")
-            return redirect(
-                "asistencia:registrar_asistencia", paralelo_id=paralelo_id
-            )
+            return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
         # Get list of student IDs marked as present
         estudiantes_presentes_ids = [
-            int(sid)
-            for sid in request.POST.getlist("presentes")
-            if sid.isdigit()
+            int(sid) for sid in request.POST.getlist("presentes") if sid.isdigit()
         ]
 
         service = RegistroAsistenciaAppService()
@@ -153,9 +141,7 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
                 f"en {paralelo.asignatura.nombre}.",
             )
 
-        return redirect(
-            "asistencia:registrar_asistencia", paralelo_id=paralelo_id
-        )
+        return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
 
 class HistorialAsistenciaView(MultiRolRequeridoMixin, View):
@@ -171,10 +157,7 @@ class HistorialAsistenciaView(MultiRolRequeridoMixin, View):
         )
 
         # Docente can only access their own paralelos
-        if (
-            request.user.rol == "docente"
-            and paralelo.docente_id != request.user.id
-        ):
+        if request.user.rol == "docente" and paralelo.docente_id != request.user.id:
             messages.error(request, "No tiene permiso para este paralelo.")
             return redirect("asistencia:seleccionar_paralelo")
 
@@ -250,15 +233,17 @@ class DetalleInasistenciaEstudianteView(RolRequeridoMixin, View):
         asignaturas = []
         for asig in datos["asignaturas"]:
             paralelo = asig["paralelo"]
-            asignaturas.append({
-                "asignatura": str(paralelo.asignatura),
-                "codigo": paralelo.asignatura.codigo,
-                "paralelo": paralelo.nombre,
-                "docente": paralelo.docente.get_full_name() if paralelo.docente else "—",
-                "sesiones_asistidas": asig["sesiones_asistidas"],
-                "total_sesiones": asig["total_sesiones"],
-                "porcentaje_inasistencia": asig["porcentaje_inasistencia"],
-                "riesgo": asig["riesgo"],
-            })
+            asignaturas.append(
+                {
+                    "asignatura": str(paralelo.asignatura),
+                    "codigo": paralelo.asignatura.codigo,
+                    "paralelo": paralelo.nombre,
+                    "docente": paralelo.docente.get_full_name() if paralelo.docente else "—",
+                    "sesiones_asistidas": asig["sesiones_asistidas"],
+                    "total_sesiones": asig["total_sesiones"],
+                    "porcentaje_inasistencia": asig["porcentaje_inasistencia"],
+                    "riesgo": asig["riesgo"],
+                }
+            )
 
         return JsonResponse({"asignaturas": asignaturas})

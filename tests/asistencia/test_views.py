@@ -76,9 +76,7 @@ class TestRegistrarAsistenciaView:
     def setup_method(self):
         self.docente = _saved(DocenteFactory())
         self.paralelo = ParaleloFactory(docente=self.docente)
-        self.matriculas = [
-            MatriculaFactory(paralelo=self.paralelo) for _ in range(3)
-        ]
+        self.matriculas = [MatriculaFactory(paralelo=self.paralelo) for _ in range(3)]
         self.url = reverse(
             "asistencia:registrar_asistencia",
             kwargs={"paralelo_id": self.paralelo.pk},
@@ -116,10 +114,13 @@ class TestRegistrarAsistenciaView:
             {"fecha": "2026-05-10", "presentes": presentes},
         )
         assert response.status_code == 302
-        assert Asistencia.objects.filter(
-            paralelo=self.paralelo,
-            fecha=datetime.date(2026, 5, 10),
-        ).count() == 3
+        assert (
+            Asistencia.objects.filter(
+                paralelo=self.paralelo,
+                fecha=datetime.date(2026, 5, 10),
+            ).count()
+            == 3
+        )
 
     def test_post_invalid_fecha(self, client):
         """POST with bad date redirects with error."""
@@ -141,12 +142,8 @@ class TestHistorialAsistenciaView:
 
     def test_historial_shows_dates(self, client):
         """GET shows attendance history grouped by date."""
-        AsistenciaFactory(
-            paralelo=self.paralelo, fecha=datetime.date(2026, 5, 1)
-        )
-        AsistenciaFactory(
-            paralelo=self.paralelo, fecha=datetime.date(2026, 5, 3)
-        )
+        AsistenciaFactory(paralelo=self.paralelo, fecha=datetime.date(2026, 5, 1))
+        AsistenciaFactory(paralelo=self.paralelo, fecha=datetime.date(2026, 5, 3))
 
         client.force_login(self.docente)
         response = client.get(self.url)

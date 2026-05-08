@@ -25,10 +25,7 @@ class RolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
     rol_requerido: str = ""
 
     def test_func(self) -> bool:
-        return (
-            self.request.user.is_authenticated
-            and self.request.user.rol == self.rol_requerido
-        )
+        return self.request.user.is_authenticated and self.request.user.rol == self.rol_requerido
 
 
 class MultiRolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -45,8 +42,7 @@ class MultiRolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def test_func(self) -> bool:
         return (
-            self.request.user.is_authenticated
-            and self.request.user.rol in self.roles_permitidos
+            self.request.user.is_authenticated and self.request.user.rol in self.roles_permitidos
         )
 
 
@@ -61,11 +57,7 @@ class IsInspector(BasePermission):
     message = "Solo el Inspector Académico puede realizar esta acción."
 
     def has_permission(self, request, view) -> bool:
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.rol == "inspector"
-        )
+        return request.user and request.user.is_authenticated and request.user.rol == "inspector"
 
 
 class IsInspectorOrSecretaria(BasePermission):
@@ -87,8 +79,4 @@ class IsDocente(BasePermission):
     message = "Solo docentes pueden realizar esta acción."
 
     def has_permission(self, request, view) -> bool:
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.rol == "docente"
-        )
+        return request.user and request.user.is_authenticated and request.user.rol == "docente"

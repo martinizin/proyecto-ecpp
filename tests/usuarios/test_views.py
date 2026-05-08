@@ -427,9 +427,7 @@ class TestCambiarContrasenaView:
 
         # Re-renders change password page (no redirect)
         assert response.status_code == 200
-        assert "usuarios/cambiar_contrasena.html" in [
-            t.name for t in response.templates
-        ]
+        assert "usuarios/cambiar_contrasena.html" in [t.name for t in response.templates]
 
         # Password unchanged
         self.user.refresh_from_db()
@@ -478,9 +476,7 @@ class TestPasswordRecovery:
         response = self.client.get(url)
 
         assert response.status_code == 200
-        assert "registration/password_reset_form.html" in [
-            t.name for t in response.templates
-        ]
+        assert "registration/password_reset_form.html" in [t.name for t in response.templates]
 
 
 # =============================================================================
@@ -561,6 +557,7 @@ class TestUsuarioAdmin:
         request.user = superuser
         # Django messages framework needs session middleware
         from django.contrib.messages.storage.fallback import FallbackStorage
+
         setattr(request, "session", "session")
         setattr(request, "_messages", FallbackStorage(request))
 
@@ -615,6 +612,7 @@ class TestUsuarioAdmin:
         request = self.factory.post("/admin/usuarios/usuario/add/")
         request.user = superuser
         from django.contrib.messages.storage.fallback import FallbackStorage
+
         setattr(request, "session", "session")
         setattr(request, "_messages", FallbackStorage(request))
 

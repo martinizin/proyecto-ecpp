@@ -69,9 +69,7 @@ class OTPTokenFactory(factory.django.DjangoModelFactory):
 
     usuario = factory.SubFactory(UsuarioFactory)
     codigo = factory.Sequence(lambda n: f"{100000 + n}")
-    expira_en = factory.LazyFunction(
-        lambda: timezone.now() + datetime.timedelta(minutes=10)
-    )
+    expira_en = factory.LazyFunction(lambda: timezone.now() + datetime.timedelta(minutes=10))
     usado = False
 
 

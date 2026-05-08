@@ -7,28 +7,53 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('academico', '0011_add_tipo_licencia_to_periodo'),
+        ("academico", "0011_add_tipo_licencia_to_periodo"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='paralelo',
-            name='horario',
+            model_name="paralelo",
+            name="horario",
         ),
         migrations.CreateModel(
-            name='BloqueHorario',
+            name="BloqueHorario",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('dia_semana', models.CharField(choices=[('lunes', 'Lunes'), ('martes', 'Martes'), ('miercoles', 'Miércoles'), ('jueves', 'Jueves'), ('viernes', 'Viernes'), ('sabado', 'Sábado')], max_length=10)),
-                ('hora_inicio', models.TimeField()),
-                ('hora_fin', models.TimeField()),
-                ('paralelo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bloques_horario', to='academico.paralelo')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "dia_semana",
+                    models.CharField(
+                        choices=[
+                            ("lunes", "Lunes"),
+                            ("martes", "Martes"),
+                            ("miercoles", "Miércoles"),
+                            ("jueves", "Jueves"),
+                            ("viernes", "Viernes"),
+                            ("sabado", "Sábado"),
+                        ],
+                        max_length=10,
+                    ),
+                ),
+                ("hora_inicio", models.TimeField()),
+                ("hora_fin", models.TimeField()),
+                (
+                    "paralelo",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="bloques_horario",
+                        to="academico.paralelo",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Bloque Horario',
-                'verbose_name_plural': 'Bloques Horarios',
-                'ordering': ['dia_semana', 'hora_inicio'],
-                'unique_together': {('paralelo', 'dia_semana', 'hora_inicio')},
+                "verbose_name": "Bloque Horario",
+                "verbose_name_plural": "Bloques Horarios",
+                "ordering": ["dia_semana", "hora_inicio"],
+                "unique_together": {("paralelo", "dia_semana", "hora_inicio")},
             },
         ),
     ]

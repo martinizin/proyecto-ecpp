@@ -15,5 +15,4 @@ class SolicitudRepository(ABC):
     """Abstract repository for Solicitud aggregate."""
 
     @abstractmethod
-    def list_pendientes(self) -> List[SolicitudEntity]:
-        ...
+    def list_pendientes(self) -> List[SolicitudEntity]: ...

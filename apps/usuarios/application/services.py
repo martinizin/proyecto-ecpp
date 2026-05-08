@@ -291,9 +291,7 @@ class PerfilAppService:
         user.direccion = direccion
         user.save(update_fields=["first_name", "last_name", "telefono", "direccion"])
 
-    def cambiar_contrasena(
-        self, user_id: int, old_password: str, new_password: str
-    ) -> bool:
+    def cambiar_contrasena(self, user_id: int, old_password: str, new_password: str) -> bool:
         """
         Change user's password after validating old password.
 

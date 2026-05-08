@@ -228,9 +228,7 @@ class TestLoginAppService:
         assert self.user.bloqueado_hasta is None
 
         # Audit record created
-        audit = RegistroAuditoria.objects.filter(
-            usuario=self.user, accion="login_exitoso"
-        )
+        audit = RegistroAuditoria.objects.filter(usuario=self.user, accion="login_exitoso")
         assert audit.exists()
         assert "inspector" in audit.first().detalle
 
@@ -254,9 +252,7 @@ class TestLoginAppService:
         assert self.user.bloqueado_hasta is None
 
         # Audit record for failed attempt
-        audit = RegistroAuditoria.objects.filter(
-            usuario=self.user, accion="login_fallido"
-        )
+        audit = RegistroAuditoria.objects.filter(usuario=self.user, accion="login_fallido")
         assert audit.exists()
 
     @patch("apps.usuarios.application.services.send_lockout_notification")
@@ -288,9 +284,7 @@ class TestLoginAppService:
         assert result is None
 
         # Audit record for failed attempt (no user)
-        audit = RegistroAuditoria.objects.filter(
-            accion="login_fallido", usuario__isnull=True
-        )
+        audit = RegistroAuditoria.objects.filter(accion="login_fallido", usuario__isnull=True)
         assert audit.exists()
         assert "noexiste@test.com" in audit.first().detalle
 
@@ -317,9 +311,7 @@ class TestLoginAppService:
         mock_lockout_email.assert_called_once()
 
         # Audit records: bloqueo action exists
-        audit_bloqueo = RegistroAuditoria.objects.filter(
-            usuario=self.user, accion="bloqueo"
-        )
+        audit_bloqueo = RegistroAuditoria.objects.filter(usuario=self.user, accion="bloqueo")
         assert audit_bloqueo.exists()
 
     @patch("apps.usuarios.application.services.send_lockout_notification")

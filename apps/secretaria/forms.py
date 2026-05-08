@@ -23,16 +23,12 @@ class CrearUsuarioForm(forms.Form):
     first_name = forms.CharField(
         max_length=150,
         label="Nombres",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Nombres"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombres"}),
     )
     last_name = forms.CharField(
         max_length=150,
         label="Apellidos",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Apellidos"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Apellidos"}),
     )
     rol = forms.ChoiceField(
         choices=Usuario.Rol.choices,
@@ -42,25 +38,19 @@ class CrearUsuarioForm(forms.Form):
     cedula = forms.CharField(
         max_length=10,
         label="Cédula",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "1234567890"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "1234567890"}),
     )
     telefono = forms.CharField(
         max_length=15,
         required=False,
         label="Teléfono",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "0991234567"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "0991234567"}),
     )
 
     def clean_email(self):
         email = self.cleaned_data["email"]
         if Usuario.objects.filter(email=email).exists():
-            raise forms.ValidationError(
-                "Ya existe un usuario con este correo electrónico."
-            )
+            raise forms.ValidationError("Ya existe un usuario con este correo electrónico.")
         return email
 
     def clean_first_name(self):
@@ -141,9 +131,5 @@ class EditarUsuarioForm(forms.Form):
 class CrearMatriculaForm(forms.Form):
     """Form for creating a new enrollment."""
 
-    estudiante = forms.IntegerField(
-        widget=forms.Select(attrs={"class": "form-select"})
-    )
-    paralelo = forms.IntegerField(
-        widget=forms.Select(attrs={"class": "form-select"})
-    )
+    estudiante = forms.IntegerField(widget=forms.Select(attrs={"class": "form-select"}))
+    paralelo = forms.IntegerField(widget=forms.Select(attrs={"class": "form-select"}))

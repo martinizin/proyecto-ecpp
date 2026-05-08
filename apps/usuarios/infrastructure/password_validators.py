@@ -37,6 +37,5 @@ class SymbolValidator:
 
     def get_help_text(self):
         return _(
-            "La contraseña debe contener al menos un símbolo especial "
-            "(por ejemplo: !@#$%^&*)."
+            "La contraseña debe contener al menos un símbolo especial " "(por ejemplo: !@#$%^&*)."
         )

@@ -19,9 +19,7 @@ class Asistencia(models.Model):
         "academico.Paralelo", on_delete=models.CASCADE, related_name="asistencias"
     )
     fecha = models.DateField()
-    estado = models.CharField(
-        max_length=15, choices=Estado.choices, default=Estado.AUSENTE
-    )
+    estado = models.CharField(max_length=15, choices=Estado.choices, default=Estado.AUSENTE)
     observaciones = models.TextField(blank=True)
 
     class Meta:

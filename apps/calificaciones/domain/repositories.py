@@ -12,13 +12,11 @@ class EvaluacionRepository(ABC):
     """Abstract repository for Evaluacion aggregate."""
 
     @abstractmethod
-    def get_by_paralelo(self, paralelo_id: int) -> list:
-        ...
+    def get_by_paralelo(self, paralelo_id: int) -> list: ...
 
 
 class CalificacionRepository(ABC):
     """Abstract repository for Calificacion aggregate."""
 
     @abstractmethod
-    def get_by_evaluacion(self, evaluacion_id: int) -> list:
-        ...
+    def get_by_evaluacion(self, evaluacion_id: int) -> list: ...

@@ -10,10 +10,8 @@ def validate_nombre(value):
     value = value.strip()
     if len(value) < 2:
         raise ValidationError("Este campo debe tener al menos 2 caracteres.")
-    if not re.match(r'^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s\-]+$', value):
-        raise ValidationError(
-            "Este campo solo debe contener letras, espacios y guiones."
-        )
+    if not re.match(r"^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s\-]+$", value):
+        raise ValidationError("Este campo solo debe contener letras, espacios y guiones.")
     return value
 
 
@@ -24,10 +22,8 @@ def validate_cedula_ecuatoriana(value):
     if not value:
         return value  # Allow empty if field is not required
 
-    if not re.match(r'^\d{10}$', value):
-        raise ValidationError(
-            "La cédula debe contener exactamente 10 dígitos numéricos."
-        )
+    if not re.match(r"^\d{10}$", value):
+        raise ValidationError("La cédula debe contener exactamente 10 dígitos numéricos.")
 
     # Province code validation (01-24 or 30)
     provincia = int(value[:2])
@@ -50,9 +46,7 @@ def validate_cedula_ecuatoriana(value):
 
     verificador = (10 - (suma % 10)) % 10
     if verificador != int(value[9]):
-        raise ValidationError(
-            "La cédula ingresada no es válida (dígito verificador incorrecto)."
-        )
+        raise ValidationError("La cédula ingresada no es válida (dígito verificador incorrecto).")
 
     return value
 
@@ -63,10 +57,8 @@ def validate_telefono(value):
     value = value.strip()
     if not value:
         return value  # Allow empty if field is not required
-    if not re.match(r'^\d{7,15}$', value):
-        raise ValidationError(
-            "El teléfono debe contener entre 7 y 15 dígitos numéricos."
-        )
+    if not re.match(r"^\d{7,15}$", value):
+        raise ValidationError("El teléfono debe contener entre 7 y 15 dígitos numéricos.")
     return value
 
 
@@ -74,10 +66,8 @@ def validate_telefono(value):
 def validate_codigo(value):
     """Alphanumeric + hyphens only, uppercase enforced."""
     value = value.strip().upper()
-    if not re.match(r'^[A-Z0-9\-]+$', value):
-        raise ValidationError(
-            "El código solo debe contener letras, números y guiones."
-        )
+    if not re.match(r"^[A-Z0-9\-]+$", value):
+        raise ValidationError("El código solo debe contener letras, números y guiones.")
     if len(value) < 2:
         raise ValidationError("El código debe tener al menos 2 caracteres.")
     return value

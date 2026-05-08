@@ -64,8 +64,12 @@ class PeriodoSerializer(serializers.ModelSerializer):
             "modificado_en",
         ]
         read_only_fields = [
-            "id", "activo", "creado_por", "creado_por_nombre",
-            "tipo_licencia_codigo", "modificado_en",
+            "id",
+            "activo",
+            "creado_por",
+            "creado_por_nombre",
+            "tipo_licencia_codigo",
+            "modificado_en",
         ]
 
     def validate(self, attrs):
@@ -115,9 +119,7 @@ class AsignaturaSerializer(serializers.ModelSerializer):
 
     def validate_tipos_licencia(self, value):
         if not value:
-            raise serializers.ValidationError(
-                "Debe asignar al menos un tipo de licencia."
-            )
+            raise serializers.ValidationError("Debe asignar al menos un tipo de licencia.")
         return value
 
 
@@ -164,7 +166,5 @@ class ParaleloSerializer(serializers.ModelSerializer):
 
     def validate_capacidad_maxima(self, value):
         if value <= 0:
-            raise serializers.ValidationError(
-                "La capacidad máxima debe ser mayor a 0."
-            )
+            raise serializers.ValidationError("La capacidad máxima debe ser mayor a 0.")
         return value

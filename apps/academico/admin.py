@@ -86,9 +86,7 @@ class MatriculaAdmin(admin.ModelAdmin):
             service.validar_no_duplicada(existe)
 
         # Validate capacity (only on creation or when reactivating)
-        if not change or (
-            change and obj.estado == Matricula.Estado.ACTIVA
-        ):
+        if not change or (change and obj.estado == Matricula.Estado.ACTIVA):
             activas = Matricula.objects.filter(
                 paralelo=obj.paralelo,
                 estado=Matricula.Estado.ACTIVA,

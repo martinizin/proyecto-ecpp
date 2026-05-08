@@ -63,13 +63,15 @@ class TestGestionUsuariosService:
 
         from apps.secretaria.forms import CrearUsuarioForm
 
-        form = CrearUsuarioForm(data={
-            "email": "dup@test.com",
-            "first_name": "Test",
-            "last_name": "User",
-            "rol": "estudiante",
-            "cedula": "0888888888",
-        })
+        form = CrearUsuarioForm(
+            data={
+                "email": "dup@test.com",
+                "first_name": "Test",
+                "last_name": "User",
+                "rol": "estudiante",
+                "cedula": "0888888888",
+            }
+        )
         assert not form.is_valid()
         assert "email" in form.errors
 
@@ -206,9 +208,7 @@ class TestGestionMatriculasService:
         assert result.count() == 2
 
         # Search by student name
-        result = self.service.listar_matriculas(
-            search=mat1.estudiante.first_name
-        )
+        result = self.service.listar_matriculas(search=mat1.estudiante.first_name)
         assert result.count() >= 1
 
     def test_cambiar_paralelo_success(self):
@@ -327,12 +327,8 @@ class TestGestionMatriculasService:
         est = EstudianteFactory()
         periodo = PeriodoFactory(activo=True)
         asignatura = AsignaturaFactory()
-        paralelo_a = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="A"
-        )
-        paralelo_b = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="B"
-        )
+        paralelo_a = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="A")
+        paralelo_b = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="B")
         secretaria = UsuarioFactory(rol="secretaria")
 
         # Enroll in paralelo A
@@ -355,12 +351,8 @@ class TestGestionMatriculasService:
         est = EstudianteFactory()
         periodo = PeriodoFactory(activo=True)
         asignatura = AsignaturaFactory()
-        paralelo_a = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="A"
-        )
-        paralelo_b = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="B"
-        )
+        paralelo_a = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="A")
+        paralelo_b = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="B")
         secretaria = UsuarioFactory(rol="secretaria")
 
         # Enroll and then retire from paralelo A
@@ -385,16 +377,10 @@ class TestGestionMatriculasService:
         est.save()
         periodo = PeriodoFactory(activo=True)
         asignatura = AsignaturaFactory()
-        paralelo_a = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="A"
-        )
-        paralelo_b = ParaleloFactory(
-            periodo=periodo, asignatura=asignatura, nombre="B"
-        )
+        paralelo_a = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="A")
+        paralelo_b = ParaleloFactory(periodo=periodo, asignatura=asignatura, nombre="B")
         otra_asignatura = AsignaturaFactory()
-        paralelo_c = ParaleloFactory(
-            periodo=periodo, asignatura=otra_asignatura, nombre="A"
-        )
+        paralelo_c = ParaleloFactory(periodo=periodo, asignatura=otra_asignatura, nombre="A")
         MatriculaFactory(estudiante=est, paralelo=paralelo_a)
 
         creados, omitidos = self.service.matricular_en_lote(

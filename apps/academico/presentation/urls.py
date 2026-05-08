@@ -54,8 +54,7 @@ urlpatterns = [
     path("paralelos/crear-lote/", ParaleloCreateLoteView.as_view(), name="paralelo_create_lote"),
     path("paralelos/<int:pk>/editar/", ParaleloUpdateView.as_view(), name="paralelo_update"),
     path(
-        "paralelos/grupo/<int:periodo_id>/<int:tipo_licencia_id>/"
-        "<str:nombre>/editar/",
+        "paralelos/grupo/<int:periodo_id>/<int:tipo_licencia_id>/" "<str:nombre>/editar/",
         ParaleloGrupoEditView.as_view(),
         name="paralelo_grupo_edit",
     ),

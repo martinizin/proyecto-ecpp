@@ -24,8 +24,7 @@ class TestAsistencia:
     def test_str(self):
         asistencia = AsistenciaFactory()
         expected = (
-            f"{asistencia.estudiante} - {asistencia.fecha} "
-            f"({asistencia.get_estado_display()})"
+            f"{asistencia.estudiante} - {asistencia.fecha} " f"({asistencia.get_estado_display()})"
         )
         assert str(asistencia) == expected
 

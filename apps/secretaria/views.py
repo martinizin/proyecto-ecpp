@@ -49,12 +49,16 @@ class UsuarioListView(RolRequeridoMixin, View):
             rol_filter=rol_filter or None,
         )
 
-        return render(request, self.template_name, {
-            "usuarios": usuarios,
-            "search_query": search_query,
-            "rol_filter": rol_filter,
-            "roles": Usuario.Rol.choices,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "usuarios": usuarios,
+                "search_query": search_query,
+                "rol_filter": rol_filter,
+                "roles": Usuario.Rol.choices,
+            },
+        )
 
 
 class UsuarioCreateView(RolRequeridoMixin, View):
@@ -65,18 +69,26 @@ class UsuarioCreateView(RolRequeridoMixin, View):
 
     def get(self, request):
         form = CrearUsuarioForm()
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": False,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": False,
+            },
+        )
 
     def post(self, request):
         form = CrearUsuarioForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": False,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": False,
+                },
+            )
 
         service = GestionUsuariosService()
         usuario, temp_password, email_sent = service.crear_usuario(
@@ -113,29 +125,39 @@ class UsuarioEditView(RolRequeridoMixin, View):
     def get(self, request, pk):
         service = GestionUsuariosService()
         usuario = service.obtener_usuario(pk)
-        form = EditarUsuarioForm(initial={
-            "first_name": usuario.first_name,
-            "last_name": usuario.last_name,
-            "rol": usuario.rol,
-            "telefono": usuario.telefono,
-            "direccion": usuario.direccion,
-        })
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "usuario": usuario,
-        })
+        form = EditarUsuarioForm(
+            initial={
+                "first_name": usuario.first_name,
+                "last_name": usuario.last_name,
+                "rol": usuario.rol,
+                "telefono": usuario.telefono,
+                "direccion": usuario.direccion,
+            }
+        )
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": True,
+                "usuario": usuario,
+            },
+        )
 
     def post(self, request, pk):
         service = GestionUsuariosService()
         usuario = service.obtener_usuario(pk)
         form = EditarUsuarioForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "usuario": usuario,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "usuario": usuario,
+                },
+            )
 
         service.editar_usuario(
             usuario_id=pk,
@@ -241,15 +263,19 @@ class MatriculaListView(RolRequeridoMixin, View):
                 }
             grouped[est.pk]["licencias"][tl_key]["matriculas"].append(m)
 
-        return render(request, self.template_name, {
-            "grouped": grouped,
-            "matriculas_count": len(matriculas),
-            "search_query": search_query,
-            "paralelo_filter": paralelo_filter,
-            "estado_filter": estado_filter,
-            "paralelos": service.obtener_paralelos_activos(),
-            "estados": Matricula.Estado.choices,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "grouped": grouped,
+                "matriculas_count": len(matriculas),
+                "search_query": search_query,
+                "paralelo_filter": paralelo_filter,
+                "estado_filter": estado_filter,
+                "paralelos": service.obtener_paralelos_activos(),
+                "estados": Matricula.Estado.choices,
+            },
+        )
 
 
 class MatriculaCreateView(RolRequeridoMixin, View):
@@ -261,22 +287,30 @@ class MatriculaCreateView(RolRequeridoMixin, View):
     def get(self, request):
         service = GestionMatriculasService()
         form = CrearMatriculaForm()
-        return render(request, self.template_name, {
-            "form": form,
-            "estudiantes": service.obtener_estudiantes_disponibles(),
-            "periodos": service.obtener_periodos_activos(),
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "estudiantes": service.obtener_estudiantes_disponibles(),
+                "periodos": service.obtener_periodos_activos(),
+            },
+        )
 
     def post(self, request):
         service = GestionMatriculasService()
         form = CrearMatriculaForm(request.POST)
 
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "estudiantes": service.obtener_estudiantes_disponibles(),
-                "periodos": service.obtener_periodos_activos(),
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                },
+            )
 
         try:
             service.crear_matricula(
@@ -293,11 +327,15 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             PeriodoInactivoError,
         ) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "estudiantes": service.obtener_estudiantes_disponibles(),
-                "periodos": service.obtener_periodos_activos(),
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                },
+            )
 
 
 class ParalelosPorPeriodoView(RolRequeridoMixin, View):
@@ -336,10 +374,14 @@ class MatriculaLoteView(RolRequeridoMixin, View):
 
     def get(self, request):
         service = GestionMatriculasService()
-        return render(request, self.template_name, {
-            "estudiantes": service.obtener_estudiantes_disponibles(),
-            "periodos": service.obtener_periodos_activos(),
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "estudiantes": service.obtener_estudiantes_disponibles(),
+                "periodos": service.obtener_periodos_activos(),
+            },
+        )
 
     def post(self, request):
         service = GestionMatriculasService()
@@ -348,17 +390,25 @@ class MatriculaLoteView(RolRequeridoMixin, View):
 
         if not estudiante_id:
             messages.error(request, "Debe seleccionar un estudiante.")
-            return render(request, self.template_name, {
-                "estudiantes": service.obtener_estudiantes_disponibles(),
-                "periodos": service.obtener_periodos_activos(),
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                },
+            )
 
         if not paralelo_ids:
             messages.error(request, "Debe seleccionar al menos un paralelo.")
-            return render(request, self.template_name, {
-                "estudiantes": service.obtener_estudiantes_disponibles(),
-                "periodos": service.obtener_periodos_activos(),
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                },
+            )
 
         creados, omitidos = service.matricular_en_lote(
             estudiante_id=int(estudiante_id),
@@ -389,10 +439,14 @@ class MatriculaCambiarParaleloView(RolRequeridoMixin, View):
         service = GestionMatriculasService()
         matricula = service.obtener_matricula(pk)
         paralelos = service.obtener_paralelos_activos().exclude(pk=matricula.paralelo_id)
-        return render(request, self.template_name, {
-            "matricula": matricula,
-            "paralelos": paralelos,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "matricula": matricula,
+                "paralelos": paralelos,
+            },
+        )
 
     def post(self, request, pk):
         service = GestionMatriculasService()

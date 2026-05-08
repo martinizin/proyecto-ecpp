@@ -102,21 +102,29 @@ class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
     def get(self, request, pk):
         periodo = get_object_or_404(Periodo, pk=pk)
         form = PeriodoForm(instance=periodo)
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "periodo": periodo,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": True,
+                "periodo": periodo,
+            },
+        )
 
     def post(self, request, pk):
         periodo = get_object_or_404(Periodo, pk=pk)
         form = PeriodoForm(request.POST, instance=periodo)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "periodo": periodo,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "periodo": periodo,
+                },
+            )
 
         service = PeriodoAppService()
 
@@ -145,20 +153,28 @@ class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
         except PeriodoActivoExistenteError as e:
             # Return to form with confirmation needed
             periodo.refresh_from_db()
-            return render(request, self.template_name, {
-                "form": PeriodoForm(instance=periodo),
-                "editing": True,
-                "periodo": periodo,
-                "confirmation_needed": True,
-                "confirmation_message": str(e),
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": PeriodoForm(instance=periodo),
+                    "editing": True,
+                    "periodo": periodo,
+                    "confirmation_needed": True,
+                    "confirmation_message": str(e),
+                },
+            )
         except AcademicoError as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "periodo": periodo,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "periodo": periodo,
+                },
+            )
 
         messages.success(request, "Período actualizado exitosamente.")
         return redirect("academico:periodo_list")
@@ -224,21 +240,29 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
     def get(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(instance=asignatura)
-        return render(request, self.template_name, {
-            "form": form,
-            "editing": True,
-            "asignatura": asignatura,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "editing": True,
+                "asignatura": asignatura,
+            },
+        )
 
     def post(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(request.POST, instance=asignatura)
         if not form.is_valid():
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "asignatura": asignatura,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "asignatura": asignatura,
+                },
+            )
 
         service = AsignaturaAppService()
         try:
@@ -255,11 +279,15 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
             )
         except (AcademicoError, ValueError) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {
-                "form": form,
-                "editing": True,
-                "asignatura": asignatura,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "editing": True,
+                    "asignatura": asignatura,
+                },
+            )
 
         messages.success(request, "Asignatura actualizada exitosamente.")
         return redirect("academico:asignatura_list")
@@ -279,11 +307,15 @@ class ParaleloListView(MultiRolRequeridoMixin, ListView):
     context_object_name = "paralelos"
 
     def get_queryset(self):
-        return Paralelo.objects.select_related(
-            "asignatura", "periodo", "docente", "tipo_licencia"
-        ).prefetch_related("bloques_horario").order_by(
-            "periodo__nombre", "tipo_licencia__codigo",
-            "nombre", "asignatura__codigo",
+        return (
+            Paralelo.objects.select_related("asignatura", "periodo", "docente", "tipo_licencia")
+            .prefetch_related("bloques_horario")
+            .order_by(
+                "periodo__nombre",
+                "tipo_licencia__codigo",
+                "nombre",
+                "asignatura__codigo",
+            )
         )
 
     def get_context_data(self, **kwargs):
@@ -405,9 +437,11 @@ class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
         tipo_id = request.GET.get("tipo_licencia")
         if not tipo_id:
             return JsonResponse({"asignaturas": []})
-        asignaturas = Asignatura.objects.filter(
-            tipos_licencia__id=tipo_id
-        ).distinct().values("id", "codigo", "nombre")
+        asignaturas = (
+            Asignatura.objects.filter(tipos_licencia__id=tipo_id)
+            .distinct()
+            .values("id", "codigo", "nombre")
+        )
         return JsonResponse({"asignaturas": list(asignaturas)})
 
 
@@ -420,7 +454,10 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
     def _get_paralelo(self, pk):
         return get_object_or_404(
             Paralelo.objects.select_related(
-                "asignatura", "periodo", "tipo_licencia", "docente",
+                "asignatura",
+                "periodo",
+                "tipo_licencia",
+                "docente",
             ),
             pk=pk,
         )
@@ -429,22 +466,30 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
         paralelo = self._get_paralelo(pk)
         form = ParaleloAsignaturaEditForm(instance=paralelo)
         bloques = paralelo.bloques_horario.all()
-        return render(request, self.template_name, {
-            "form": form,
-            "paralelo": paralelo,
-            "bloques": bloques,
-        })
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "paralelo": paralelo,
+                "bloques": bloques,
+            },
+        )
 
     def post(self, request, pk):
         paralelo = self._get_paralelo(pk)
         form = ParaleloAsignaturaEditForm(request.POST, instance=paralelo)
         if not form.is_valid():
             bloques = paralelo.bloques_horario.all()
-            return render(request, self.template_name, {
-                "form": form,
-                "paralelo": paralelo,
-                "bloques": bloques,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "paralelo": paralelo,
+                    "bloques": bloques,
+                },
+            )
 
         # Parse schedule blocks from POST
         bloques_data = []
@@ -501,12 +546,16 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
             for e in errores:
                 messages.error(request, e)
             bloques = paralelo.bloques_horario.all()
-            return render(request, self.template_name, {
-                "form": form,
-                "paralelo": paralelo,
-                "bloques": bloques,
-                "errores_horario": errores,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "paralelo": paralelo,
+                    "bloques": bloques,
+                    "errores_horario": errores,
+                },
+            )
 
         # Save docente
         form.save()
@@ -566,9 +615,9 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
         ).select_related("asignatura", "docente")
 
         # All asignaturas for this tipo_licencia
-        all_asignaturas = Asignatura.objects.filter(
-            tipos_licencia=tipo_licencia
-        ).distinct().order_by("codigo")
+        all_asignaturas = (
+            Asignatura.objects.filter(tipos_licencia=tipo_licencia).distinct().order_by("codigo")
+        )
 
         # IDs already in the group
         existing_asignatura_ids = set(group_rows.values_list("asignatura_id", flat=True))
@@ -599,9 +648,7 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
     def post(self, request, periodo_id, tipo_licencia_id, nombre):
         ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
 
-        selected_ids = set(
-            int(x) for x in request.POST.getlist("asignaturas") if x.isdigit()
-        )
+        selected_ids = set(int(x) for x in request.POST.getlist("asignaturas") if x.isdigit())
         new_capacidad = request.POST.get("capacidad_maxima", "30")
         default_docente_id = request.POST.get("docente_default", "")
 
@@ -646,9 +693,7 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
         if to_add:
             if not default_docente_id:
                 ctx = self._get_group_context(periodo_id, tipo_licencia_id, nombre)
-                ctx["errors"] = [
-                    "Debe seleccionar un docente para las nuevas asignaturas."
-                ]
+                ctx["errors"] = ["Debe seleccionar un docente para las nuevas asignaturas."]
                 ctx["selected_ids"] = selected_ids
                 ctx["capacidad_maxima"] = new_capacidad
                 return render(request, self.template_name, ctx)

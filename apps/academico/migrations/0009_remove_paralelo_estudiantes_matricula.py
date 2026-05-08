@@ -8,30 +8,70 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('academico', '0008_alter_paralelo_options_alter_tipolicencia_options'),
+        ("academico", "0008_alter_paralelo_options_alter_tipolicencia_options"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='paralelo',
-            name='estudiantes',
+            model_name="paralelo",
+            name="estudiantes",
         ),
         migrations.CreateModel(
-            name='Matricula',
+            name="Matricula",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('estado', models.CharField(choices=[('activa', 'Activa'), ('retirada', 'Retirada'), ('suspendida', 'Suspendida')], default='activa', max_length=15)),
-                ('fecha_matricula', models.DateTimeField(auto_now_add=True)),
-                ('estudiante', models.ForeignKey(limit_choices_to={'rol': 'estudiante'}, on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to=settings.AUTH_USER_MODEL)),
-                ('matriculado_por', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='matriculas_registradas', to=settings.AUTH_USER_MODEL)),
-                ('paralelo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='matriculas', to='academico.paralelo')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "estado",
+                    models.CharField(
+                        choices=[
+                            ("activa", "Activa"),
+                            ("retirada", "Retirada"),
+                            ("suspendida", "Suspendida"),
+                        ],
+                        default="activa",
+                        max_length=15,
+                    ),
+                ),
+                ("fecha_matricula", models.DateTimeField(auto_now_add=True)),
+                (
+                    "estudiante",
+                    models.ForeignKey(
+                        limit_choices_to={"rol": "estudiante"},
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="matriculas",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "matriculado_por",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="matriculas_registradas",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "paralelo",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="matriculas",
+                        to="academico.paralelo",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Matrícula',
-                'verbose_name_plural': 'Matrículas',
-                'ordering': ['-fecha_matricula'],
-                'unique_together': {('estudiante', 'paralelo')},
+                "verbose_name": "Matrícula",
+                "verbose_name_plural": "Matrículas",
+                "ordering": ["-fecha_matricula"],
+                "unique_together": {("estudiante", "paralelo")},
             },
         ),
     ]

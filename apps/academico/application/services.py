@@ -255,9 +255,7 @@ class AsignaturaAppService:
             codigo=codigo,
             horas_lectivas=horas_lectivas,
             tipos_licencia_ids=tipos_licencia_ids,
-            codigo_exists=self.asignatura_repo.codigo_exists(
-                codigo, exclude_id=asignatura_id
-            ),
+            codigo_exists=self.asignatura_repo.codigo_exists(codigo, exclude_id=asignatura_id),
         )
 
         entity = AsignaturaEntity(

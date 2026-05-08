@@ -138,6 +138,7 @@ class Verificacion2FAView(View):
 
         # OTP verified — complete login
         from django.contrib.auth import get_user_model
+
         Usuario = get_user_model()
         user = Usuario.objects.get(pk=user_id)
 
@@ -241,10 +242,7 @@ class CambiarContrasenaView(View):
         login(
             request,
             request.user,
-            backend=(
-                "apps.usuarios.infrastructure"
-                ".auth_backend.ECPPPAuthBackend"
-            ),
+            backend=("apps.usuarios.infrastructure" ".auth_backend.ECPPPAuthBackend"),
         )
         messages.success(request, "Contraseña cambiada exitosamente.")
         return redirect("usuarios:perfil")

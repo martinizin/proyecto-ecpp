@@ -6,13 +6,21 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('usuarios', '0003_add_debe_cambiar_password'),
+        ("usuarios", "0003_add_debe_cambiar_password"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='usuario',
-            name='rol',
-            field=models.CharField(choices=[('estudiante', 'Estudiante'), ('docente', 'Docente'), ('inspector', 'Inspector'), ('secretaria', 'Secretaría')], max_length=20),
+            model_name="usuario",
+            name="rol",
+            field=models.CharField(
+                choices=[
+                    ("estudiante", "Estudiante"),
+                    ("docente", "Docente"),
+                    ("inspector", "Inspector"),
+                    ("secretaria", "Secretaría"),
+                ],
+                max_length=20,
+            ),
         ),
     ]

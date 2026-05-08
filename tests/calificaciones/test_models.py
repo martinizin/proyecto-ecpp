@@ -61,8 +61,7 @@ class TestCalificacion:
     def test_str(self):
         calificacion = CalificacionFactory()
         expected = (
-            f"{calificacion.estudiante} - {calificacion.evaluacion}: "
-            f"{calificacion.nota}"
+            f"{calificacion.estudiante} - {calificacion.evaluacion}: " f"{calificacion.nota}"
         )
         assert str(calificacion) == expected
 

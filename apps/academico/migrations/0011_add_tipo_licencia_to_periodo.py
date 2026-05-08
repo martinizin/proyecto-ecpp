@@ -21,9 +21,7 @@ def assign_default_tipo_licencia(apps, schema_editor):
 
     default_tipo = TipoLicencia.objects.filter(activo=True).first()
     if default_tipo:
-        Periodo.objects.filter(tipo_licencia__isnull=True).update(
-            tipo_licencia=default_tipo
-        )
+        Periodo.objects.filter(tipo_licencia__isnull=True).update(tipo_licencia=default_tipo)
 
 
 def noop(apps, schema_editor):

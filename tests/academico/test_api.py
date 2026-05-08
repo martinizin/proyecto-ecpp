@@ -70,7 +70,8 @@ def _make_tipo_licencia(**kwargs):
     defaults.update(kwargs)
     codigo = defaults.pop("codigo")
     obj, _ = TipoLicencia.objects.get_or_create(
-        codigo=codigo, defaults=defaults,
+        codigo=codigo,
+        defaults=defaults,
     )
     # Apply overrides if the object already existed
     for key, val in defaults.items():
@@ -198,9 +199,7 @@ class TestPeriodoAPI:
         periodo = _make_periodo(creado_por=self.inspector)
 
         url = reverse("academico:api-periodo-detail", args=[periodo.pk])
-        response = self.client.patch(
-            url, {"nombre": "2026-A-Modificado"}, format="json"
-        )
+        response = self.client.patch(url, {"nombre": "2026-A-Modificado"}, format="json")
 
         assert response.status_code == status.HTTP_200_OK
         periodo.refresh_from_db()
