@@ -42,6 +42,11 @@ class PeriodoRepository(ABC):
         ...
 
     @abstractmethod
+    def desactivar(self, periodo_id: int) -> None:
+        """Deactivate a specific period."""
+        ...
+
+    @abstractmethod
     def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
         """Deactivate all periods for a given license type."""
         ...

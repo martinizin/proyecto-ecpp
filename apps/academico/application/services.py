@@ -15,6 +15,7 @@ from apps.academico.domain.entities import (
     ParaleloEntity,
     PeriodoEntity,
 )
+from apps.academico.domain.exceptions import AcademicoError
 from apps.academico.domain.services import (
     AsignaturaService,
     ParaleloService,
@@ -171,6 +172,35 @@ class PeriodoAppService:
                 accion="cambio_estado_periodo",
                 usuario_id=usuario_id,
                 detalle=f"Período activado: {nuevo.nombre if nuevo else periodo_id}",
+            )
+        )
+
+        return True
+
+    @transaction.atomic
+    def desactivar(self, periodo_id: int, usuario_id: int) -> bool:
+        """
+        Deactivate a period manually.
+
+        Args:
+            periodo_id: ID of the period to deactivate.
+            usuario_id: ID of the user performing the action.
+
+        Returns:
+            True if deactivation succeeded.
+        """
+        periodo = self.periodo_repo.get_by_id(periodo_id)
+        if not periodo:
+            raise AcademicoError("El período no existe.")
+        if not periodo.activo:
+            raise AcademicoError("El período ya se encuentra inactivo.")
+
+        self.periodo_repo.desactivar(periodo_id)
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="cambio_estado_periodo",
+                usuario_id=usuario_id,
+                detalle=f"Período desactivado manualmente: {periodo.nombre}",
             )
         )
 

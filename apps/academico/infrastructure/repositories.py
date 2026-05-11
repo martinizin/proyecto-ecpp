@@ -83,6 +83,12 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.activo = True
         obj.save(update_fields=["activo", "modificado_en"])
 
+    def desactivar(self, periodo_id: int) -> None:
+        """Deactivate a specific period."""
+        obj = Periodo.objects.select_for_update().get(pk=periodo_id)
+        obj.activo = False
+        obj.save(update_fields=["activo", "modificado_en"])
+
     def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
         Periodo.objects.filter(activo=True, tipo_licencia_id=tipo_licencia_id).update(activo=False)
 

@@ -180,6 +180,21 @@ class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
         return redirect("academico:periodo_list")
 
 
+class PeriodoDesactivarView(MultiRolRequeridoMixin, View):
+    """Deactivate an active period — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = PeriodoAppService()
+        try:
+            service.desactivar(periodo_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Período desactivado exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
+        return redirect("academico:periodo_list")
+
+
 # =============================================================================
 # Asignatura Views
 # =============================================================================

@@ -25,6 +25,7 @@ from .views import (
     ParaleloListView,
     ParaleloUpdateView,
     PeriodoCreateView,
+    PeriodoDesactivarView,
     PeriodoListView,
     PeriodoUpdateView,
     TipoLicenciaListView,
@@ -44,6 +45,11 @@ urlpatterns = [
     path("periodos/", PeriodoListView.as_view(), name="periodo_list"),
     path("periodos/crear/", PeriodoCreateView.as_view(), name="periodo_create"),
     path("periodos/<int:pk>/editar/", PeriodoUpdateView.as_view(), name="periodo_update"),
+    path(
+        "periodos/<int:pk>/desactivar/",
+        PeriodoDesactivarView.as_view(),
+        name="periodo_desactivar",
+    ),
     # Asignaturas
     path("asignaturas/", AsignaturaListView.as_view(), name="asignatura_list"),
     path("asignaturas/crear/", AsignaturaCreateView.as_view(), name="asignatura_create"),
