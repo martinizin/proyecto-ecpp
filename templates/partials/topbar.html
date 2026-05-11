@@ -30,17 +30,168 @@
 
         <!-- Right: Notifications + User dropdown -->
         <div class="flex items-center gap-2">
-            <!-- Notification bell (placeholder) -->
-            <button
-                class="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors relative"
-                aria-label="Notificaciones"
-                title="Notificaciones"
-            >
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                </svg>
-            </button>
+            <!-- Notification bell -->
+            <div x-data="notificacionesDropdown()" x-init="init()" class="relative">
+                <button
+                    @click="toggle()"
+                    class="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors relative"
+                    aria-label="Notificaciones"
+                    title="Notificaciones"
+                >
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                    </svg>
+                    <!-- Badge -->
+                    <span
+                        x-show="noLeidas > 0"
+                        x-text="noLeidas > 99 ? '99+' : noLeidas"
+                        x-cloak
+                        class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1"
+                    ></span>
+                </button>
+
+                <!-- Dropdown -->
+                <div
+                    x-show="open"
+                    @click.outside="open = false"
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="opacity-0 scale-95"
+                    x-transition:enter-end="opacity-100 scale-100"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="opacity-100 scale-100"
+                    x-transition:leave-end="opacity-0 scale-95"
+                    class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                    x-cloak
+                >
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                        <h3 class="text-sm font-semibold text-gray-700">Notificaciones</h3>
+                        <button
+                            x-show="noLeidas > 0"
+                            @click="marcarTodas()"
+                            class="text-xs text-primary hover:text-primary-dark font-medium transition-colors"
+                        >
+                            Marcar todas como leídas
+                        </button>
+                    </div>
+
+                    <!-- List -->
+                    <div class="max-h-80 overflow-y-auto">
+                        <template x-if="loading">
+                            <div class="flex items-center justify-center py-8">
+                                <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                            </div>
+                        </template>
+
+                        <template x-if="!loading && notificaciones.length === 0">
+                            <div class="py-8 text-center text-sm text-gray-400">
+                                No tiene notificaciones
+                            </div>
+                        </template>
+
+                        <template x-for="n in notificaciones" :key="n.id">
+                            <button
+                                @click="clickNotif(n)"
+                                class="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 flex gap-3"
+                            >
+                                <!-- Unread dot -->
+                                <div class="pt-1.5 shrink-0">
+                                    <span
+                                        :class="n.leida ? 'bg-transparent' : 'bg-blue-500'"
+                                        class="block w-2 h-2 rounded-full"
+                                    ></span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-800 truncate" x-text="n.titulo"></p>
+                                    <p class="text-xs text-gray-500 mt-0.5 line-clamp-2" x-text="n.mensaje"></p>
+                                    <p class="text-[11px] text-gray-400 mt-1" x-text="n.created_at"></p>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                function notificacionesDropdown() {
+                    return {
+                        open: false,
+                        noLeidas: 0,
+                        notificaciones: [],
+                        loading: false,
+                        _interval: null,
+
+                        getCookie(name) {
+                            let value = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+                            return value ? value.pop() : '';
+                        },
+
+                        init() {
+                            this.fetchContador();
+                            this._interval = setInterval(() => this.fetchContador(), 60000);
+                        },
+
+                        async fetchContador() {
+                            try {
+                                const res = await fetch('{% url "notificaciones:contador" %}');
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    this.noLeidas = data.no_leidas;
+                                }
+                            } catch (e) { /* silent */ }
+                        },
+
+                        async toggle() {
+                            this.open = !this.open;
+                            if (this.open) {
+                                this.loading = true;
+                                try {
+                                    const res = await fetch('{% url "notificaciones:lista" %}');
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        this.notificaciones = data.notificaciones;
+                                        this.noLeidas = data.no_leidas;
+                                    }
+                                } catch (e) { /* silent */ }
+                                this.loading = false;
+                            }
+                        },
+
+                        async clickNotif(n) {
+                            if (!n.leida) {
+                                try {
+                                    await fetch(`/notificaciones/${n.id}/leer/`, {
+                                        method: 'POST',
+                                        headers: { 'X-CSRFToken': this.getCookie('csrftoken') },
+                                    });
+                                    n.leida = true;
+                                    this.noLeidas = Math.max(0, this.noLeidas - 1);
+                                } catch (e) { /* silent */ }
+                            }
+                            if (n.url) {
+                                window.location.href = n.url;
+                            }
+                        },
+
+                        async marcarTodas() {
+                            try {
+                                const res = await fetch('{% url "notificaciones:marcar_todas_leidas" %}', {
+                                    method: 'POST',
+                                    headers: { 'X-CSRFToken': this.getCookie('csrftoken') },
+                                });
+                                if (res.ok) {
+                                    this.notificaciones.forEach(n => n.leida = true);
+                                    this.noLeidas = 0;
+                                }
+                            } catch (e) { /* silent */ }
+                        },
+                    }
+                }
+            </script>
 
             <!-- User dropdown (desktop) -->
             <div class="hidden sm:block" x-data="{ userOpen: false }">

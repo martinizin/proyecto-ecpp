@@ -141,6 +141,14 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
                 f"en {paralelo.asignatura.nombre}.",
             )
 
+        # Send email notifications to inspectors
+        if resultado["alertas"]:
+            from apps.asistencia.infrastructure.email_service import (
+                notificar_alertas_inasistencia,
+            )
+
+            notificar_alertas_inasistencia(resultado["alertas"], paralelo)
+
         return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
 
