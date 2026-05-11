@@ -198,21 +198,22 @@ class AsignaturaAppService:
         self,
         nombre: str,
         codigo: str,
-        horas_lectivas: int,
-        tipos_licencia_ids: List[int],
+        licencias: List[dict],
         usuario_id: int,
         descripcion: str = "",
     ) -> AsignaturaEntity:
         """
         Create a new subject.
 
+        Args:
+            licencias: List of {"tipo_licencia_id": int, "horas_lectivas": int}.
+
         Raises:
             AsignaturaCodigoDuplicadoError, ValueError
         """
         self.asignatura_service.validar_datos(
             codigo=codigo,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
             codigo_exists=self.asignatura_repo.codigo_exists(codigo),
         )
 
@@ -220,8 +221,7 @@ class AsignaturaAppService:
             nombre=nombre,
             codigo=codigo,
             descripcion=descripcion,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
         )
         created = self.asignatura_repo.create(entity)
 
@@ -240,21 +240,22 @@ class AsignaturaAppService:
         asignatura_id: int,
         nombre: str,
         codigo: str,
-        horas_lectivas: int,
-        tipos_licencia_ids: List[int],
+        licencias: List[dict],
         usuario_id: int,
         descripcion: str = "",
     ) -> AsignaturaEntity:
         """
         Update an existing subject.
 
+        Args:
+            licencias: List of {"tipo_licencia_id": int, "horas_lectivas": int}.
+
         Raises:
             AsignaturaCodigoDuplicadoError, ValueError
         """
         self.asignatura_service.validar_datos(
             codigo=codigo,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
             codigo_exists=self.asignatura_repo.codigo_exists(codigo, exclude_id=asignatura_id),
         )
 
@@ -262,8 +263,7 @@ class AsignaturaAppService:
             nombre=nombre,
             codigo=codigo,
             descripcion=descripcion,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
         )
         updated = self.asignatura_repo.update(asignatura_id, entity)
 

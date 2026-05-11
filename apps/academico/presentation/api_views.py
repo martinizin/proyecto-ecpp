@@ -93,7 +93,9 @@ class AsignaturaViewSet(viewsets.ModelViewSet):
     DELETE /api/asignaturas/{id}/ — delete (IsInspectorOrSecretaria)
     """
 
-    queryset = Asignatura.objects.prefetch_related("tipos_licencia").all()
+    queryset = Asignatura.objects.prefetch_related(
+        "asignatura_licencias", "asignatura_licencias__tipo_licencia"
+    ).all()
     serializer_class = AsignaturaSerializer
 
     def get_permissions(self):

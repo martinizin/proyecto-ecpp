@@ -185,6 +185,40 @@ class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
 # =============================================================================
 
 
+def _parse_licencias_from_post(post_data, tipos_licencia_qs):
+    """Parse tipo_licencia_{id}/horas_{id} pairs from POST data.
+
+    Returns list of {"tipo_licencia_id": int, "horas_lectivas": int}.
+    """
+    licencias = []
+    for tl in tipos_licencia_qs:
+        if post_data.get(f"tipo_licencia_{tl.pk}"):
+            try:
+                horas = int(post_data.get(f"horas_{tl.pk}", 0))
+            except (ValueError, TypeError):
+                horas = 0
+            licencias.append({"tipo_licencia_id": tl.pk, "horas_lectivas": horas})
+    return licencias
+
+
+def _build_tipos_licencia_data(tipos_licencia_qs, asignatura=None):
+    """Build context list for template with checked/horas state."""
+    existing = {}
+    if asignatura:
+        for al in asignatura.asignatura_licencias.select_related("tipo_licencia").all():
+            existing[al.tipo_licencia_id] = al.horas_lectivas
+    return [
+        {
+            "id": tl.pk,
+            "codigo": tl.codigo,
+            "nombre": tl.nombre,
+            "checked": tl.pk in existing,
+            "horas": existing.get(tl.pk, 40),
+        }
+        for tl in tipos_licencia_qs
+    ]
+
+
 class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     """List all subjects — Inspector only."""
 
@@ -192,6 +226,11 @@ class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     model = Asignatura
     template_name = "academico/asignatura_list.html"
     context_object_name = "asignaturas"
+
+    def get_queryset(self):
+        return Asignatura.objects.prefetch_related(
+            "asignatura_licencias", "asignatura_licencias__tipo_licencia"
+        ).all()
 
 
 class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
@@ -201,30 +240,47 @@ class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
+    def _get_tipos_qs(self):
+        return TipoLicencia.objects.filter(activo=True)
+
     def get(self, request):
         form = AsignaturaForm()
-        return render(request, self.template_name, {"form": form, "editing": False})
+        tipos_licencia_data = _build_tipos_licencia_data(self._get_tipos_qs())
+        return render(
+            request,
+            self.template_name,
+            {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+        )
 
     def post(self, request):
         form = AsignaturaForm(request.POST)
+        tipos_qs = self._get_tipos_qs()
+        licencias = _parse_licencias_from_post(request.POST, tipos_qs)
+        tipos_licencia_data = _build_tipos_licencia_data(tipos_qs)
+
         if not form.is_valid():
-            return render(request, self.template_name, {"form": form, "editing": False})
+            return render(
+                request,
+                self.template_name,
+                {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+            )
 
         service = AsignaturaAppService()
         try:
             service.crear(
                 nombre=form.cleaned_data["nombre"],
                 codigo=form.cleaned_data["codigo"],
-                horas_lectivas=form.cleaned_data["horas_lectivas"],
-                tipos_licencia_ids=list(
-                    form.cleaned_data["tipos_licencia"].values_list("id", flat=True)
-                ),
+                licencias=licencias,
                 usuario_id=request.user.pk,
                 descripcion=form.cleaned_data.get("descripcion", ""),
             )
         except (AcademicoError, ValueError) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {"form": form, "editing": False})
+            return render(
+                request,
+                self.template_name,
+                {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+            )
 
         messages.success(request, "Asignatura creada exitosamente.")
         return redirect("academico:asignatura_list")
@@ -237,9 +293,13 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
+    def _get_tipos_qs(self):
+        return TipoLicencia.objects.filter(activo=True)
+
     def get(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(instance=asignatura)
+        tipos_licencia_data = _build_tipos_licencia_data(self._get_tipos_qs(), asignatura)
         return render(
             request,
             self.template_name,
@@ -247,12 +307,17 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                 "form": form,
                 "editing": True,
                 "asignatura": asignatura,
+                "tipos_licencia_data": tipos_licencia_data,
             },
         )
 
     def post(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(request.POST, instance=asignatura)
+        tipos_qs = self._get_tipos_qs()
+        licencias = _parse_licencias_from_post(request.POST, tipos_qs)
+        tipos_licencia_data = _build_tipos_licencia_data(tipos_qs, asignatura)
+
         if not form.is_valid():
             return render(
                 request,
@@ -261,6 +326,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                     "form": form,
                     "editing": True,
                     "asignatura": asignatura,
+                    "tipos_licencia_data": tipos_licencia_data,
                 },
             )
 
@@ -270,10 +336,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                 asignatura_id=pk,
                 nombre=form.cleaned_data["nombre"],
                 codigo=form.cleaned_data["codigo"],
-                horas_lectivas=form.cleaned_data["horas_lectivas"],
-                tipos_licencia_ids=list(
-                    form.cleaned_data["tipos_licencia"].values_list("id", flat=True)
-                ),
+                licencias=licencias,
                 usuario_id=request.user.pk,
                 descripcion=form.cleaned_data.get("descripcion", ""),
             )
@@ -286,6 +349,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                     "form": form,
                     "editing": True,
                     "asignatura": asignatura,
+                    "tipos_licencia_data": tipos_licencia_data,
                 },
             )
 
@@ -438,7 +502,7 @@ class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
         if not tipo_id:
             return JsonResponse({"asignaturas": []})
         asignaturas = (
-            Asignatura.objects.filter(tipos_licencia__id=tipo_id)
+            Asignatura.objects.filter(asignatura_licencias__tipo_licencia_id=tipo_id)
             .distinct()
             .values("id", "codigo", "nombre")
         )
@@ -616,7 +680,9 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
 
         # All asignaturas for this tipo_licencia
         all_asignaturas = (
-            Asignatura.objects.filter(tipos_licencia=tipo_licencia).distinct().order_by("codigo")
+            Asignatura.objects.filter(asignatura_licencias__tipo_licencia=tipo_licencia)
+            .distinct()
+            .order_by("codigo")
         )
 
         # IDs already in the group
