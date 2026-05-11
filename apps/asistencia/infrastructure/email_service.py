@@ -8,6 +8,7 @@ import logging
 from django.conf import settings
 from django.core.mail import send_mail
 
+from apps.notificaciones.infrastructure.models import Notificacion
 from apps.usuarios.infrastructure.models import Usuario
 
 logger = logging.getLogger(__name__)
@@ -84,5 +85,38 @@ def notificar_alertas_inasistencia(alertas: list, paralelo) -> None:
                 )
 
         logger.info("Alertas de inasistencia enviadas a %d inspector(es).", inspectores.count())
+
+        # Create in-app notifications for each inspector
+        try:
+            notificaciones = []
+            for alerta in alertas:
+                estudiante = Usuario.objects.get(pk=alerta["estudiante_id"])
+                estudiante_nombre = estudiante.get_full_name() or estudiante.username
+                porcentaje = alerta["porcentaje_inasistencia"]
+                asignatura_nombre = paralelo.asignatura.nombre
+                paralelo_nombre = paralelo.nombre
+
+                for inspector in inspectores:
+                    notificaciones.append(
+                        Notificacion(
+                            destinatario=inspector,
+                            tipo=Notificacion.Tipo.ALERTA_INASISTENCIA,
+                            titulo="Alerta de inasistencia",
+                            mensaje=(
+                                f"{estudiante_nombre} tiene {porcentaje}% de inasistencia "
+                                f"en {asignatura_nombre} (Paralelo {paralelo_nombre})"
+                            ),
+                            url="/asistencia/supervision/",
+                        )
+                    )
+            if notificaciones:
+                Notificacion.objects.bulk_create(notificaciones)
+                logger.info(
+                    "Creadas %d notificaciones in-app para inspectores.",
+                    len(notificaciones),
+                )
+        except Exception:
+            logger.exception("Error al crear notificaciones in-app.")
+
     except Exception:
         logger.exception("Error al enviar alertas de inasistencia por email.")

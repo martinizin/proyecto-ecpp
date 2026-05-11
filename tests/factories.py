@@ -19,6 +19,7 @@ from apps.academico.infrastructure.models import (
 )
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
+from apps.notificaciones.infrastructure.models import Notificacion
 from apps.solicitudes.infrastructure.models import Solicitud
 from apps.usuarios.infrastructure.models import OTPToken, RegistroAuditoria, Usuario
 
@@ -214,3 +215,17 @@ class SolicitudFactory(factory.django.DjangoModelFactory):
     estudiante = factory.SubFactory(EstudianteFactory)
     estado = Solicitud.EstadoSolicitud.PENDIENTE
     descripcion = "Solicitud de prueba"
+
+
+class NotificacionFactory(factory.django.DjangoModelFactory):
+    """Factory for Notificacion model."""
+
+    class Meta:
+        model = Notificacion
+
+    destinatario = factory.SubFactory(UsuarioFactory)
+    tipo = Notificacion.Tipo.GENERAL
+    titulo = "Notificación de prueba"
+    mensaje = "Mensaje de prueba"
+    leida = False
+    url = ""

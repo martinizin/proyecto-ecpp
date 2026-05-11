@@ -11,6 +11,7 @@ from apps.asistencia.infrastructure.email_service import (
     notificar_alertas_inasistencia,
     send_alerta_inasistencia,
 )
+from apps.notificaciones.infrastructure.models import Notificacion
 from tests.factories import EstudianteFactory, InspectorFactory, ParaleloFactory
 
 
@@ -106,3 +107,25 @@ class TestNotificarAlertasInasistencia:
 
         notificar_alertas_inasistencia([], paralelo)
         assert len(mail.outbox) == 0
+
+    def test_creates_in_app_notifications_for_inspectors(self):
+        inspector1 = InspectorFactory()
+        inspector2 = InspectorFactory()
+        estudiante = EstudianteFactory()
+        paralelo = ParaleloFactory()
+
+        alertas = [
+            {
+                "estudiante_id": estudiante.pk,
+                "porcentaje_inasistencia": 8.0,
+                "paralelo": paralelo.nombre,
+            }
+        ]
+
+        notificar_alertas_inasistencia(alertas, paralelo)
+
+        notifs = Notificacion.objects.filter(tipo="alerta_inasistencia")
+        assert notifs.count() == 2
+        destinatarios = set(notifs.values_list("destinatario_id", flat=True))
+        assert destinatarios == {inspector1.pk, inspector2.pk}
+        assert notifs.first().url == "/asistencia/supervision/"
