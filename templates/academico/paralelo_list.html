@@ -3,6 +3,7 @@
 {% block title %}Paralelos{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <!-- Breadcrumb -->
 <nav class="mb-4 text-sm" aria-label="Breadcrumb">
     <ol class="flex items-center gap-1.5 text-gray-500">
@@ -57,27 +58,114 @@
         <!-- Asignaturas list -->
         <ul class="divide-y divide-gray-100">
             {% for paralelo in group.asignaturas %}
-            <li class="px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-gray-400 text-xs font-mono hidden sm:inline">{{ forloop.counter }}.</span>
-                    <div class="min-w-0">
-                        <span class="font-medium text-gray-800 text-sm">{{ paralelo.asignatura.nombre }}</span>
-                        <span class="text-gray-400 text-xs ml-1">({{ paralelo.asignatura.codigo }})</span>
-                        {% if paralelo.docente %}
-                        <span class="text-gray-500 text-sm ml-2">— {{ paralelo.docente.get_full_name }}</span>
-                        {% endif %}
-                        <div class="mt-0.5">
-                            {% if paralelo.bloques_horario.all %}
-                            <span class="text-xs text-gray-500">
-                                {% for bloque in paralelo.bloques_horario.all %}{{ bloque.get_dia_semana_display|truncatechars:3 }} {{ bloque.hora_inicio|time:"H:i" }}-{{ bloque.hora_fin|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}
-                            </span>
-                            {% else %}
-                            <span class="text-xs text-gray-400">Sin horario</span>
+            <li x-data="{
+                open: false,
+                saving: false,
+                message: '',
+                messageOk: true,
+                bloques: [
+                    {% for b in paralelo.bloques_horario.all %}{ dia: '{{ b.dia_semana }}', inicio: '{{ b.hora_inicio|time:"H:i" }}', fin: '{{ b.hora_fin|time:"H:i" }}' },{% endfor %}
+                ],
+                agregar() { this.bloques.push({ dia: '', inicio: '', fin: '' }); },
+                eliminar(index) { this.bloques.splice(index, 1); },
+                async guardar() {
+                    this.saving = true;
+                    this.message = '';
+                    try {
+                        const res = await fetch('{% url "academico:paralelo_horario_update" paralelo.pk %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                            },
+                            body: JSON.stringify({ bloques: this.bloques })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            this.messageOk = true;
+                            this.message = data.message;
+                            this.$refs.horarioDisplay.textContent = data.bloques_display || 'Sin horario';
+                            setTimeout(() => { this.open = false; this.message = ''; }, 1500);
+                        } else {
+                            this.messageOk = false;
+                            this.message = data.errors.join(' ');
+                        }
+                    } catch (e) {
+                        this.messageOk = false;
+                        this.message = 'Error de conexión.';
+                    } finally {
+                        this.saving = false;
+                    }
+                }
+            }" class="border-b border-gray-100 last:border-b-0">
+                <div class="px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-gray-400 text-xs font-mono hidden sm:inline">{{ forloop.counter }}.</span>
+                        <div class="min-w-0">
+                            <span class="font-medium text-gray-800 text-sm">{{ paralelo.asignatura.nombre }}</span>
+                            <span class="text-gray-400 text-xs ml-1">({{ paralelo.asignatura.codigo }})</span>
+                            {% if paralelo.docente %}
+                            <span class="text-gray-500 text-sm ml-2">— {{ paralelo.docente.get_full_name }}</span>
                             {% endif %}
+                            <div class="mt-0.5">
+                                <span x-ref="horarioDisplay" class="text-xs text-gray-500">
+                                    {% if paralelo.bloques_horario.all %}{% for bloque in paralelo.bloques_horario.all %}{{ bloque.get_dia_semana_display|truncatechars:3 }} {{ bloque.hora_inicio|time:"H:i" }}-{{ bloque.hora_fin|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}{% else %}Sin horario{% endif %}
+                                </span>
+                            </div>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" @click="open = !open" class="text-gray-400 hover:text-primary transition-colors" title="Editar horario">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                            </svg>
+                        </button>
+                        <a href="{% url 'academico:paralelo_update' paralelo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
+                    </div>
                 </div>
-                <a href="{% url 'academico:paralelo_update' paralelo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors shrink-0">Editar</a>
+
+                <!-- Inline schedule editor -->
+                <div x-show="open" x-transition x-cloak class="px-6 pb-4">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-3">Edite los bloques horarios de esta asignatura.</p>
+
+                        <div class="space-y-2">
+                            <template x-for="(bloque, index) in bloques" :key="index">
+                                <div class="flex flex-wrap items-center gap-2 p-2 bg-white rounded border border-gray-100">
+                                    <select x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
+                                        <option value="">Día…</option>
+                                        <option value="lunes">Lunes</option>
+                                        <option value="martes">Martes</option>
+                                        <option value="miercoles">Miércoles</option>
+                                        <option value="jueves">Jueves</option>
+                                        <option value="viernes">Viernes</option>
+                                        <option value="sabado">Sábado</option>
+                                    </select>
+                                    <input type="time" x-model="bloque.inicio" class="form-control text-sm w-32">
+                                    <span class="text-gray-400 text-sm">a</span>
+                                    <input type="time" x-model="bloque.fin" class="form-control text-sm w-32">
+                                    <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 mt-3">
+                            <button type="button" @click="agregar()" class="inline-flex items-center gap-1.5 text-primary hover:text-secondary text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                                </svg>
+                                Agregar bloque
+                            </button>
+                            <button type="button" @click="guardar()" :disabled="saving" class="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50">
+                                <span x-text="saving ? 'Guardando…' : 'Guardar Horario'"></span>
+                            </button>
+                        </div>
+
+                        <p x-show="message" x-text="message" x-transition
+                           :class="messageOk ? 'text-green-600' : 'text-red-600'"
+                           class="text-sm mt-2"></p>
+                    </div>
+                </div>
             </li>
             {% endfor %}
         </ul>
