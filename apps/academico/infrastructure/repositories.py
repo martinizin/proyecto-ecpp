@@ -204,6 +204,9 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
             qs = qs.exclude(pk=exclude_id)
         return qs.exists()
 
+    def eliminar(self, asignatura_id: int) -> None:
+        Asignatura.objects.filter(pk=asignatura_id).delete()
+
 
 class DjangoParaleloRepository(ParaleloRepository):
     """Django ORM implementation of ParaleloRepository."""

@@ -307,6 +307,39 @@ class AsignaturaAppService:
 
         return updated
 
+    def eliminar_asignatura(self, asignatura_id: int, usuario_id: int):
+        """
+        Delete an asignatura if it has no paralelos associated.
+
+        Raises:
+            AcademicoError: If the asignatura has paralelos.
+        """
+        from apps.academico.infrastructure.models import Asignatura
+
+        try:
+            asignatura = Asignatura.objects.get(pk=asignatura_id)
+        except Asignatura.DoesNotExist:
+            raise AcademicoError("La asignatura no existe.")
+
+        if asignatura.paralelos.count() > 0:
+            raise AcademicoError(
+                "No se puede eliminar la asignatura porque tiene paralelos "
+                "asociados. Elimine los paralelos primero."
+            )
+
+        codigo = asignatura.codigo
+        nombre = asignatura.nombre
+
+        self.asignatura_repo.eliminar(asignatura_id)
+
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="eliminacion_asignatura",
+                usuario_id=usuario_id,
+                detalle=f"Asignatura eliminada: {codigo} — {nombre}",
+            )
+        )
+
 
 class ParaleloAppService:
     """

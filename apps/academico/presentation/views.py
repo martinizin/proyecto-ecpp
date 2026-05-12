@@ -234,6 +234,21 @@ def _build_tipos_licencia_data(tipos_licencia_qs, asignatura=None):
     ]
 
 
+class AsignaturaDeleteView(MultiRolRequeridoMixin, View):
+    """Delete an asignatura if it has no paralelos — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = AsignaturaAppService()
+        try:
+            service.eliminar_asignatura(asignatura_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Asignatura eliminada exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
+        return redirect("academico:asignatura_list")
+
+
 class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     """List all subjects — Inspector only."""
 

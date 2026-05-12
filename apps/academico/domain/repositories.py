@@ -86,6 +86,11 @@ class AsignaturaRepository(ABC):
     @abstractmethod
     def codigo_exists(self, codigo: str, exclude_id: Optional[int] = None) -> bool: ...
 
+    @abstractmethod
+    def eliminar(self, asignatura_id: int) -> None:
+        """Delete an asignatura by ID."""
+        ...
+
 
 class ParaleloRepository(ABC):
     """Abstract repository for Paralelo aggregate."""

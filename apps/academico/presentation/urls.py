@@ -16,6 +16,7 @@ from .api_views import (
 )
 from .views import (
     AsignaturaCreateView,
+    AsignaturaDeleteView,
     AsignaturaListView,
     AsignaturaUpdateView,
     AsignaturasPorTipoLicenciaView,
@@ -56,6 +57,11 @@ urlpatterns = [
     path("asignaturas/", AsignaturaListView.as_view(), name="asignatura_list"),
     path("asignaturas/crear/", AsignaturaCreateView.as_view(), name="asignatura_create"),
     path("asignaturas/<int:pk>/editar/", AsignaturaUpdateView.as_view(), name="asignatura_update"),
+    path(
+        "asignaturas/<int:pk>/eliminar/",
+        AsignaturaDeleteView.as_view(),
+        name="asignatura_delete",
+    ),
     # Paralelos
     path("paralelos/", ParaleloListView.as_view(), name="paralelo_list"),
     path("paralelos/crear/", ParaleloCreateView.as_view(), name="paralelo_create"),
