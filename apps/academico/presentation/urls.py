@@ -21,6 +21,7 @@ from .views import (
     AsignaturasPorTipoLicenciaView,
     ParaleloCreateLoteView,
     ParaleloCreateView,
+    ParaleloDeleteView,
     ParaleloGrupoEditView,
     ParaleloHorarioUpdateView,
     ParaleloListView,
@@ -60,6 +61,7 @@ urlpatterns = [
     path("paralelos/crear/", ParaleloCreateView.as_view(), name="paralelo_create"),
     path("paralelos/crear-lote/", ParaleloCreateLoteView.as_view(), name="paralelo_create_lote"),
     path("paralelos/<int:pk>/editar/", ParaleloUpdateView.as_view(), name="paralelo_update"),
+    path("paralelos/<int:pk>/eliminar/", ParaleloDeleteView.as_view(), name="paralelo_delete"),
     path(
         "paralelos/<int:pk>/horario/",
         ParaleloHorarioUpdateView.as_view(),

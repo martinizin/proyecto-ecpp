@@ -265,6 +265,9 @@ class DjangoParaleloRepository(ParaleloRepository):
         obj.save()
         return self._to_entity(obj)
 
+    def eliminar(self, paralelo_id: int) -> None:
+        Paralelo.objects.filter(pk=paralelo_id).delete()
+
     def exists(
         self,
         periodo_id: int,

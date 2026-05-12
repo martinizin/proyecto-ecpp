@@ -493,3 +493,47 @@ class ParaleloAppService:
         )
 
         return updated
+
+    def eliminar_paralelo(self, paralelo_id: int, usuario_id: int):
+        """Delete a paralelo if it has no dependents."""
+        from apps.academico.infrastructure.models import Paralelo
+
+        try:
+            paralelo = Paralelo.objects.select_related(
+                "asignatura", "periodo"
+            ).get(pk=paralelo_id)
+        except Paralelo.DoesNotExist:
+            raise AcademicoError("El paralelo no existe.")
+
+        bloqueos = []
+        matriculas_count = paralelo.matriculas.count()
+        asistencias_count = paralelo.asistencias.count()
+        evaluaciones_count = paralelo.evaluaciones.count()
+
+        if matriculas_count > 0:
+            bloqueos.append(f"{matriculas_count} matrícula(s)")
+        if asistencias_count > 0:
+            bloqueos.append(f"{asistencias_count} asistencia(s)")
+        if evaluaciones_count > 0:
+            bloqueos.append(f"{evaluaciones_count} evaluación(es)")
+
+        if bloqueos:
+            raise AcademicoError(
+                f"No se puede eliminar el paralelo porque tiene: "
+                f"{', '.join(bloqueos)}."
+            )
+
+        detalle = (
+            f"Paralelo eliminado: {paralelo.asignatura.codigo} "
+            f"— {paralelo.nombre} ({paralelo.periodo.nombre})"
+        )
+
+        self.paralelo_repo.eliminar(paralelo_id)
+
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="eliminacion_paralelo",
+                usuario_id=usuario_id,
+                detalle=detalle,
+            )
+        )

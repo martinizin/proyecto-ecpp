@@ -106,6 +106,11 @@ class ParaleloRepository(ABC):
     def update(self, paralelo_id: int, entity: ParaleloEntity) -> ParaleloEntity: ...
 
     @abstractmethod
+    def eliminar(self, paralelo_id: int) -> None:
+        """Delete a paralelo by ID."""
+        ...
+
+    @abstractmethod
     def exists(
         self,
         periodo_id: int,

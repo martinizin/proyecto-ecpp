@@ -494,6 +494,21 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
         return redirect("academico:paralelo_list")
 
 
+class ParaleloDeleteView(MultiRolRequeridoMixin, View):
+    """Delete a paralelo if it has no dependents — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = ParaleloAppService()
+        try:
+            service.eliminar_paralelo(paralelo_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Paralelo eliminado exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
+        return redirect("academico:paralelo_list")
+
+
 class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
     """Batch-create paralelos: one per selected asignatura — Inspector only."""
 
