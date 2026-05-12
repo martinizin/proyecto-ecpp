@@ -108,7 +108,9 @@ class Paralelo(models.Model):
     )
     docente = models.ForeignKey(
         "usuarios.Usuario",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="paralelos_asignados",
         limit_choices_to={"rol": "docente"},
     )
