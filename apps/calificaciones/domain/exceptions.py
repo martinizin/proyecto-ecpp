@@ -8,16 +8,10 @@ class CalificacionesError(Exception):
     """Base exception for Calificaciones domain errors."""
 
 
-class NotaInvalidaError(CalificacionesError):
-    """Raised when a grade value is out of range."""
-
 
 class NotaFueraDeRangoError(CalificacionesError):
     """Raised when a grade value is outside the allowed 0–20 scale."""
 
-
-class NotaDecimalError(CalificacionesError):
-    """Raised when a grade value has decimal places (only integers allowed)."""
 
 
 class EvaluacionDuplicadaError(CalificacionesError):
