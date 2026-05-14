@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -9,7 +10,6 @@ class Evaluacion(models.Model):
         PARCIAL_2_10H = "parcial2_10h", "Parcial 2 (10h)"
         PARCIAL_3 = "parcial3", "Parcial 3"
         PARCIAL_4_10H = "parcial4_10h", "Parcial 4 (10h)"
-        PROYECTO = "proyecto", "Proyecto"
         EXAMEN_FINAL = "examen_final", "Examen Final"
 
     paralelo = models.ForeignKey(
@@ -43,7 +43,11 @@ class Calificacion(models.Model):
         related_name="calificaciones",
         limit_choices_to={"rol": "estudiante"},
     )
-    nota = models.DecimalField(max_digits=5, decimal_places=2)
+    nota = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(20)],
+    )
     fecha_registro = models.DateTimeField(auto_now_add=True)
     observaciones = models.TextField(blank=True)
 
@@ -54,3 +58,5 @@ class Calificacion(models.Model):
 
     def __str__(self):
         return f"{self.estudiante} - {self.evaluacion}: {self.nota}"
+
+
