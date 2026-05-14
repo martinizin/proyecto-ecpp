@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -43,7 +44,11 @@ class Calificacion(models.Model):
         related_name="calificaciones",
         limit_choices_to={"rol": "estudiante"},
     )
-    nota = models.DecimalField(max_digits=5, decimal_places=2)
+    nota = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(20)],
+    )
     fecha_registro = models.DateTimeField(auto_now_add=True)
     observaciones = models.TextField(blank=True)
 
@@ -54,3 +59,5 @@ class Calificacion(models.Model):
 
     def __str__(self):
         return f"{self.estudiante} - {self.evaluacion}: {self.nota}"
+
+
