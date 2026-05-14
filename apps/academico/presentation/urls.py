@@ -16,15 +16,19 @@ from .api_views import (
 )
 from .views import (
     AsignaturaCreateView,
+    AsignaturaDeleteView,
     AsignaturaListView,
     AsignaturaUpdateView,
     AsignaturasPorTipoLicenciaView,
     ParaleloCreateLoteView,
     ParaleloCreateView,
+    ParaleloDeleteView,
     ParaleloGrupoEditView,
+    ParaleloHorarioUpdateView,
     ParaleloListView,
     ParaleloUpdateView,
     PeriodoCreateView,
+    PeriodoDesactivarView,
     PeriodoListView,
     PeriodoUpdateView,
     TipoLicenciaListView,
@@ -44,15 +48,31 @@ urlpatterns = [
     path("periodos/", PeriodoListView.as_view(), name="periodo_list"),
     path("periodos/crear/", PeriodoCreateView.as_view(), name="periodo_create"),
     path("periodos/<int:pk>/editar/", PeriodoUpdateView.as_view(), name="periodo_update"),
+    path(
+        "periodos/<int:pk>/desactivar/",
+        PeriodoDesactivarView.as_view(),
+        name="periodo_desactivar",
+    ),
     # Asignaturas
     path("asignaturas/", AsignaturaListView.as_view(), name="asignatura_list"),
     path("asignaturas/crear/", AsignaturaCreateView.as_view(), name="asignatura_create"),
     path("asignaturas/<int:pk>/editar/", AsignaturaUpdateView.as_view(), name="asignatura_update"),
+    path(
+        "asignaturas/<int:pk>/eliminar/",
+        AsignaturaDeleteView.as_view(),
+        name="asignatura_delete",
+    ),
     # Paralelos
     path("paralelos/", ParaleloListView.as_view(), name="paralelo_list"),
     path("paralelos/crear/", ParaleloCreateView.as_view(), name="paralelo_create"),
     path("paralelos/crear-lote/", ParaleloCreateLoteView.as_view(), name="paralelo_create_lote"),
     path("paralelos/<int:pk>/editar/", ParaleloUpdateView.as_view(), name="paralelo_update"),
+    path("paralelos/<int:pk>/eliminar/", ParaleloDeleteView.as_view(), name="paralelo_delete"),
+    path(
+        "paralelos/<int:pk>/horario/",
+        ParaleloHorarioUpdateView.as_view(),
+        name="paralelo_horario_update",
+    ),
     path(
         "paralelos/grupo/<int:periodo_id>/<int:tipo_licencia_id>/" "<str:nombre>/editar/",
         ParaleloGrupoEditView.as_view(),

@@ -9,6 +9,7 @@ from rest_framework import serializers
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    AsignaturaLicencia,
     Paralelo,
     Periodo,
     TipoLicencia,
@@ -82,18 +83,26 @@ class PeriodoSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class AsignaturaLicenciaSerializer(serializers.ModelSerializer):
+    """Nested serializer for per-license-type hours."""
+
+    tipo_licencia_id = serializers.IntegerField()
+    tipo_licencia_codigo = serializers.CharField(source="tipo_licencia.codigo", read_only=True)
+
+    class Meta:
+        model = AsignaturaLicencia
+        fields = ["tipo_licencia_id", "tipo_licencia_codigo", "horas_lectivas"]
+
+
 class AsignaturaSerializer(serializers.ModelSerializer):
     """
     Serializer for subjects.
 
-    - Read: tipos_licencia as nested objects.
-    - Write: tipos_licencia as list of IDs (PrimaryKeyRelatedField).
+    - Read: licencias as nested objects with tipo_licencia detail.
+    - Write: licencias as list of {tipo_licencia_id, horas_lectivas}.
     """
 
-    tipos_licencia = serializers.PrimaryKeyRelatedField(
-        queryset=TipoLicencia.objects.filter(activo=True),
-        many=True,
-    )
+    licencias = AsignaturaLicenciaSerializer(source="asignatura_licencias", many=True)
     tipos_licencia_detail = TipoLicenciaSerializer(
         source="tipos_licencia",
         many=True,
@@ -107,20 +116,52 @@ class AsignaturaSerializer(serializers.ModelSerializer):
             "nombre",
             "codigo",
             "descripcion",
-            "horas_lectivas",
-            "tipos_licencia",
+            "licencias",
             "tipos_licencia_detail",
         ]
 
-    def validate_horas_lectivas(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Las horas lectivas deben ser mayores a 0.")
-        return value
-
-    def validate_tipos_licencia(self, value):
+    def validate_licencias(self, value):
         if not value:
             raise serializers.ValidationError("Debe asignar al menos un tipo de licencia.")
+        for entry in value:
+            horas = entry.get("horas_lectivas", 0)
+            if horas <= 0:
+                raise serializers.ValidationError("Las horas lectivas deben ser mayores a 0.")
         return value
+
+    def create(self, validated_data):
+        licencias_data = validated_data.pop("asignatura_licencias", [])
+        asignatura = Asignatura.objects.create(**validated_data)
+        AsignaturaLicencia.objects.bulk_create(
+            [
+                AsignaturaLicencia(
+                    asignatura=asignatura,
+                    tipo_licencia_id=lic["tipo_licencia_id"],
+                    horas_lectivas=lic["horas_lectivas"],
+                )
+                for lic in licencias_data
+            ]
+        )
+        return asignatura
+
+    def update(self, instance, validated_data):
+        licencias_data = validated_data.pop("asignatura_licencias", [])
+        instance.nombre = validated_data.get("nombre", instance.nombre)
+        instance.codigo = validated_data.get("codigo", instance.codigo)
+        instance.descripcion = validated_data.get("descripcion", instance.descripcion)
+        instance.save()
+        instance.asignatura_licencias.all().delete()
+        AsignaturaLicencia.objects.bulk_create(
+            [
+                AsignaturaLicencia(
+                    asignatura=instance,
+                    tipo_licencia_id=lic["tipo_licencia_id"],
+                    horas_lectivas=lic["horas_lectivas"],
+                )
+                for lic in licencias_data
+            ]
+        )
+        return instance
 
 
 class ParaleloSerializer(serializers.ModelSerializer):

@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    AsignaturaLicencia,
     BloqueHorario,
     Matricula,
     Paralelo,
@@ -117,19 +118,21 @@ class AsignaturaFactory(factory.django.DjangoModelFactory):
 
     class Meta:
         model = Asignatura
-        skip_postgeneration_save = True
 
     nombre = factory.Sequence(lambda n: f"Asignatura {n}")
     codigo = factory.Sequence(lambda n: f"ASG-{n:03d}")
     descripcion = "Descripcion de prueba"
-    horas_lectivas = 40
 
-    @factory.post_generation
-    def tipos_licencia(self, create, extracted, **kwargs):
-        if not create:
-            return
-        if extracted:
-            self.tipos_licencia.set(extracted)
+
+class AsignaturaLicenciaFactory(factory.django.DjangoModelFactory):
+    """Factory for AsignaturaLicencia through model."""
+
+    class Meta:
+        model = AsignaturaLicencia
+
+    asignatura = factory.SubFactory(AsignaturaFactory)
+    tipo_licencia = factory.SubFactory(TipoLicenciaFactory)
+    horas_lectivas = 40
 
 
 class ParaleloFactory(factory.django.DjangoModelFactory):

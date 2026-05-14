@@ -54,7 +54,18 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-4">
-                        <a href="{% url 'academico:periodo_update' periodo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
+                        <div class="flex items-center gap-3">
+                            <a href="{% url 'academico:periodo_update' periodo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
+                            {% if periodo.activo %}
+                            <form method="post" action="{% url 'academico:periodo_desactivar' periodo.pk %}"
+                                  x-data x-on:submit.prevent="if(confirm('¿Está seguro de desactivar el período «{{ periodo.nombre }}»?')) $el.submit()">
+                                {% csrf_token %}
+                                <button type="submit" class="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">
+                                    Desactivar
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

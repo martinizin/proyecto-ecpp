@@ -22,7 +22,7 @@ from apps.academico.domain.repositories import (
     TipoLicenciaRepository,
 )
 
-from .models import Asignatura, Matricula, Paralelo, Periodo, TipoLicencia
+from .models import Asignatura, AsignaturaLicencia, Matricula, Paralelo, Periodo, TipoLicencia
 
 
 class DjangoPeriodoRepository(PeriodoRepository):
@@ -83,6 +83,12 @@ class DjangoPeriodoRepository(PeriodoRepository):
         obj.activo = True
         obj.save(update_fields=["activo", "modificado_en"])
 
+    def desactivar(self, periodo_id: int) -> None:
+        """Deactivate a specific period."""
+        obj = Periodo.objects.select_for_update().get(pk=periodo_id)
+        obj.activo = False
+        obj.save(update_fields=["activo", "modificado_en"])
+
     def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
         Periodo.objects.filter(activo=True, tipo_licencia_id=tipo_licencia_id).update(activo=False)
 
@@ -121,12 +127,18 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
     """Django ORM implementation of AsignaturaRepository."""
 
     def _to_entity(self, obj: Asignatura) -> AsignaturaEntity:
+        licencias = [
+            {
+                "tipo_licencia_id": al.tipo_licencia_id,
+                "horas_lectivas": al.horas_lectivas,
+            }
+            for al in obj.asignatura_licencias.all()
+        ]
         return AsignaturaEntity(
             nombre=obj.nombre,
             codigo=obj.codigo,
             descripcion=obj.descripcion,
-            horas_lectivas=obj.horas_lectivas,
-            tipos_licencia_ids=list(obj.tipos_licencia.values_list("id", flat=True)),
+            licencias=licencias,
         )
 
     def get_by_id(self, asignatura_id: int) -> Optional[AsignaturaEntity]:
@@ -151,10 +163,18 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
             nombre=entity.nombre,
             codigo=entity.codigo,
             descripcion=entity.descripcion,
-            horas_lectivas=entity.horas_lectivas,
         )
-        if entity.tipos_licencia_ids:
-            obj.tipos_licencia.set(entity.tipos_licencia_ids)
+        if entity.licencias:
+            AsignaturaLicencia.objects.bulk_create(
+                [
+                    AsignaturaLicencia(
+                        asignatura=obj,
+                        tipo_licencia_id=lic["tipo_licencia_id"],
+                        horas_lectivas=lic["horas_lectivas"],
+                    )
+                    for lic in entity.licencias
+                ]
+            )
         return self._to_entity(obj)
 
     def update(self, asignatura_id: int, entity: AsignaturaEntity) -> AsignaturaEntity:
@@ -162,10 +182,20 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
         obj.nombre = entity.nombre
         obj.codigo = entity.codigo
         obj.descripcion = entity.descripcion
-        obj.horas_lectivas = entity.horas_lectivas
         obj.save()
-        if entity.tipos_licencia_ids:
-            obj.tipos_licencia.set(entity.tipos_licencia_ids)
+        # Replace licencias
+        obj.asignatura_licencias.all().delete()
+        if entity.licencias:
+            AsignaturaLicencia.objects.bulk_create(
+                [
+                    AsignaturaLicencia(
+                        asignatura=obj,
+                        tipo_licencia_id=lic["tipo_licencia_id"],
+                        horas_lectivas=lic["horas_lectivas"],
+                    )
+                    for lic in entity.licencias
+                ]
+            )
         return self._to_entity(obj)
 
     def codigo_exists(self, codigo: str, exclude_id: Optional[int] = None) -> bool:
@@ -173,6 +203,9 @@ class DjangoAsignaturaRepository(AsignaturaRepository):
         if exclude_id:
             qs = qs.exclude(pk=exclude_id)
         return qs.exists()
+
+    def eliminar(self, asignatura_id: int) -> None:
+        Asignatura.objects.filter(pk=asignatura_id).delete()
 
 
 class DjangoParaleloRepository(ParaleloRepository):
@@ -234,6 +267,9 @@ class DjangoParaleloRepository(ParaleloRepository):
         obj.capacidad_maxima = entity.capacidad_maxima
         obj.save()
         return self._to_entity(obj)
+
+    def eliminar(self, paralelo_id: int) -> None:
+        Paralelo.objects.filter(pk=paralelo_id).delete()
 
     def exists(
         self,

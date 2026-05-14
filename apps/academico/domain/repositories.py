@@ -42,6 +42,11 @@ class PeriodoRepository(ABC):
         ...
 
     @abstractmethod
+    def desactivar(self, periodo_id: int) -> None:
+        """Deactivate a specific period."""
+        ...
+
+    @abstractmethod
     def desactivar_por_tipo(self, tipo_licencia_id: int) -> None:
         """Deactivate all periods for a given license type."""
         ...
@@ -81,6 +86,11 @@ class AsignaturaRepository(ABC):
     @abstractmethod
     def codigo_exists(self, codigo: str, exclude_id: Optional[int] = None) -> bool: ...
 
+    @abstractmethod
+    def eliminar(self, asignatura_id: int) -> None:
+        """Delete an asignatura by ID."""
+        ...
+
 
 class ParaleloRepository(ABC):
     """Abstract repository for Paralelo aggregate."""
@@ -99,6 +109,11 @@ class ParaleloRepository(ABC):
 
     @abstractmethod
     def update(self, paralelo_id: int, entity: ParaleloEntity) -> ParaleloEntity: ...
+
+    @abstractmethod
+    def eliminar(self, paralelo_id: int) -> None:
+        """Delete a paralelo by ID."""
+        ...
 
     @abstractmethod
     def exists(
