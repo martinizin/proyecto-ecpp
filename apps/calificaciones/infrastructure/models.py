@@ -60,3 +60,46 @@ class Calificacion(models.Model):
         return f"{self.estudiante} - {self.evaluacion}: {self.nota}"
 
 
+class LogCalificacion(models.Model):
+    """Registro inmutable de cambios en calificaciones. Nunca actualizar ni eliminar."""
+
+    class TipoAccion(models.TextChoices):
+        CREACION = "creacion", "Creación"
+        MODIFICACION = "modificacion", "Modificación"
+        RECALIFICACION = "recalificacion", "Recalificación"
+        ELIMINACION = "eliminacion", "Eliminación"
+
+    calificacion = models.ForeignKey(
+        Calificacion,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="logs",
+    )
+    evaluacion_info = models.CharField(max_length=200)
+    estudiante_info = models.CharField(max_length=200)
+    accion = models.CharField(max_length=20, choices=TipoAccion.choices)
+    valor_anterior = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    valor_nuevo = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    realizado_por = models.ForeignKey(
+        "usuarios.Usuario",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="logs_calificacion",
+    )
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    motivo = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Log de Calificacion"
+        verbose_name_plural = "Logs de Calificaciones"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["calificacion", "timestamp"]),
+            models.Index(fields=["realizado_por", "timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {self.get_accion_display()} — {self.estudiante_info}"
+
+
