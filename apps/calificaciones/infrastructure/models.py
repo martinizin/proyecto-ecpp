@@ -10,6 +10,7 @@ class Evaluacion(models.Model):
         PARCIAL_2_10H = "parcial2_10h", "Parcial 2 (10h)"
         PARCIAL_3 = "parcial3", "Parcial 3"
         PARCIAL_4_10H = "parcial4_10h", "Parcial 4 (10h)"
+        PROYECTO = "proyecto", "Proyecto"
         EXAMEN_FINAL = "examen_final", "Examen Final"
 
     paralelo = models.ForeignKey(

@@ -39,3 +39,9 @@ Thumbs.db
 
 # Node (in case of future tooling)
 node_modules/
+package.json
+pnpm-lock.yaml
+
+# Pi coding agent runtime
+.pi/
+.atl/.skill-registry.cache.json
