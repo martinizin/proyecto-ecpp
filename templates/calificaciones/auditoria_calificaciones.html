@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoría de Calificaciones{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Auditoría de Calificaciones</li>
+    </ol>
+</nav>
+
+<div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h1 class="text-xl font-semibold text-gray-800">Registro de Auditoría — Calificaciones</h1>
+        <p class="text-sm text-gray-500 mt-1">Historial inmutable de todos los cambios en calificaciones.</p>
+    </div>
+
+    <!-- Filtros -->
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <form method="get"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              x-data="auditoriaBusqueda()"
+              x-init="init()"
+              data-est="{{ filtros.estudiante|escapejs }}"
+              @submit="if (!puedeEnviar) $event.preventDefault()">
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-600">Desde</label>
+                <input type="date" name="fecha_inicio" value="{{ filtros.fecha_inicio }}"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-600">Hasta</label>
+                <input type="date" name="fecha_fin" value="{{ filtros.fecha_fin }}"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-600">Tipo de acción</label>
+                <select name="accion"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Todas</option>
+                    {% for value, label in acciones %}
+                    <option value="{{ value }}" {% if filtros.accion == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-600">Docente</label>
+                <select name="docente"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Todos</option>
+                    {% for d in docentes %}
+                    <option value="{{ d.pk }}" {% if filtros.docente == d.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ d.get_full_name|default:d.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Campo estudiante con validación en tiempo real -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-600">Estudiante (nombre o cédula)</label>
+                <input type="text"
+                       name="estudiante"
+                       x-model="valor"
+                       @input="validar()"
+                       @blur="validar()"
+                       :class="error
+                           ? 'border-red-400 focus:ring-red-300/30'
+                           : 'border-gray-300 focus:ring-primary/30'"
+                       placeholder="Buscar estudiante…"
+                       class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-colors"
+                       autocomplete="off">
+                <!-- Error en tiempo real (Alpine.js) -->
+                <p x-show="error" x-text="error" x-cloak
+                   class="text-xs text-red-600 flex items-center gap-1 mt-0.5">
+                </p>
+                <!-- Error del servidor (sin JS) -->
+                {% if errores_filtros.estudiante %}
+                <p class="text-xs text-red-600 mt-0.5" x-cloak-inverse>
+                    {{ errores_filtros.estudiante }}
+                </p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-end gap-2">
+                <button type="submit"
+                        :disabled="!puedeEnviar"
+                        :class="!puedeEnviar
+                            ? 'opacity-50 cursor-not-allowed bg-primary'
+                            : 'bg-primary hover:bg-secondary'"
+                        class="flex-1 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                    Filtrar
+                </button>
+                {% if filtros.fecha_inicio or filtros.fecha_fin or filtros.accion or filtros.docente or filtros.estudiante %}
+                <a href="{% url 'calificaciones:auditoria_calificaciones' %}"
+                   class="flex-1 text-center border border-gray-300 hover:border-gray-400 text-gray-600 font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                    Limpiar
+                </a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- Error del servidor visible sin Alpine.js -->
+        {% if errores_filtros.estudiante %}
+        <p class="mt-2 text-xs text-red-600 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+            </svg>
+            Estudiante: {{ errores_filtros.estudiante }}
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Tabla -->
+    {% if truncado %}
+    <div class="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <svg class="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        <span>
+            Se muestran los <strong>{{ limite }} registros más recientes</strong> de un total de <strong>{{ total_logs }}</strong>.
+            Aplicá filtros de fecha, docente o estudiante para acotar los resultados.
+        </span>
+    </div>
+    {% endif %}
+    <div class="overflow-x-auto">
+        {% if logs %}
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200 text-left">
+                    <th class="px-4 py-3 font-semibold text-gray-600">Fecha y hora</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Acción</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Estudiante</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Evaluación</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-center">Anterior</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-center">Nueva</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Realizado por</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">IP</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for log in logs %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-3 text-gray-700 whitespace-nowrap">
+                        {{ log.timestamp|date:"d/m/Y H:i" }}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if log.accion == "creacion" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            Creación
+                        </span>
+                        {% elif log.accion == "modificacion" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                            Modificación
+                        </span>
+                        {% elif log.accion == "recalificacion" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            Recalificación
+                        </span>
+                        {% elif log.accion == "eliminacion" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                            Eliminación
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">{{ log.estudiante_info }}</td>
+                    <td class="px-4 py-3 text-gray-700">{{ log.evaluacion_info }}</td>
+                    <td class="px-4 py-3 text-center text-gray-500">
+                        {% if log.valor_anterior is not None %}{{ log.valor_anterior }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center font-medium text-gray-800">
+                        {% if log.valor_nuevo is not None %}{{ log.valor_nuevo }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">
+                        {% if log.realizado_por %}
+                            {{ log.realizado_por.get_full_name|default:log.realizado_por.username }}
+                        {% else %}
+                            <span class="text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 font-mono text-xs">
+                        {{ log.ip|default:"—" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No hay registros de auditoría</p>
+            <p class="text-gray-400 text-sm mt-1">No se encontraron cambios con los filtros seleccionados.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if logs %}
+    <div class="px-6 py-3 border-t border-gray-100 text-xs text-gray-400">
+        Mostrando hasta 500 registros más recientes.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function auditoriaBusqueda() {
+    return {
+        valor: '',
+        error: '',
+
+        get puedeEnviar() {
+            return this.error === '';
+        },
+
+        init() {
+            this.valor = this.$el.dataset.est || '';
+            if (this.valor) this.validar();
+        },
+
+        validar() {
+            const v = this.valor.trim();
+
+            if (!v) {
+                this.error = '';
+                return;
+            }
+            if (v.length < 2) {
+                this.error = 'Ingresa al menos 2 caracteres para buscar.';
+                return;
+            }
+            if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ0-9 \-]+$/.test(v)) {
+                this.error = 'Solo se permiten letras, números, espacios y guiones.';
+                return;
+            }
+            if (/^\d+$/.test(v)) {
+                if (v.length !== 10) {
+                    this.error = 'La cédula ecuatoriana debe tener exactamente 10 dígitos.';
+                    return;
+                }
+                if (!this._validarCedula(v)) {
+                    this.error = 'El número de cédula ingresado no es válido.';
+                    return;
+                }
+            }
+            this.error = '';
+        },
+
+        _validarCedula(c) {
+            const prov = parseInt(c.substring(0, 2));
+            if (prov < 1 || prov > 24) return false;
+            if (parseInt(c[2]) >= 6) return false;
+            const coef = [2, 1, 2, 1, 2, 1, 2, 1, 2];
+            let suma = 0;
+            for (let i = 0; i < 9; i++) {
+                let val = parseInt(c[i]) * coef[i];
+                if (val > 9) val -= 9;
+                suma += val;
+            }
+            return ((10 - suma % 10) % 10) === parseInt(c[9]);
+        }
+    };
+}
+</script>
+{% endblock %}

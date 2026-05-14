@@ -19,7 +19,7 @@ from apps.academico.infrastructure.models import (
     TipoLicencia,
 )
 from apps.asistencia.infrastructure.models import Asistencia
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
+from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.solicitudes.infrastructure.models import Solicitud
 from apps.usuarios.infrastructure.models import OTPToken, RegistroAuditoria, Usuario
@@ -194,6 +194,25 @@ class CalificacionFactory(factory.django.DjangoModelFactory):
     evaluacion = factory.SubFactory(EvaluacionFactory)
     estudiante = factory.SubFactory(EstudianteFactory)
     nota = Decimal("8.50")
+
+
+class LogCalificacionFactory(factory.django.DjangoModelFactory):
+    """Factory for LogCalificacion model."""
+
+    class Meta:
+        model = LogCalificacion
+
+    calificacion = factory.SubFactory(CalificacionFactory)
+    evaluacion_info = factory.LazyAttribute(lambda o: str(o.calificacion.evaluacion))
+    estudiante_info = factory.LazyAttribute(
+        lambda o: f"{o.calificacion.estudiante.get_full_name()} ({o.calificacion.estudiante.cedula})"
+    )
+    accion = LogCalificacion.TipoAccion.CREACION
+    valor_anterior = None
+    valor_nuevo = Decimal("15.00")
+    realizado_por = factory.SubFactory(DocenteFactory)
+    ip = "127.0.0.1"
+    motivo = ""
 
 
 class AsistenciaFactory(factory.django.DjangoModelFactory):
