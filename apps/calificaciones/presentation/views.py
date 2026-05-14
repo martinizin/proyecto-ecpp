@@ -17,6 +17,7 @@ from apps.calificaciones.application.services import (
     RegistroCalificacionAppService,
 )
 from apps.calificaciones.infrastructure.models import Evaluacion, LogCalificacion
+from apps.usuarios.infrastructure.models import Usuario
 from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin, RolRequeridoMixin
 
 
@@ -229,8 +230,6 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
     template_name = "calificaciones/auditoria_calificaciones.html"
 
     def get(self, request):
-        from apps.usuarios.infrastructure.models import Usuario
-
         qs = (
             LogCalificacion.objects.select_related(
                 "calificacion__evaluacion__paralelo__asignatura",
