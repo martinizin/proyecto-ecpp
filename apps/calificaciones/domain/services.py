@@ -5,8 +5,8 @@ Pure Python — NO Django imports allowed in this layer.
 
 from decimal import Decimal
 
-from apps.calificaciones.domain.exceptions import NotaDecimalError, NotaFueraDeRangoError, PesosInvalidosError
-from apps.calificaciones.domain.value_objects import NOTA_APROBACION, NOTA_MAXIMA, NOTA_MINIMA, Nota
+from apps.calificaciones.domain.exceptions import PesosInvalidosError
+from apps.calificaciones.domain.value_objects import NOTA_APROBACION, Nota
 
 TOLERANCIA_PESOS = Decimal("0.01")
 
@@ -16,7 +16,18 @@ class CalificacionValidationService:
 
     @staticmethod
     def validar_nota(valor) -> Nota:
-        """Return a Nota VO, raising NotaFueraDeRangoError if out of range."""
+        """
+        Construye y retorna un VO Nota validado.
+
+        Args:
+            valor: Valor numérico de la nota (str, int o Decimal).
+
+        Returns:
+            Nota: value object inmutable con el valor normalizado.
+
+        Raises:
+            NotaFueraDeRangoError: si el valor está fuera del rango 0.00–20.00.
+        """
         return Nota(valor=Decimal(str(valor)))
 
     @staticmethod

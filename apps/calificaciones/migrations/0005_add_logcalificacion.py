@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("calificaciones", "0004_remove_proyecto_tipo"),
+        ("calificaciones", "0003_add_nota_validators"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

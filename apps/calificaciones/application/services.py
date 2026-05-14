@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import Sum
 
 from apps.academico.infrastructure.models import Matricula, Paralelo
-from apps.calificaciones.domain.exceptions import NotaDecimalError, NotaFueraDeRangoError, PesosInvalidosError
+from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError, PesosInvalidosError
 from apps.calificaciones.domain.services import CalificacionValidationService
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
 
@@ -101,12 +101,6 @@ class RegistroCalificacionAppService:
 
             try:
                 nota_vo = CalificacionValidationService.validar_nota(nota_str)
-            except NotaDecimalError:
-                errores.append((
-                    f"nota_{estudiante_id}_{evaluacion_id}",
-                    f"La nota '{nota_str}' debe ser un número entero (sin decimales).",
-                ))
-                continue
             except (NotaFueraDeRangoError, InvalidOperation):
                 errores.append((
                     f"nota_{estudiante_id}_{evaluacion_id}",
