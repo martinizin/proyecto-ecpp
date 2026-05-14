@@ -9,6 +9,9 @@ from apps.calificaciones.application.services import (
     RegistroCalificacionAppService,
 )
 from apps.calificaciones.infrastructure.models import LogCalificacion
+from django.test import Client
+
+from apps.usuarios.infrastructure.models import Usuario
 from tests.factories import (
     CalificacionFactory,
     DocenteFactory,
@@ -17,6 +20,18 @@ from tests.factories import (
     LogCalificacionFactory,
     MatriculaFactory,
 )
+
+
+def _crear_secretaria() -> Usuario:
+    return Usuario.objects.create_user(
+        username="secretaria_auditoria",
+        email="sec_auditoria@test.com",
+        password="testpass123",
+        first_name="Ana",
+        last_name="Test",
+        rol="secretaria",
+        is_active=True,
+    )
 
 pytestmark = pytest.mark.django_db
 
@@ -216,3 +231,39 @@ class TestAuditoriaIntegracion:
         )
 
         assert LogCalificacion.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestAuditoriaCalificacionesView:
+    """Pruebas de la vista de auditoría (AuditoriaCalificacionesView)."""
+
+    def setup_method(self):
+        self.client = Client()
+        self.secretaria = _crear_secretaria()
+        self.client.force_login(self.secretaria)
+
+    def test_docente_id_no_numerico_no_genera_crash(self):
+        """?docente=abc no debe levantar ValueError ni DataError en PostgreSQL."""
+        response = self.client.get("/calificaciones/auditoria/?docente=abc")
+        assert response.status_code == 200
+
+    def test_docente_id_numerico_filtra_correctamente(self):
+        """?docente=<id> válido debe filtrar por ese docente."""
+        docente = DocenteFactory()
+        otro_docente = DocenteFactory()
+        cal1 = CalificacionFactory()
+        cal2 = CalificacionFactory()
+        LogCalificacionFactory(calificacion=cal1, realizado_por=docente)
+        LogCalificacionFactory(calificacion=cal2, realizado_por=otro_docente)
+
+        response = self.client.get(f"/calificaciones/auditoria/?docente={docente.pk}")
+        assert response.status_code == 200
+        logs = response.context["logs"]
+        assert all(log.realizado_por_id == docente.pk for log in logs)
+
+    def test_acceso_denegado_a_docente(self):
+        """Un docente no debe poder acceder a la vista de auditoría."""
+        docente_client = Client()
+        docente_client.force_login(DocenteFactory())
+        response = docente_client.get("/calificaciones/auditoria/")
+        assert response.status_code in (302, 403)

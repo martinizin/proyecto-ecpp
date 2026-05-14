@@ -252,7 +252,10 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
         if accion:
             qs = qs.filter(accion=accion)
         if docente_id:
-            qs = qs.filter(realizado_por_id=docente_id)
+            if docente_id.isdigit():
+                qs = qs.filter(realizado_por_id=docente_id)
+            else:
+                docente_id = ""
 
         error_estudiante = _validar_busqueda_estudiante(estudiante_q)
         if estudiante_q and not error_estudiante:
