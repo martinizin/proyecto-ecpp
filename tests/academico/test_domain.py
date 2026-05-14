@@ -110,8 +110,7 @@ class TestAsignaturaService:
         """Valid data should pass."""
         self.service.validar_datos(
             codigo="LEG-001",
-            horas_lectivas=40,
-            tipos_licencia_ids=[1, 2],
+            licencias=[{"tipo_licencia_id": 1, "horas_lectivas": 40}],
             codigo_exists=False,
         )
 
@@ -119,8 +118,7 @@ class TestAsignaturaService:
         with pytest.raises(AsignaturaCodigoDuplicadoError, match="LEG-001"):
             self.service.validar_datos(
                 codigo="LEG-001",
-                horas_lectivas=40,
-                tipos_licencia_ids=[1],
+                licencias=[{"tipo_licencia_id": 1, "horas_lectivas": 40}],
                 codigo_exists=True,
             )
 
@@ -129,8 +127,7 @@ class TestAsignaturaService:
         with pytest.raises(ValueError, match="mayores a 0"):
             self.service.validar_datos(
                 codigo="LEG-001",
-                horas_lectivas=horas,
-                tipos_licencia_ids=[1],
+                licencias=[{"tipo_licencia_id": 1, "horas_lectivas": horas}],
                 codigo_exists=False,
             )
 
@@ -138,8 +135,7 @@ class TestAsignaturaService:
         with pytest.raises(ValueError, match="al menos un tipo"):
             self.service.validar_datos(
                 codigo="LEG-001",
-                horas_lectivas=40,
-                tipos_licencia_ids=[],
+                licencias=[],
                 codigo_exists=False,
             )
 

@@ -15,6 +15,7 @@ from apps.academico.domain.entities import (
     ParaleloEntity,
     PeriodoEntity,
 )
+from apps.academico.domain.exceptions import AcademicoError
 from apps.academico.domain.services import (
     AsignaturaService,
     ParaleloService,
@@ -176,6 +177,35 @@ class PeriodoAppService:
 
         return True
 
+    @transaction.atomic
+    def desactivar(self, periodo_id: int, usuario_id: int) -> bool:
+        """
+        Deactivate a period manually.
+
+        Args:
+            periodo_id: ID of the period to deactivate.
+            usuario_id: ID of the user performing the action.
+
+        Returns:
+            True if deactivation succeeded.
+        """
+        periodo = self.periodo_repo.get_by_id(periodo_id)
+        if not periodo:
+            raise AcademicoError("El período no existe.")
+        if not periodo.activo:
+            raise AcademicoError("El período ya se encuentra inactivo.")
+
+        self.periodo_repo.desactivar(periodo_id)
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="cambio_estado_periodo",
+                usuario_id=usuario_id,
+                detalle=f"Período desactivado manualmente: {periodo.nombre}",
+            )
+        )
+
+        return True
+
 
 class AsignaturaAppService:
     """
@@ -198,21 +228,22 @@ class AsignaturaAppService:
         self,
         nombre: str,
         codigo: str,
-        horas_lectivas: int,
-        tipos_licencia_ids: List[int],
+        licencias: List[dict],
         usuario_id: int,
         descripcion: str = "",
     ) -> AsignaturaEntity:
         """
         Create a new subject.
 
+        Args:
+            licencias: List of {"tipo_licencia_id": int, "horas_lectivas": int}.
+
         Raises:
             AsignaturaCodigoDuplicadoError, ValueError
         """
         self.asignatura_service.validar_datos(
             codigo=codigo,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
             codigo_exists=self.asignatura_repo.codigo_exists(codigo),
         )
 
@@ -220,8 +251,7 @@ class AsignaturaAppService:
             nombre=nombre,
             codigo=codigo,
             descripcion=descripcion,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
         )
         created = self.asignatura_repo.create(entity)
 
@@ -240,21 +270,22 @@ class AsignaturaAppService:
         asignatura_id: int,
         nombre: str,
         codigo: str,
-        horas_lectivas: int,
-        tipos_licencia_ids: List[int],
+        licencias: List[dict],
         usuario_id: int,
         descripcion: str = "",
     ) -> AsignaturaEntity:
         """
         Update an existing subject.
 
+        Args:
+            licencias: List of {"tipo_licencia_id": int, "horas_lectivas": int}.
+
         Raises:
             AsignaturaCodigoDuplicadoError, ValueError
         """
         self.asignatura_service.validar_datos(
             codigo=codigo,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
             codigo_exists=self.asignatura_repo.codigo_exists(codigo, exclude_id=asignatura_id),
         )
 
@@ -262,8 +293,7 @@ class AsignaturaAppService:
             nombre=nombre,
             codigo=codigo,
             descripcion=descripcion,
-            horas_lectivas=horas_lectivas,
-            tipos_licencia_ids=tipos_licencia_ids,
+            licencias=licencias,
         )
         updated = self.asignatura_repo.update(asignatura_id, entity)
 
@@ -276,6 +306,39 @@ class AsignaturaAppService:
         )
 
         return updated
+
+    def eliminar_asignatura(self, asignatura_id: int, usuario_id: int):
+        """
+        Delete an asignatura if it has no paralelos associated.
+
+        Raises:
+            AcademicoError: If the asignatura has paralelos.
+        """
+        from apps.academico.infrastructure.models import Asignatura
+
+        try:
+            asignatura = Asignatura.objects.get(pk=asignatura_id)
+        except Asignatura.DoesNotExist:
+            raise AcademicoError("La asignatura no existe.")
+
+        if asignatura.paralelos.count() > 0:
+            raise AcademicoError(
+                "No se puede eliminar la asignatura porque tiene paralelos "
+                "asociados. Elimine los paralelos primero."
+            )
+
+        codigo = asignatura.codigo
+        nombre = asignatura.nombre
+
+        self.asignatura_repo.eliminar(asignatura_id)
+
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="eliminacion_asignatura",
+                usuario_id=usuario_id,
+                detalle=f"Asignatura eliminada: {codigo} — {nombre}",
+            )
+        )
 
 
 class ParaleloAppService:
@@ -463,3 +526,44 @@ class ParaleloAppService:
         )
 
         return updated
+
+    def eliminar_paralelo(self, paralelo_id: int, usuario_id: int):
+        """Delete a paralelo if it has no dependents."""
+        from apps.academico.infrastructure.models import Paralelo
+
+        try:
+            paralelo = Paralelo.objects.select_related("asignatura", "periodo").get(pk=paralelo_id)
+        except Paralelo.DoesNotExist:
+            raise AcademicoError("El paralelo no existe.")
+
+        bloqueos = []
+        matriculas_count = paralelo.matriculas.count()
+        asistencias_count = paralelo.asistencias.count()
+        evaluaciones_count = paralelo.evaluaciones.count()
+
+        if matriculas_count > 0:
+            bloqueos.append(f"{matriculas_count} matrícula(s)")
+        if asistencias_count > 0:
+            bloqueos.append(f"{asistencias_count} asistencia(s)")
+        if evaluaciones_count > 0:
+            bloqueos.append(f"{evaluaciones_count} evaluación(es)")
+
+        if bloqueos:
+            raise AcademicoError(
+                f"No se puede eliminar el paralelo porque tiene: " f"{', '.join(bloqueos)}."
+            )
+
+        detalle = (
+            f"Paralelo eliminado: {paralelo.asignatura.codigo} "
+            f"— {paralelo.nombre} ({paralelo.periodo.nombre})"
+        )
+
+        self.paralelo_repo.eliminar(paralelo_id)
+
+        self.auditoria_repo.registrar(
+            RegistroAuditoriaEntity(
+                accion="eliminacion_paralelo",
+                usuario_id=usuario_id,
+                detalle=detalle,
+            )
+        )

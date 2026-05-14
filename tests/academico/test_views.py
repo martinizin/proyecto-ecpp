@@ -17,6 +17,7 @@ from django.urls import reverse
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    AsignaturaLicencia,
     BloqueHorario,
     Paralelo,
     Periodo,
@@ -121,7 +122,6 @@ def _create_asignatura(**kwargs) -> Asignatura:
         "nombre": "Legislación de Tránsito",
         "codigo": "LEG-001",
         "descripcion": "Descripción de prueba",
-        "horas_lectivas": 40,
     }
     defaults.update(kwargs)
     return Asignatura.objects.create(**defaults)
@@ -285,8 +285,8 @@ class TestAsignaturaViews:
             "nombre": "Mecánica Automotriz",
             "codigo": "MEC-001",
             "descripcion": "Curso de mecánica",
-            "horas_lectivas": 60,
-            "tipos_licencia": [self.tipo_licencia.pk],
+            f"tipo_licencia_{self.tipo_licencia.pk}": "on",
+            f"horas_{self.tipo_licencia.pk}": 60,
         }
 
         response = self.client.post(url, data)
@@ -295,23 +295,25 @@ class TestAsignaturaViews:
         assert reverse("academico:asignatura_list") in response.url
         assert Asignatura.objects.filter(codigo="MEC-001").exists()
         asig = Asignatura.objects.get(codigo="MEC-001")
-        assert asig.tipos_licencia.count() == 1
-        assert asig.horas_lectivas == 60
+        assert asig.asignatura_licencias.count() == 1
+        assert asig.asignatura_licencias.first().horas_lectivas == 60
 
     # --- Update ---
 
     def test_update_asignatura_post_exitoso(self):
         """POST updated data → redirect to asignatura_list, DB updated."""
         asig = _create_asignatura()
-        asig.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=asig, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
 
         url = reverse("academico:asignatura_update", args=[asig.pk])
         data = {
             "nombre": "Legislación Actualizada",
             "codigo": "LEG-001",
             "descripcion": "Descripción actualizada",
-            "horas_lectivas": 50,
-            "tipos_licencia": [self.tipo_licencia.pk],
+            f"tipo_licencia_{self.tipo_licencia.pk}": "on",
+            f"horas_{self.tipo_licencia.pk}": 50,
         }
 
         response = self.client.post(url, data)
@@ -321,7 +323,8 @@ class TestAsignaturaViews:
 
         asig.refresh_from_db()
         assert asig.nombre == "Legislación Actualizada"
-        assert asig.horas_lectivas == 50
+        al = asig.asignatura_licencias.first()
+        assert al.horas_lectivas == 50
 
 
 # =============================================================================
@@ -342,7 +345,11 @@ class TestParaleloViews:
         self.tipo_licencia = _create_tipo_licencia()
         self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
         self.asignatura = _create_asignatura()
-        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asignatura,
+            tipo_licencia=self.tipo_licencia,
+            horas_lectivas=40,
+        )
 
     # --- List ---
 
@@ -479,7 +486,11 @@ class TestSecretariaAccess:
         self.tipo_licencia = _create_tipo_licencia()
         self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
         self.asignatura = _create_asignatura()
-        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asignatura,
+            tipo_licencia=self.tipo_licencia,
+            horas_lectivas=40,
+        )
         self.docente = _create_docente()
 
     def test_secretaria_can_list_periodos(self):
@@ -530,9 +541,15 @@ class TestParaleloLoteViews:
         self.asig1 = _create_asignatura(nombre="Legislación", codigo="LEG-001")
         self.asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
         self.asig3 = _create_asignatura(nombre="Primeros Auxilios", codigo="PAU-001")
-        self.asig1.tipos_licencia.add(self.tipo_licencia)
-        self.asig2.tipos_licencia.add(self.tipo_licencia)
-        self.asig3.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asig1, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asig2, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asig3, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
 
     def _lote_url(self):
         return reverse("academico:paralelo_create_lote")
@@ -594,7 +611,9 @@ class TestParaleloLoteViews:
         extra_asigs = []
         for i in range(4, 7):
             asig = _create_asignatura(nombre=f"Extra {i}", codigo=f"EXT-{i:03d}")
-            asig.tipos_licencia.add(self.tipo_licencia)
+            AsignaturaLicencia.objects.create(
+                asignatura=asig, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+            )
             extra_asigs.append(asig)
 
         all_ids = [self.asig1.pk, self.asig2.pk, self.asig3.pk] + [a.pk for a in extra_asigs]
@@ -647,7 +666,11 @@ class TestParaleloBloqueHorarioViews:
         self.tipo_licencia = _create_tipo_licencia()
         self.periodo = _create_periodo(creado_por=self.inspector, activo=True)
         self.asignatura = _create_asignatura(nombre="Legislación", codigo="LEG-001")
-        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asignatura,
+            tipo_licencia=self.tipo_licencia,
+            horas_lectivas=40,
+        )
 
         self.paralelo = Paralelo.objects.create(
             asignatura=self.asignatura,
@@ -708,7 +731,9 @@ class TestParaleloBloqueHorarioViews:
         overlapping time → error, blocks NOT saved."""
         # Create another asignatura in same group
         asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-001")
-        asig2.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=asig2, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
         paralelo2 = Paralelo.objects.create(
             asignatura=asig2,
             periodo=self.periodo,
@@ -735,7 +760,9 @@ class TestParaleloBloqueHorarioViews:
     def test_update_paralelo_no_conflict_different_day(self):
         """Same group but different day → no conflict, saves OK."""
         asig2 = _create_asignatura(nombre="Mecánica", codigo="MEC-002")
-        asig2.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=asig2, tipo_licencia=self.tipo_licencia, horas_lectivas=40
+        )
         paralelo2 = Paralelo.objects.create(
             asignatura=asig2,
             periodo=self.periodo,

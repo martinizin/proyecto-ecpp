@@ -68,18 +68,15 @@ class PeriodoForm(forms.ModelForm):
 
 
 class AsignaturaForm(forms.ModelForm):
-    """Form for creating/editing subjects with license type association."""
+    """Form for creating/editing subjects (base fields only).
 
-    tipos_licencia = forms.ModelMultipleChoiceField(
-        queryset=TipoLicencia.objects.filter(activo=True),
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
-        label="Tipos de licencia",
-        error_messages={"required": "Debe seleccionar al menos un tipo de licencia."},
-    )
+    License types and per-license hours are handled separately in the view
+    via dynamic POST fields (tipo_licencia_{id} / horas_{id}).
+    """
 
     class Meta:
         model = Asignatura
-        fields = ["nombre", "codigo", "descripcion", "horas_lectivas", "tipos_licencia"]
+        fields = ["nombre", "codigo", "descripcion"]
         widgets = {
             "nombre": forms.TextInput(
                 attrs={
@@ -100,7 +97,6 @@ class AsignaturaForm(forms.ModelForm):
                     "placeholder": "Descripción opcional",
                 }
             ),
-            "horas_lectivas": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
 
     def clean_codigo(self):
@@ -110,14 +106,6 @@ class AsignaturaForm(forms.ModelForm):
     def clean_descripcion(self):
         value = self.cleaned_data.get("descripcion", "")
         return sanitize_text(value)
-
-    def clean_horas_lectivas(self):
-        horas = self.cleaned_data.get("horas_lectivas")
-        if horas is not None and horas <= 0:
-            raise forms.ValidationError("Las horas lectivas deben ser mayores a 0.")
-        if horas is not None and horas > 500:
-            raise forms.ValidationError("Las horas lectivas no pueden superar las 500.")
-        return horas
 
 
 class ParaleloForm(forms.ModelForm):
@@ -239,7 +227,7 @@ class ParaleloLoteForm(forms.Form):
             try:
                 tipo_id = int(self.data["tipo_licencia"])
                 self.fields["asignaturas"].queryset = Asignatura.objects.filter(
-                    tipos_licencia__id=tipo_id
+                    asignatura_licencias__tipo_licencia_id=tipo_id
                 ).distinct()
             except (ValueError, TypeError):
                 pass

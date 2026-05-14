@@ -14,6 +14,7 @@ from rest_framework.test import APIClient
 
 from apps.academico.infrastructure.models import (
     Asignatura,
+    AsignaturaLicencia,
     Paralelo,
     Periodo,
     TipoLicencia,
@@ -101,7 +102,6 @@ def _make_asignatura(**kwargs):
         "nombre": "Legislación de Tránsito",
         "codigo": "LEG-001",
         "descripcion": "Descripción de prueba",
-        "horas_lectivas": 40,
     }
     defaults.update(kwargs)
     return Asignatura.objects.create(**defaults)
@@ -336,15 +336,17 @@ class TestAsignaturaAPI:
             "nombre": "Legislación de Tránsito",
             "codigo": "LEG-001",
             "descripcion": "Curso de leyes",
-            "horas_lectivas": 40,
-            "tipos_licencia": [tl1.pk, tl2.pk],
+            "licencias": [
+                {"tipo_licencia_id": tl1.pk, "horas_lectivas": 40},
+                {"tipo_licencia_id": tl2.pk, "horas_lectivas": 20},
+            ],
         }
 
         response = self.client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
         asig = Asignatura.objects.get(codigo="LEG-001")
-        assert asig.tipos_licencia.count() == 2
+        assert asig.asignatura_licencias.count() == 2
 
     def test_create_asignatura_estudiante_forbidden(self):
         """POST /api/asignaturas/ as estudiante → 403."""
@@ -355,8 +357,9 @@ class TestAsignaturaAPI:
         data = {
             "nombre": "Legislación",
             "codigo": "LEG-002",
-            "horas_lectivas": 40,
-            "tipos_licencia": [tl.pk],
+            "licencias": [
+                {"tipo_licencia_id": tl.pk, "horas_lectivas": 40},
+            ],
         }
 
         response = self.client.post(url, data, format="json")
@@ -370,10 +373,10 @@ class TestAsignaturaAPI:
         tl_e = _make_tipo_licencia(nombre="Educación", codigo="E")
 
         asig_c = _make_asignatura(nombre="Solo Conducción", codigo="SC-001")
-        asig_c.tipos_licencia.add(tl_c)
+        AsignaturaLicencia.objects.create(asignatura=asig_c, tipo_licencia=tl_c, horas_lectivas=40)
 
         asig_e = _make_asignatura(nombre="Solo Educación", codigo="SE-001")
-        asig_e.tipos_licencia.add(tl_e)
+        AsignaturaLicencia.objects.create(asignatura=asig_e, tipo_licencia=tl_e, horas_lectivas=40)
 
         url = reverse("academico:api-asignatura-list")
         response = self.client.get(url, {"tipo_licencia": tl_c.pk})
@@ -388,7 +391,7 @@ class TestAsignaturaAPI:
         self.client.force_authenticate(user=self.inspector)
         tl = _make_tipo_licencia(nombre="Conducción", codigo="C")
         asig = _make_asignatura()
-        asig.tipos_licencia.add(tl)
+        AsignaturaLicencia.objects.create(asignatura=asig, tipo_licencia=tl, horas_lectivas=40)
 
         url = reverse("academico:api-asignatura-detail", args=[asig.pk])
         response = self.client.get(url)
@@ -417,7 +420,11 @@ class TestParaleloAPI:
         self.tipo_licencia = _make_tipo_licencia()
         self.periodo = _make_periodo(creado_por=self.inspector)
         self.asignatura = _make_asignatura()
-        self.asignatura.tipos_licencia.add(self.tipo_licencia)
+        AsignaturaLicencia.objects.create(
+            asignatura=self.asignatura,
+            tipo_licencia=self.tipo_licencia,
+            horas_lectivas=40,
+        )
 
     def _paralelo_data(self, **overrides):
         """Default payload for creating a Paralelo."""

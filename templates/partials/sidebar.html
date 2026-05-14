@@ -62,8 +62,8 @@
             Dashboard
         </a>
 
-        {% if user.rol == 'inspector' %}
-        <!-- ACADEMIC MANAGEMENT section (Inspector only) -->
+        {% if user.rol == 'inspector' or user.rol == 'secretaria' %}
+        <!-- ACADEMIC MANAGEMENT section (Inspector + Secretaría) -->
         <p class="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Gestión Académica</p>
 
         <!-- Períodos Académicos -->

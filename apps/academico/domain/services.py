@@ -68,33 +68,37 @@ class PeriodoService:
 class AsignaturaService:
     """
     Domain rules for subjects.
-    Validates codigo uniqueness, horas_lectivas > 0, at least one tipo_licencia.
+    Validates codigo uniqueness, horas_lectivas per licencia > 0, at least one tipo_licencia.
     """
 
     def validar_datos(
         self,
         codigo: str,
-        horas_lectivas: int,
-        tipos_licencia_ids: list,
+        licencias: list,
         codigo_exists: bool,
     ) -> None:
         """
         Validate subject data at the domain level.
 
+        Args:
+            licencias: List of dicts with tipo_licencia_id and horas_lectivas.
+
         Raises:
             AsignaturaCodigoDuplicadoError: If codigo already exists.
-            ValueError: If horas_lectivas <= 0 or no tipos_licencia.
+            ValueError: If no licencias or any horas_lectivas <= 0.
         """
         if codigo_exists:
             raise AsignaturaCodigoDuplicadoError(
                 f"Ya existe una asignatura con el código '{codigo}'."
             )
 
-        if horas_lectivas <= 0:
-            raise ValueError("Las horas lectivas deben ser mayores a 0.")
-
-        if not tipos_licencia_ids:
+        if not licencias:
             raise ValueError("La asignatura debe estar asociada a al menos un tipo de licencia.")
+
+        for entry in licencias:
+            horas = entry.get("horas_lectivas", 0)
+            if horas <= 0:
+                raise ValueError("Las horas lectivas deben ser mayores a 0.")
 
 
 class ParaleloService:

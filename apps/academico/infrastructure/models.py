@@ -57,9 +57,9 @@ class Asignatura(models.Model):
     nombre = models.CharField(max_length=200)
     codigo = models.CharField(max_length=20, unique=True)
     descripcion = models.TextField(blank=True)
-    horas_lectivas = models.PositiveIntegerField(default=40)
     tipos_licencia = models.ManyToManyField(
         TipoLicencia,
+        through="AsignaturaLicencia",
         related_name="asignaturas",
         blank=True,
     )
@@ -73,6 +73,31 @@ class Asignatura(models.Model):
         return f"{self.codigo} - {self.nombre}"
 
 
+class AsignaturaLicencia(models.Model):
+    """Through model: hours per subject per license type."""
+
+    asignatura = models.ForeignKey(
+        Asignatura,
+        on_delete=models.CASCADE,
+        related_name="asignatura_licencias",
+    )
+    tipo_licencia = models.ForeignKey(
+        TipoLicencia,
+        on_delete=models.CASCADE,
+        related_name="asignatura_licencias",
+    )
+    horas_lectivas = models.PositiveIntegerField(default=40)
+
+    class Meta:
+        verbose_name = "Asignatura por Licencia"
+        verbose_name_plural = "Asignaturas por Licencia"
+        unique_together = ["asignatura", "tipo_licencia"]
+        ordering = ["tipo_licencia__codigo"]
+
+    def __str__(self):
+        return f"{self.asignatura.codigo} — {self.tipo_licencia.codigo}: {self.horas_lectivas}h"
+
+
 class Paralelo(models.Model):
     """Class section — links a subject, period, license type, teacher, and students."""
 
@@ -83,7 +108,9 @@ class Paralelo(models.Model):
     )
     docente = models.ForeignKey(
         "usuarios.Usuario",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="paralelos_asignados",
         limit_choices_to={"rol": "docente"},
     )

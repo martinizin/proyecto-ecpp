@@ -8,8 +8,10 @@ class CalificacionesError(Exception):
     """Base exception for Calificaciones domain errors."""
 
 
+
 class NotaFueraDeRangoError(CalificacionesError):
     """Raised when a grade value is outside the allowed 0–20 scale."""
+
 
 
 class EvaluacionDuplicadaError(CalificacionesError):

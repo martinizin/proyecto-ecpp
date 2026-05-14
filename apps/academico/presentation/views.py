@@ -180,9 +180,73 @@ class PeriodoUpdateView(MultiRolRequeridoMixin, ListView):
         return redirect("academico:periodo_list")
 
 
+class PeriodoDesactivarView(MultiRolRequeridoMixin, View):
+    """Deactivate an active period — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = PeriodoAppService()
+        try:
+            service.desactivar(periodo_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Período desactivado exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
+        return redirect("academico:periodo_list")
+
+
 # =============================================================================
 # Asignatura Views
 # =============================================================================
+
+
+def _parse_licencias_from_post(post_data, tipos_licencia_qs):
+    """Parse tipo_licencia_{id}/horas_{id} pairs from POST data.
+
+    Returns list of {"tipo_licencia_id": int, "horas_lectivas": int}.
+    """
+    licencias = []
+    for tl in tipos_licencia_qs:
+        if post_data.get(f"tipo_licencia_{tl.pk}"):
+            try:
+                horas = int(post_data.get(f"horas_{tl.pk}", 0))
+            except (ValueError, TypeError):
+                horas = 0
+            licencias.append({"tipo_licencia_id": tl.pk, "horas_lectivas": horas})
+    return licencias
+
+
+def _build_tipos_licencia_data(tipos_licencia_qs, asignatura=None):
+    """Build context list for template with checked/horas state."""
+    existing = {}
+    if asignatura:
+        for al in asignatura.asignatura_licencias.select_related("tipo_licencia").all():
+            existing[al.tipo_licencia_id] = al.horas_lectivas
+    return [
+        {
+            "id": tl.pk,
+            "codigo": tl.codigo,
+            "nombre": tl.nombre,
+            "checked": tl.pk in existing,
+            "horas": existing.get(tl.pk, 40),
+        }
+        for tl in tipos_licencia_qs
+    ]
+
+
+class AsignaturaDeleteView(MultiRolRequeridoMixin, View):
+    """Delete an asignatura if it has no paralelos — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = AsignaturaAppService()
+        try:
+            service.eliminar_asignatura(asignatura_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Asignatura eliminada exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
+        return redirect("academico:asignatura_list")
 
 
 class AsignaturaListView(MultiRolRequeridoMixin, ListView):
@@ -193,6 +257,11 @@ class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     template_name = "academico/asignatura_list.html"
     context_object_name = "asignaturas"
 
+    def get_queryset(self):
+        return Asignatura.objects.prefetch_related(
+            "asignatura_licencias", "asignatura_licencias__tipo_licencia"
+        ).all()
+
 
 class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
     """Create a new subject — Inspector only."""
@@ -201,30 +270,47 @@ class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
+    def _get_tipos_qs(self):
+        return TipoLicencia.objects.filter(activo=True)
+
     def get(self, request):
         form = AsignaturaForm()
-        return render(request, self.template_name, {"form": form, "editing": False})
+        tipos_licencia_data = _build_tipos_licencia_data(self._get_tipos_qs())
+        return render(
+            request,
+            self.template_name,
+            {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+        )
 
     def post(self, request):
         form = AsignaturaForm(request.POST)
+        tipos_qs = self._get_tipos_qs()
+        licencias = _parse_licencias_from_post(request.POST, tipos_qs)
+        tipos_licencia_data = _build_tipos_licencia_data(tipos_qs)
+
         if not form.is_valid():
-            return render(request, self.template_name, {"form": form, "editing": False})
+            return render(
+                request,
+                self.template_name,
+                {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+            )
 
         service = AsignaturaAppService()
         try:
             service.crear(
                 nombre=form.cleaned_data["nombre"],
                 codigo=form.cleaned_data["codigo"],
-                horas_lectivas=form.cleaned_data["horas_lectivas"],
-                tipos_licencia_ids=list(
-                    form.cleaned_data["tipos_licencia"].values_list("id", flat=True)
-                ),
+                licencias=licencias,
                 usuario_id=request.user.pk,
                 descripcion=form.cleaned_data.get("descripcion", ""),
             )
         except (AcademicoError, ValueError) as e:
             form.add_error(None, str(e))
-            return render(request, self.template_name, {"form": form, "editing": False})
+            return render(
+                request,
+                self.template_name,
+                {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+            )
 
         messages.success(request, "Asignatura creada exitosamente.")
         return redirect("academico:asignatura_list")
@@ -237,9 +323,13 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
     template_name = "academico/asignatura_form.html"
     model = Asignatura
 
+    def _get_tipos_qs(self):
+        return TipoLicencia.objects.filter(activo=True)
+
     def get(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(instance=asignatura)
+        tipos_licencia_data = _build_tipos_licencia_data(self._get_tipos_qs(), asignatura)
         return render(
             request,
             self.template_name,
@@ -247,12 +337,17 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                 "form": form,
                 "editing": True,
                 "asignatura": asignatura,
+                "tipos_licencia_data": tipos_licencia_data,
             },
         )
 
     def post(self, request, pk):
         asignatura = get_object_or_404(Asignatura, pk=pk)
         form = AsignaturaForm(request.POST, instance=asignatura)
+        tipos_qs = self._get_tipos_qs()
+        licencias = _parse_licencias_from_post(request.POST, tipos_qs)
+        tipos_licencia_data = _build_tipos_licencia_data(tipos_qs, asignatura)
+
         if not form.is_valid():
             return render(
                 request,
@@ -261,6 +356,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                     "form": form,
                     "editing": True,
                     "asignatura": asignatura,
+                    "tipos_licencia_data": tipos_licencia_data,
                 },
             )
 
@@ -270,10 +366,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                 asignatura_id=pk,
                 nombre=form.cleaned_data["nombre"],
                 codigo=form.cleaned_data["codigo"],
-                horas_lectivas=form.cleaned_data["horas_lectivas"],
-                tipos_licencia_ids=list(
-                    form.cleaned_data["tipos_licencia"].values_list("id", flat=True)
-                ),
+                licencias=licencias,
                 usuario_id=request.user.pk,
                 descripcion=form.cleaned_data.get("descripcion", ""),
             )
@@ -286,6 +379,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                     "form": form,
                     "editing": True,
                     "asignatura": asignatura,
+                    "tipos_licencia_data": tipos_licencia_data,
                 },
             )
 
@@ -378,7 +472,59 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
             form.add_error(None, str(e))
             return render(request, self.template_name, {"form": form, "editing": False})
 
+        # Parse and create schedule blocks
+        bloques_count_str = request.POST.get("bloques_count", "0")
+        try:
+            bloques_count = int(bloques_count_str)
+        except ValueError:
+            bloques_count = 0
+
+        created_paralelo = (
+            Paralelo.objects.filter(
+                asignatura=asignatura,
+                periodo=periodo,
+                tipo_licencia=form.cleaned_data["tipo_licencia"],
+                nombre=form.cleaned_data["nombre"],
+            )
+            .order_by("-pk")
+            .first()
+        )
+
+        if created_paralelo and bloques_count > 0:
+            for idx in range(bloques_count):
+                dia = request.POST.get(f"bloque_dia_{idx}", "").strip()
+                inicio_str = request.POST.get(f"bloque_inicio_{idx}", "").strip()
+                fin_str = request.POST.get(f"bloque_fin_{idx}", "").strip()
+                if dia and inicio_str and fin_str:
+                    try:
+                        h_inicio = time.fromisoformat(inicio_str)
+                        h_fin = time.fromisoformat(fin_str)
+                        if h_inicio < h_fin:
+                            BloqueHorario.objects.create(
+                                paralelo=created_paralelo,
+                                dia_semana=dia,
+                                hora_inicio=h_inicio,
+                                hora_fin=h_fin,
+                            )
+                    except ValueError:
+                        pass
+
         messages.success(request, "Paralelo creado exitosamente.")
+        return redirect("academico:paralelo_list")
+
+
+class ParaleloDeleteView(MultiRolRequeridoMixin, View):
+    """Delete a paralelo if it has no dependents — Inspector/Secretaría."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def post(self, request, pk):
+        service = ParaleloAppService()
+        try:
+            service.eliminar_paralelo(paralelo_id=pk, usuario_id=request.user.pk)
+            messages.success(request, "Paralelo eliminado exitosamente.")
+        except AcademicoError as e:
+            messages.error(request, str(e))
         return redirect("academico:paralelo_list")
 
 
@@ -413,10 +559,103 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
             return render(request, self.template_name, {"form": form})
 
         if creados:
+            # Parse and create schedule blocks for each created paralelo
+            horario_warnings = []
+            periodo = form.cleaned_data["periodo"]
+            tipo_licencia = form.cleaned_data["tipo_licencia"]
+            nombre = form.cleaned_data["nombre"]
+            asignaturas = form.cleaned_data["asignaturas"]
+
+            # Map asignatura_codigo -> asignatura model for ID lookup
+            asig_by_codigo = {a.codigo: a for a in asignaturas}
+
+            for entity in creados:
+                asig = asig_by_codigo.get(entity.asignatura_codigo)
+                if not asig:
+                    continue
+                asig_id = asig.pk
+
+                count_str = request.POST.get(f"horario_{asig_id}_count", "0")
+                try:
+                    count = int(count_str)
+                except ValueError:
+                    count = 0
+
+                if count == 0:
+                    continue
+
+                # Find the actual Django model instance
+                paralelo = (
+                    Paralelo.objects.filter(
+                        asignatura_id=asig_id,
+                        periodo=periodo,
+                        tipo_licencia=tipo_licencia,
+                        nombre=nombre,
+                    )
+                    .order_by("-pk")
+                    .first()
+                )
+
+                if not paralelo:
+                    continue
+
+                bloques_data = []
+                for idx in range(count):
+                    dia = request.POST.get(f"horario_{asig_id}_dia_{idx}", "").strip()
+                    inicio_str = request.POST.get(f"horario_{asig_id}_inicio_{idx}", "").strip()
+                    fin_str = request.POST.get(f"horario_{asig_id}_fin_{idx}", "").strip()
+                    if dia and inicio_str and fin_str:
+                        try:
+                            h_inicio = time.fromisoformat(inicio_str)
+                            h_fin = time.fromisoformat(fin_str)
+                            if h_inicio >= h_fin:
+                                dia_display = dict(BloqueHorario.DiaSemana.choices).get(dia, dia)
+                                horario_warnings.append(
+                                    f"{asig.nombre}: hora de inicio "
+                                    f"({h_inicio:%H:%M}) debe ser anterior a la "
+                                    f"hora de fin ({h_fin:%H:%M}) el {dia_display}."
+                                )
+                                continue
+                            bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
+                        except ValueError:
+                            pass
+
+                # Conflict validation against same group
+                same_group = Paralelo.objects.filter(
+                    periodo_id=paralelo.periodo_id,
+                    tipo_licencia_id=paralelo.tipo_licencia_id,
+                    nombre=paralelo.nombre,
+                ).exclude(pk=paralelo.pk)
+
+                for b in bloques_data:
+                    conflicts = BloqueHorario.objects.filter(
+                        paralelo__in=same_group,
+                        dia_semana=b["dia"],
+                        hora_inicio__lt=b["fin"],
+                        hora_fin__gt=b["inicio"],
+                    ).select_related("paralelo__asignatura")
+                    if conflicts.exists():
+                        cb = conflicts.first()
+                        dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                        horario_warnings.append(
+                            f"{asig.nombre}: conflicto con "
+                            f"{cb.paralelo.asignatura.nombre} el {dia_display} "
+                            f"de {cb.hora_inicio:%H:%M} a {cb.hora_fin:%H:%M}."
+                        )
+                    else:
+                        BloqueHorario.objects.create(
+                            paralelo=paralelo,
+                            dia_semana=b["dia"],
+                            hora_inicio=b["inicio"],
+                            hora_fin=b["fin"],
+                        )
+
             messages.success(
                 request,
                 f"Se crearon {len(creados)} paralelos exitosamente.",
             )
+            for w in horario_warnings:
+                messages.warning(request, f"Horario omitido — {w}")
         if duplicados:
             messages.warning(
                 request,
@@ -438,7 +677,7 @@ class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
         if not tipo_id:
             return JsonResponse({"asignaturas": []})
         asignaturas = (
-            Asignatura.objects.filter(tipos_licencia__id=tipo_id)
+            Asignatura.objects.filter(asignatura_licencias__tipo_licencia_id=tipo_id)
             .distinct()
             .values("id", "codigo", "nombre")
         )
@@ -574,6 +813,134 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
         return redirect("academico:paralelo_list")
 
 
+class ParaleloHorarioUpdateView(View):
+    """AJAX endpoint to update schedule blocks for a paralelo."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({"ok": False, "errors": ["No autenticado."]}, status=401)
+        rol = getattr(request.user, "rol", None)
+        if rol not in ("inspector", "secretaria"):
+            return JsonResponse(
+                {"ok": False, "errors": ["No tiene permisos para esta acción."]},
+                status=403,
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, pk):
+        import json
+
+        paralelo = get_object_or_404(
+            Paralelo.objects.select_related("asignatura", "periodo", "tipo_licencia"),
+            pk=pk,
+        )
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"ok": False, "errors": ["JSON inválido."]}, status=400)
+
+        raw_bloques = body.get("bloques", [])
+        if not isinstance(raw_bloques, list):
+            return JsonResponse(
+                {"ok": False, "errors": ["'bloques' debe ser una lista."]}, status=400
+            )
+
+        dias_validos = {c[0] for c in BloqueHorario.DiaSemana.choices}
+        bloques_data = []
+        errores = []
+
+        for i, b in enumerate(raw_bloques):
+            dia = b.get("dia", "")
+            inicio_str = b.get("inicio", "")
+            fin_str = b.get("fin", "")
+
+            if dia not in dias_validos:
+                errores.append(f"Bloque {i + 1}: día inválido '{dia}'.")
+                continue
+
+            try:
+                inicio = time(*map(int, inicio_str.split(":")))
+                fin = time(*map(int, fin_str.split(":")))
+            except (ValueError, TypeError):
+                errores.append(f"Bloque {i + 1}: formato de hora inválido.")
+                continue
+
+            if inicio >= fin:
+                dia_display = dict(BloqueHorario.DiaSemana.choices).get(dia, dia)
+                errores.append(
+                    f"Bloque {i + 1}: la hora de inicio ({inicio:%H:%M}) "
+                    f"debe ser anterior a la hora de fin ({fin:%H:%M}) "
+                    f"el {dia_display}."
+                )
+                continue
+
+            bloques_data.append({"dia": dia, "inicio": inicio, "fin": fin})
+
+        if errores:
+            return JsonResponse({"ok": False, "errors": errores}, status=400)
+
+        # Conflict validation against same group
+        same_group_paralelos = Paralelo.objects.filter(
+            periodo_id=paralelo.periodo_id,
+            tipo_licencia_id=paralelo.tipo_licencia_id,
+            nombre=paralelo.nombre,
+        ).exclude(asignatura_id=paralelo.asignatura_id)
+
+        for b in bloques_data:
+            conflicting_blocks = BloqueHorario.objects.filter(
+                paralelo__in=same_group_paralelos,
+                dia_semana=b["dia"],
+                hora_inicio__lt=b["fin"],
+                hora_fin__gt=b["inicio"],
+            ).select_related("paralelo__asignatura")
+
+            for cb in conflicting_blocks:
+                dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
+                errores.append(
+                    f"Conflicto: {cb.paralelo.asignatura.nombre} "
+                    f"ya tiene clase el {dia_display} de "
+                    f"{cb.hora_inicio:%H:%M} a {cb.hora_fin:%H:%M}"
+                )
+
+        if errores:
+            return JsonResponse({"ok": False, "errors": errores}, status=400)
+
+        # Replace blocks atomically
+        paralelo.bloques_horario.all().delete()
+        for b in bloques_data:
+            BloqueHorario.objects.create(
+                paralelo=paralelo,
+                dia_semana=b["dia"],
+                hora_inicio=b["inicio"],
+                hora_fin=b["fin"],
+            )
+
+        # Build display string
+        dia_abrev = {
+            "lunes": "Lun",
+            "martes": "Mar",
+            "miercoles": "Mié",
+            "jueves": "Jue",
+            "viernes": "Vie",
+            "sabado": "Sáb",
+        }
+        display_parts = []
+        for b in bloques_data:
+            display_parts.append(
+                f"{dia_abrev.get(b['dia'], b['dia'])} " f"{b['inicio']:%H:%M}-{b['fin']:%H:%M}"
+            )
+        bloques_display = " · ".join(display_parts)
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Horario actualizado exitosamente.",
+                "bloques_display": bloques_display,
+            }
+        )
+
+
 # =============================================================================
 # TipoLicencia Views (read-only)
 # =============================================================================
@@ -616,7 +983,9 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
 
         # All asignaturas for this tipo_licencia
         all_asignaturas = (
-            Asignatura.objects.filter(tipos_licencia=tipo_licencia).distinct().order_by("codigo")
+            Asignatura.objects.filter(asignatura_licencias__tipo_licencia=tipo_licencia)
+            .distinct()
+            .order_by("codigo")
         )
 
         # IDs already in the group

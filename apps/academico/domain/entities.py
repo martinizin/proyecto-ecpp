@@ -38,8 +38,7 @@ class AsignaturaEntity:
     nombre: str
     codigo: str
     descripcion: str = ""
-    horas_lectivas: int = 40
-    tipos_licencia_ids: List[int] = field(default_factory=list)
+    licencias: List[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

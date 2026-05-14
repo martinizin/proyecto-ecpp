@@ -19,7 +19,9 @@ class AsignaturaFilter:
     def apply(queryset, query_params):
         tipo_licencia = query_params.get("tipo_licencia")
         if tipo_licencia:
-            queryset = queryset.filter(tipos_licencia__id=tipo_licencia).distinct()
+            queryset = queryset.filter(
+                asignatura_licencias__tipo_licencia_id=tipo_licencia
+            ).distinct()
         return queryset
 
 
