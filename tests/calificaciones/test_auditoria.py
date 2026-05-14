@@ -267,3 +267,13 @@ class TestAuditoriaCalificacionesView:
         docente_client.force_login(DocenteFactory())
         response = docente_client.get("/calificaciones/auditoria/")
         assert response.status_code in (302, 403)
+
+    def test_contexto_incluye_total_logs_y_truncado(self):
+        """La vista siempre debe exponer total_logs y truncado al template."""
+        response = self.client.get("/calificaciones/auditoria/")
+        assert response.status_code == 200
+        assert "total_logs" in response.context
+        assert "truncado" in response.context
+        assert "limite" in response.context
+        assert response.context["truncado"] is False  # sin datos no hay truncado
+        assert response.context["total_logs"] == 0

@@ -263,8 +263,15 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
 
         docentes = Usuario.objects.filter(rol="docente").order_by("last_name", "first_name")
 
+        LIMITE = 500
+        total_logs = qs.count()
+        truncado = total_logs > LIMITE
+
         return render(request, self.template_name, {
-            "logs": qs[:500],
+            "logs": qs[:LIMITE],
+            "total_logs": total_logs,
+            "truncado": truncado,
+            "limite": LIMITE,
             "acciones": LogCalificacion.TipoAccion.choices,
             "docentes": docentes,
             "filtros": {
