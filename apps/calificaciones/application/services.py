@@ -8,13 +8,16 @@ from django.db import transaction
 from django.db.models import Sum
 
 from apps.academico.infrastructure.models import Matricula, Paralelo
-from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError, PesosInvalidosError
+from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError
 from apps.calificaciones.domain.services import CalificacionValidationService
 from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
 
 
 class AuditoriaCalificacionService:
-    """Registra logs inmutables de cambios en calificaciones. Nunca llamar update/delete sobre LogCalificacion."""
+    """Registra logs inmutables de cambios en calificaciones.
+
+    Nunca llamar update/delete sobre LogCalificacion.
+    """
 
     @staticmethod
     def registrar_cambio(

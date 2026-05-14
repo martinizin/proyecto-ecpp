@@ -15,7 +15,6 @@ from apps.usuarios.infrastructure.models import Usuario
 from tests.factories import (
     CalificacionFactory,
     DocenteFactory,
-    EstudianteFactory,
     EvaluacionFactory,
     LogCalificacionFactory,
     MatriculaFactory,
@@ -32,6 +31,7 @@ def _crear_secretaria() -> Usuario:
         rol="secretaria",
         is_active=True,
     )
+
 
 pytestmark = pytest.mark.django_db
 
@@ -208,7 +208,7 @@ class TestAuditoriaIntegracion:
         assert log.valor_nuevo == Decimal("18.00")
 
     def test_nota_sin_cambio_no_incrementa_guardadas(self):
-        """Si la nota no cambia, guardadas debe ser 0 — el mensaje al docente no debe ser engañoso."""
+        """Si la nota no cambia, guardadas=0: el mensaje al docente no debe ser engañoso."""
         cal = CalificacionFactory(nota=Decimal("15.00"))
         docente = cal.evaluacion.paralelo.docente
         MatriculaFactory(paralelo=cal.evaluacion.paralelo, estudiante=cal.estudiante)

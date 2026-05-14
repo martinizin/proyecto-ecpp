@@ -101,6 +101,7 @@ class LogCalificacion(models.Model):
         ]
 
     def __str__(self):
-        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {self.get_accion_display()} — {self.estudiante_info}"
-
-
+        return (
+            f"[{self.timestamp:%Y-%m-%d %H:%M}] "
+            f"{self.get_accion_display()} — {self.estudiante_info}"
+        )

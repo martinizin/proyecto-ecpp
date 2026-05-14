@@ -122,7 +122,10 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
         for _, msg in resultado["errores"]:
             messages.error(request, msg)
         if resultado["guardadas"] > 0:
-            messages.success(request, f"{resultado['guardadas']} calificacion(es) guardada(s) correctamente.")
+            messages.success(
+                request,
+                f"{resultado['guardadas']} calificacion(es) guardada(s) correctamente.",
+            )
         elif not resultado["errores"]:
             messages.info(request, "No se realizaron cambios.")
 
@@ -176,7 +179,9 @@ class EditarEvaluacionView(RolRequeridoMixin, View):
         if redir:
             return redir
         evaluacion = get_object_or_404(Evaluacion, pk=evaluacion_id, paralelo=paralelo)
-        return render(request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion})
+        return render(
+            request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion}
+        )
 
     def post(self, request, paralelo_id, evaluacion_id):
         paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
@@ -191,13 +196,18 @@ class EditarEvaluacionView(RolRequeridoMixin, View):
 
         if resultado["ok"]:
             ev = resultado["evaluacion"]
-            messages.success(request, f"Peso de '{ev.get_tipo_display()}' actualizado a {ev.peso}%.")
+            messages.success(
+                request,
+                f"Peso de '{ev.get_tipo_display()}' actualizado a {ev.peso}%.",
+            )
             return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
 
         evaluacion = get_object_or_404(Evaluacion, pk=evaluacion_id)
         for err in resultado["errores"]:
             messages.error(request, err)
-        return render(request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion})
+        return render(
+            request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion}
+        )
 
 
 class EliminarEvaluacionView(RolRequeridoMixin, View):

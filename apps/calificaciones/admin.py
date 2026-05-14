@@ -25,7 +25,10 @@ class CalificacionAdmin(admin.ModelAdmin):
 class LogCalificacionAdmin(admin.ModelAdmin):
     """Log de auditoría — solo lectura."""
 
-    list_display = ("timestamp", "accion", "estudiante_info", "evaluacion_info", "valor_anterior", "valor_nuevo", "realizado_por", "ip")
+    list_display = (
+        "timestamp", "accion", "estudiante_info", "evaluacion_info",
+        "valor_anterior", "valor_nuevo", "realizado_por", "ip",
+    )
     list_filter = ("accion",)
     search_fields = ("estudiante_info", "evaluacion_info", "realizado_por__username")
     readonly_fields = (
