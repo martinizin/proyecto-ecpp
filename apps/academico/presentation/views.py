@@ -479,12 +479,16 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
         except ValueError:
             bloques_count = 0
 
-        created_paralelo = Paralelo.objects.filter(
-            asignatura=asignatura,
-            periodo=periodo,
-            tipo_licencia=form.cleaned_data["tipo_licencia"],
-            nombre=form.cleaned_data["nombre"],
-        ).order_by("-pk").first()
+        created_paralelo = (
+            Paralelo.objects.filter(
+                asignatura=asignatura,
+                periodo=periodo,
+                tipo_licencia=form.cleaned_data["tipo_licencia"],
+                nombre=form.cleaned_data["nombre"],
+            )
+            .order_by("-pk")
+            .first()
+        )
 
         if created_paralelo and bloques_count > 0:
             for idx in range(bloques_count):
@@ -581,44 +585,38 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                     continue
 
                 # Find the actual Django model instance
-                paralelo = Paralelo.objects.filter(
-                    asignatura_id=asig_id,
-                    periodo=periodo,
-                    tipo_licencia=tipo_licencia,
-                    nombre=nombre,
-                ).order_by("-pk").first()
+                paralelo = (
+                    Paralelo.objects.filter(
+                        asignatura_id=asig_id,
+                        periodo=periodo,
+                        tipo_licencia=tipo_licencia,
+                        nombre=nombre,
+                    )
+                    .order_by("-pk")
+                    .first()
+                )
 
                 if not paralelo:
                     continue
 
                 bloques_data = []
                 for idx in range(count):
-                    dia = request.POST.get(
-                        f"horario_{asig_id}_dia_{idx}", ""
-                    ).strip()
-                    inicio_str = request.POST.get(
-                        f"horario_{asig_id}_inicio_{idx}", ""
-                    ).strip()
-                    fin_str = request.POST.get(
-                        f"horario_{asig_id}_fin_{idx}", ""
-                    ).strip()
+                    dia = request.POST.get(f"horario_{asig_id}_dia_{idx}", "").strip()
+                    inicio_str = request.POST.get(f"horario_{asig_id}_inicio_{idx}", "").strip()
+                    fin_str = request.POST.get(f"horario_{asig_id}_fin_{idx}", "").strip()
                     if dia and inicio_str and fin_str:
                         try:
                             h_inicio = time.fromisoformat(inicio_str)
                             h_fin = time.fromisoformat(fin_str)
                             if h_inicio >= h_fin:
-                                dia_display = dict(
-                                    BloqueHorario.DiaSemana.choices
-                                ).get(dia, dia)
+                                dia_display = dict(BloqueHorario.DiaSemana.choices).get(dia, dia)
                                 horario_warnings.append(
                                     f"{asig.nombre}: hora de inicio "
                                     f"({h_inicio:%H:%M}) debe ser anterior a la "
                                     f"hora de fin ({h_fin:%H:%M}) el {dia_display}."
                                 )
                                 continue
-                            bloques_data.append(
-                                {"dia": dia, "inicio": h_inicio, "fin": h_fin}
-                            )
+                            bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
                         except ValueError:
                             pass
 
@@ -638,9 +636,7 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                     ).select_related("paralelo__asignatura")
                     if conflicts.exists():
                         cb = conflicts.first()
-                        dia_display = dict(
-                            BloqueHorario.DiaSemana.choices
-                        ).get(b["dia"], b["dia"])
+                        dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
                         horario_warnings.append(
                             f"{asig.nombre}: conflicto con "
                             f"{cb.paralelo.asignatura.nombre} el {dia_display} "

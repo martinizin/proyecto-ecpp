@@ -532,9 +532,7 @@ class ParaleloAppService:
         from apps.academico.infrastructure.models import Paralelo
 
         try:
-            paralelo = Paralelo.objects.select_related(
-                "asignatura", "periodo"
-            ).get(pk=paralelo_id)
+            paralelo = Paralelo.objects.select_related("asignatura", "periodo").get(pk=paralelo_id)
         except Paralelo.DoesNotExist:
             raise AcademicoError("El paralelo no existe.")
 
@@ -552,8 +550,7 @@ class ParaleloAppService:
 
         if bloqueos:
             raise AcademicoError(
-                f"No se puede eliminar el paralelo porque tiene: "
-                f"{', '.join(bloqueos)}."
+                f"No se puede eliminar el paralelo porque tiene: " f"{', '.join(bloqueos)}."
             )
 
         detalle = (

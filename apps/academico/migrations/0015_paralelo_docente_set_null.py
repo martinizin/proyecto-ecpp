@@ -8,19 +8,28 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('academico', '0014_replace_m2m_with_through'),
+        ("academico", "0014_replace_m2m_with_through"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='asignaturalicencia',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            model_name="asignaturalicencia",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
         ),
         migrations.AlterField(
-            model_name='paralelo',
-            name='docente',
-            field=models.ForeignKey(blank=True, limit_choices_to={'rol': 'docente'}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='paralelos_asignados', to=settings.AUTH_USER_MODEL),
+            model_name="paralelo",
+            name="docente",
+            field=models.ForeignKey(
+                blank=True,
+                limit_choices_to={"rol": "docente"},
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="paralelos_asignados",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]
