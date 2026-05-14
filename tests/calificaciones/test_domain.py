@@ -5,7 +5,6 @@ from decimal import Decimal
 import pytest
 
 from apps.calificaciones.domain.exceptions import (
-    NotaDecimalError,
     NotaFueraDeRangoError,
     PesosInvalidosError,
 )
@@ -31,10 +30,11 @@ class TestNotaVO:
         with pytest.raises(NotaFueraDeRangoError):
             Nota(valor=Decimal(valor))
 
-    @pytest.mark.parametrize("valor", ["15.5", "16.99", "0.01", "19.99"])
-    def test_nota_con_decimal_rechazada(self, valor):
-        with pytest.raises(NotaDecimalError):
-            Nota(valor=Decimal(valor))
+    @pytest.mark.parametrize("valor", ["15.50", "16.99", "0.01", "19.99"])
+    def test_nota_con_decimal_valida(self, valor):
+        """PRD: escala 0.00–20.00 con 2 decimales — los decimales deben aceptarse."""
+        nota = Nota(valor=Decimal(valor))
+        assert nota.valor == Decimal(valor)
 
     def test_nota_aprobado_en_limite(self):
         assert Nota(valor=Decimal("16")).aprobado is True
@@ -54,9 +54,11 @@ class TestNotaVO:
         with pytest.raises(Exception):
             nota.valor = Decimal("5")
 
-    def test_nota_str_muestra_entero(self):
-        nota = Nota(valor=Decimal("15"))
-        assert str(nota) == "15"
+    def test_nota_str_muestra_dos_decimales(self):
+        """__str__ debe mostrar siempre 2 decimales para consistencia."""
+        assert str(Nota(valor=Decimal("15"))) == "15.00"
+        assert str(Nota(valor=Decimal("17.50"))) == "17.50"
+        assert str(Nota(valor=Decimal("0"))) == "0.00"
 
     def test_nota_igualdad(self):
         assert Nota(valor=Decimal("10")) == Nota(valor=Decimal("10"))
@@ -82,9 +84,10 @@ class TestCalificacionValidationService:
         with pytest.raises(NotaFueraDeRangoError):
             CalificacionValidationService.validar_nota("21")
 
-    def test_validar_nota_decimal_rechazada(self):
-        with pytest.raises(NotaDecimalError):
-            CalificacionValidationService.validar_nota("15.5")
+    def test_validar_nota_decimal_valida(self):
+        """PRD: escala 0.00–20.00 — el servicio debe aceptar decimales."""
+        nota = CalificacionValidationService.validar_nota("15.50")
+        assert nota.valor == Decimal("15.50")
 
     @pytest.mark.parametrize(
         "pesos",

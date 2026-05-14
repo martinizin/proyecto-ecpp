@@ -6,7 +6,7 @@ Pure Python — NO Django imports allowed in this layer.
 from dataclasses import dataclass
 from decimal import Decimal
 
-from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError, NotaDecimalError
+from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError
 
 NOTA_MINIMA = Decimal("0")
 NOTA_MAXIMA = Decimal("20")
@@ -22,10 +22,6 @@ class Nota:
     def __post_init__(self) -> None:
         valor = Decimal(str(self.valor))
         object.__setattr__(self, "valor", valor)
-        if valor != valor.to_integral_value():
-            raise NotaDecimalError(
-                f"La nota {valor} debe ser un número entero (sin decimales)."
-            )
         if valor < NOTA_MINIMA or valor > NOTA_MAXIMA:
             raise NotaFueraDeRangoError(
                 f"La nota {valor} está fuera del rango permitido ({NOTA_MINIMA}–{NOTA_MAXIMA})."
@@ -36,4 +32,4 @@ class Nota:
         return self.valor >= NOTA_APROBACION
 
     def __str__(self) -> str:
-        return str(int(self.valor))
+        return f"{self.valor:.2f}"
