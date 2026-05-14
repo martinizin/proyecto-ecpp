@@ -207,6 +207,20 @@ class TestAuditoriaIntegracion:
         assert log.valor_anterior == Decimal("10.00")
         assert log.valor_nuevo == Decimal("18.00")
 
+    def test_nota_sin_cambio_no_incrementa_guardadas(self):
+        """Si la nota no cambia, guardadas debe ser 0 — el mensaje al docente no debe ser engañoso."""
+        cal = CalificacionFactory(nota=Decimal("15.00"))
+        docente = cal.evaluacion.paralelo.docente
+        MatriculaFactory(paralelo=cal.evaluacion.paralelo, estudiante=cal.estudiante)
+
+        resultado = RegistroCalificacionAppService().guardar_calificaciones(
+            paralelo_id=cal.evaluacion.paralelo_id,
+            notas_data={(cal.estudiante_id, cal.evaluacion_id): "15"},
+            usuario=docente,
+        )
+
+        assert resultado["guardadas"] == 0
+
     def test_nota_sin_cambio_no_genera_log(self):
         cal = CalificacionFactory(nota=Decimal("15.00"))
         docente = cal.evaluacion.paralelo.docente

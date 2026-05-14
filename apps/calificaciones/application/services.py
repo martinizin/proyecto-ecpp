@@ -122,9 +122,9 @@ class RegistroCalificacionAppService:
                 estudiante_id=estudiante_id,
                 defaults={"nota": nota_vo.valor},
             )
-            guardadas += 1
 
             if created or valor_anterior != nota_vo.valor:
+                guardadas += 1
                 accion = (
                     LogCalificacion.TipoAccion.CREACION
                     if created
