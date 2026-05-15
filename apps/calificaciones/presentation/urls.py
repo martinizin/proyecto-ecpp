@@ -1,11 +1,15 @@
 from django.urls import path
 
 from apps.calificaciones.presentation.views import (
+    AprobarCalificacionesView,
     AuditoriaCalificacionesView,
+    DetalleValidacionView,
     EditarEvaluacionView,
     EliminarEvaluacionView,
     EnviarValidacionView,
     GestionEvaluacionesView,
+    PendientesValidacionView,
+    RechazarCalificacionesView,
     RegistrarCalificacionesView,
     SeleccionarParaleloCalificacionesView,
 )
@@ -47,5 +51,25 @@ urlpatterns = [
         "auditoria/",
         AuditoriaCalificacionesView.as_view(),
         name="auditoria_calificaciones",
+    ),
+    path(
+        "pendientes-validacion/",
+        PendientesValidacionView.as_view(),
+        name="pendientes_validacion",
+    ),
+    path(
+        "paralelo/<int:paralelo_id>/detalle-validacion/",
+        DetalleValidacionView.as_view(),
+        name="detalle_validacion",
+    ),
+    path(
+        "paralelo/<int:paralelo_id>/aprobar/",
+        AprobarCalificacionesView.as_view(),
+        name="aprobar_calificaciones",
+    ),
+    path(
+        "paralelo/<int:paralelo_id>/rechazar/",
+        RechazarCalificacionesView.as_view(),
+        name="rechazar_calificaciones",
     ),
 ]
