@@ -29,6 +29,13 @@
                 <div class="flex flex-wrap gap-1.5 mb-4">
                     <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ paralelo.tipo_licencia.codigo }}</span>
                     <span class="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-medium">{{ paralelo.periodo.nombre }}</span>
+                    {% if paralelo.registro_calificaciones.estado == 'completo' %}
+                    <span class="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-medium">Pendiente validación</span>
+                    {% elif paralelo.registro_calificaciones.estado == 'validado' %}
+                    <span class="bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-medium">Validado</span>
+                    {% elif paralelo.registro_calificaciones.estado == 'rechazado' %}
+                    <span class="bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full text-xs font-medium">Rechazado</span>
+                    {% endif %}
                 </div>
 
                 <!-- Actions -->

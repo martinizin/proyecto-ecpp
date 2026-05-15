@@ -35,6 +35,35 @@
         </a>
     </div>
 
+    <!-- State banner -->
+    {% if registro.estado == 'completo' %}
+    <div class="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+        </svg>
+        Calificaciones enviadas a validación. Pendiente de revisión por secretaría.
+    </div>
+    {% elif registro.estado == 'validado' %}
+    <div class="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+        </svg>
+        Calificaciones validadas por secretaría.
+    </div>
+    {% elif registro.estado == 'rechazado' %}
+    <div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+            </svg>
+            Calificaciones rechazadas por secretaría. Puede corregir y reenviar.
+        </div>
+        {% if registro.observaciones_secretaria %}
+        <p class="mt-2 ml-7 text-xs text-amber-600">{{ registro.observaciones_secretaria }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if not evaluaciones %}
     <!-- No evaluaciones configured -->
     <div class="bg-white rounded-xl shadow-md px-6 py-12">
@@ -98,11 +127,12 @@
                                        name="nota_{{ fila.matricula.estudiante_id }}_{{ ev.id }}"
                                        value="{% if cal %}{{ cal.nota }}{% endif %}"
                                        min="0" max="20" step="0.01"
-                                       class="form-control w-20 text-center text-sm mx-auto"
+                                       class="form-control w-20 text-center text-sm mx-auto{% if not puede_editar %} bg-gray-100 cursor-not-allowed{% endif %}"
                                        placeholder="—"
                                        data-estudiante="{{ fila.matricula.estudiante_id }}"
                                        data-evaluacion="{{ ev.id }}"
                                        data-peso="{{ ev.peso }}"
+                                       {% if not puede_editar %}disabled{% endif %}
                                        @input="calcularPromedio('{{ fila.matricula.estudiante_id }}')">
                             </td>
                             {% endfor %}
@@ -133,6 +163,7 @@
                         <span class="w-2 h-2 rounded-full bg-red-500"></span> &lt; 16: Reprobado
                     </span>
                 </div>
+                {% if puede_editar %}
                 <div class="flex items-center gap-3">
                     <a href="{% url 'calificaciones:seleccionar_paralelo' %}"
                        class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
@@ -143,8 +174,27 @@
                         Guardar Calificaciones
                     </button>
                 </div>
+                {% else %}
+                <div class="text-sm text-gray-500 italic">
+                    Las calificaciones no se pueden modificar en este estado.
+                </div>
+                {% endif %}
             </div>
         </form>
+
+        {% if puede_editar and planilla_completa and registro.estado == 'borrador' or puede_editar and planilla_completa and registro.estado == 'rechazado' %}
+        <div class="px-6 py-4 border-t border-gray-200 bg-green-50 flex items-center justify-between">
+            <p class="text-sm text-green-700">Todas las calificaciones están registradas. Puede enviar a validación.</p>
+            <form method="post" action="{% url 'calificaciones:enviar_validacion' paralelo_id=paralelo.pk %}"
+                  onsubmit="return confirm('¿Está seguro? Una vez enviadas, no podrá modificar las calificaciones hasta que secretaría las revise.')">
+                {% csrf_token %}
+                <button type="submit"
+                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Enviar a Validación
+                </button>
+            </form>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
