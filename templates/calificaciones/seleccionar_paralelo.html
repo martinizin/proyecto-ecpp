@@ -19,8 +19,8 @@
     {% if paralelos %}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for paralelo in paralelos %}
-        <div class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-            <div class="p-5">
+        <div class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
+            <div class="p-5 flex flex-col flex-1">
                 <!-- Asignatura -->
                 <h2 class="text-base font-semibold text-gray-800 mb-1">{{ paralelo.asignatura.nombre }}</h2>
                 <p class="text-xs text-gray-400 mb-3">{{ paralelo.asignatura.codigo }} — Paralelo {{ paralelo.nombre }}</p>
@@ -39,7 +39,7 @@
                 </div>
 
                 <!-- Actions -->
-                <div class="flex flex-col gap-2">
+                <div class="flex flex-col gap-2 mt-auto">
                     <a href="{% url 'calificaciones:registrar_calificaciones' paralelo_id=paralelo.pk %}"
                        class="inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

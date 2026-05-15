@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 
 {% block title %}Registrar Calificaciones — {{ paralelo.asignatura.nombre }}{% endblock %}
 
@@ -97,46 +98,69 @@
             {% csrf_token %}
 
             <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
+                <table class="w-full text-sm text-left table-auto">
                     <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-semibold tracking-wider">
                         <tr>
-                            <th class="px-4 py-3 sticky left-0 bg-gray-50 z-10 min-w-[200px]">#</th>
-                            <th class="px-4 py-3 sticky left-0 bg-gray-50 z-10 min-w-[200px]">Estudiante</th>
+                            <th class="px-3 py-3 w-10 text-center">#</th>
+                            <th class="px-3 py-3 min-w-[180px]">Estudiante</th>
                             {% for ev in evaluaciones %}
-                            <th class="px-3 py-3 text-center min-w-[120px]">
-                                <div>{{ ev.get_tipo_display }}</div>
+                            <th class="px-2 py-3 text-center">
+                                <div class="text-[11px]">{{ ev.get_tipo_display }}</div>
                                 <div class="text-[10px] font-normal text-gray-400 normal-case">({{ ev.peso }}%)</div>
                             </th>
                             {% endfor %}
-                            <th class="px-4 py-3 text-center min-w-[100px] bg-gray-100">Promedio</th>
+                            <th class="px-3 py-3 text-center bg-gray-100">Promedio</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         {% for fila in filas %}
                         <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="px-4 py-3 sticky left-0 bg-white z-10 text-xs text-gray-400 font-mono">
+                            <td class="px-3 py-2.5 text-center text-xs text-gray-400 font-mono">
                                 {{ forloop.counter }}
                             </td>
-                            <td class="px-4 py-3 sticky left-0 bg-white z-10">
+                            <td class="px-3 py-2.5">
                                 <div class="font-medium text-gray-800 text-sm">{{ fila.matricula.estudiante.last_name }} {{ fila.matricula.estudiante.first_name }}</div>
                                 <div class="text-xs text-gray-400">{{ fila.matricula.estudiante.cedula }}</div>
                             </td>
                             {% for ev, cal in fila.celdas %}
-                            <td class="px-3 py-3 text-center">
-                                <input type="number"
+                            <td class="px-2 py-2.5 text-center">
+                                {% if puede_editar %}
+                                <!-- Display: shown when grade exists and NOT editing -->
+                                <div x-show="!editing['{{ fila.matricula.estudiante_id }}_{{ ev.id }}'] && values['{{ fila.matricula.estudiante_id }}_{{ ev.id }}']"
+                                     class="flex items-center justify-center gap-1 cursor-pointer"
+                                     @click="startEdit('{{ fila.matricula.estudiante_id }}_{{ ev.id }}')">
+                                    <span class="text-sm font-semibold text-gray-800"
+                                          x-text="values['{{ fila.matricula.estudiante_id }}_{{ ev.id }}']"></span>
+                                    <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"/>
+                                    </svg>
+                                </div>
+                                <!-- Input: shown when editing OR no grade yet -->
+                                <input x-show="editing['{{ fila.matricula.estudiante_id }}_{{ ev.id }}'] || !values['{{ fila.matricula.estudiante_id }}_{{ ev.id }}']"
+                                       x-ref="input_{{ fila.matricula.estudiante_id }}_{{ ev.id }}"
+                                       type="number"
                                        name="nota_{{ fila.matricula.estudiante_id }}_{{ ev.id }}"
-                                       value="{% if cal %}{{ cal.nota }}{% endif %}"
+                                       value="{% if cal %}{{ cal.nota|unlocalize }}{% endif %}"
                                        min="0" max="20" step="0.01"
-                                       class="form-control w-20 text-center text-sm mx-auto{% if not puede_editar %} bg-gray-100 cursor-not-allowed{% endif %}"
+                                       class="w-16 text-center text-sm font-semibold text-gray-800 border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary mx-auto{% if not puede_editar %} bg-gray-100 cursor-not-allowed{% endif %}"
                                        placeholder="—"
                                        data-estudiante="{{ fila.matricula.estudiante_id }}"
                                        data-evaluacion="{{ ev.id }}"
                                        data-peso="{{ ev.peso }}"
-                                       {% if not puede_editar %}disabled{% endif %}
-                                       @input="calcularPromedio('{{ fila.matricula.estudiante_id }}')">
+                                       @input="onInput('{{ fila.matricula.estudiante_id }}_{{ ev.id }}', '{{ fila.matricula.estudiante_id }}', $event)"
+                                       @blur="stopEdit('{{ fila.matricula.estudiante_id }}_{{ ev.id }}', '{{ fila.matricula.estudiante_id }}')"
+                                       @keydown.enter.prevent="$event.target.blur()">
+                                {% else %}
+                                <!-- Read-only mode -->
+                                {% if cal %}
+                                <span class="text-sm font-semibold text-gray-800">{{ cal.nota|unlocalize }}</span>
+                                {% else %}
+                                <span class="text-gray-300 text-sm">—</span>
+                                {% endif %}
+                                {% endif %}
                             </td>
                             {% endfor %}
-                            <td class="px-4 py-3 text-center bg-gray-50/50">
+                            <td class="px-3 py-2.5 text-center bg-gray-50/50">
                                 <span x-ref="promedio_{{ fila.matricula.estudiante_id }}"
                                       class="font-semibold text-sm"
                                       :class="getPromedioClass('{{ fila.matricula.estudiante_id }}')">
@@ -153,6 +177,15 @@
                 </table>
             </div>
 
+            <!-- Unsaved changes notice -->
+            <div x-show="hasChanges" x-transition
+                 class="px-6 py-3 border-t border-amber-200 bg-amber-50 flex items-center gap-2 text-sm text-amber-700">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+                </svg>
+                Tiene cambios sin guardar. Presione <strong class="mx-0.5">Guardar Calificaciones</strong> para actualizar las notas y el promedio.
+            </div>
+
             <!-- Actions bar -->
             <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="text-xs text-gray-500">
@@ -160,7 +193,10 @@
                         <span class="w-2 h-2 rounded-full bg-green-500"></span> ≥ 16: Aprobado
                     </span>
                     <span class="inline-flex items-center gap-1 ml-3">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span> &lt; 16: Reprobado
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span> 14–15.99: En riesgo
+                    </span>
+                    <span class="inline-flex items-center gap-1 ml-3">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span> &lt; 14: Reprobado
                     </span>
                 </div>
                 {% if puede_editar %}
@@ -199,22 +235,75 @@
     {% endif %}
 </div>
 
+<style>
+/* Hide number input spinners to save space */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+</style>
 <script>
 function planillaCalificaciones() {
     return {
         promedios: {},
+        editing: {},
+        values: {},
+        hasChanges: false,
 
         init() {
-            // Calculate initial averages from existing values
+            // Read initial values from real DOM inputs (not x-if templates)
+            this.$el.querySelectorAll('input[type="number"][data-estudiante]').forEach(input => {
+                const key = input.dataset.estudiante + '_' + input.dataset.evaluacion;
+                if (input.value) this.values[key] = input.value;
+            });
+            // Calculate initial averages
             const estudiantes = new Set();
-            document.querySelectorAll('input[data-estudiante]').forEach(input => {
+            this.$el.querySelectorAll('input[data-estudiante]').forEach(input => {
                 estudiantes.add(input.dataset.estudiante);
             });
             estudiantes.forEach(estId => this.calcularPromedio(estId));
         },
 
+        startEdit(key) {
+            this.editing[key] = true;
+            this.$nextTick(() => {
+                const ref = this.$refs['input_' + key];
+                if (ref) ref.focus();
+            });
+        },
+
+        onInput(key, estudianteId, event) {
+            const input = event.target;
+            let val = parseFloat(input.value);
+            // Clamp to 0-20
+            if (!isNaN(val)) {
+                if (val < 0) { input.value = '0'; val = 0; }
+                if (val > 20) { input.value = '20'; val = 20; }
+            }
+            this.values[key] = input.value;
+            this.hasChanges = true;
+            this.calcularPromedio(estudianteId);
+        },
+
+        stopEdit(key, estudianteId) {
+            const ref = this.$refs['input_' + key];
+            if (ref && ref.value) {
+                // Ensure clamped
+                let val = parseFloat(ref.value);
+                if (!isNaN(val)) {
+                    if (val < 0) val = 0;
+                    if (val > 20) val = 20;
+                    ref.value = val;
+                }
+                this.values[key] = ref.value;
+            } else if (ref) {
+                delete this.values[key];
+            }
+            this.editing[key] = false;
+            this.$nextTick(() => this.calcularPromedio(estudianteId));
+        },
+
         calcularPromedio(estudianteId) {
-            const inputs = document.querySelectorAll(`input[data-estudiante="${estudianteId}"]`);
+            const inputs = this.$el.querySelectorAll(`input[type="number"][data-estudiante="${estudianteId}"]`);
             let sumaPonderada = 0;
             let sumaPesos = 0;
 
@@ -244,7 +333,9 @@ function planillaCalificaciones() {
         getPromedioClass(estudianteId) {
             const promedio = this.promedios[estudianteId];
             if (promedio === null || promedio === undefined) return 'text-gray-300';
-            return promedio >= 16 ? 'text-green-600' : 'text-red-600';
+            if (promedio >= 16) return 'text-green-600';
+            if (promedio >= 14) return 'text-amber-500';
+            return 'text-red-600';
         }
     }
 }
