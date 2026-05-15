@@ -12,7 +12,11 @@ from apps.calificaciones.presentation.views import (
 app_name = "calificaciones"
 
 urlpatterns = [
-    path("paralelos/", SeleccionarParaleloCalificacionesView.as_view(), name="seleccionar_paralelo"),
+    path(
+        "paralelos/",
+        SeleccionarParaleloCalificacionesView.as_view(),
+        name="seleccionar_paralelo",
+    ),
     path(
         "paralelo/<int:paralelo_id>/registrar/",
         RegistrarCalificacionesView.as_view(),
