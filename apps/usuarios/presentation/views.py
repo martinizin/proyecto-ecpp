@@ -18,7 +18,6 @@ from django.contrib.auth.views import (
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.generic import RedirectView
 
 from apps.usuarios.application.services import LoginAppService, Login2FAService, PerfilAppService
 from apps.usuarios.domain.exceptions import (
@@ -149,22 +148,13 @@ class Verificacion2FAView(View):
 
 
 @method_decorator(login_required, name="dispatch")
-class DashboardRedirectView(RedirectView):
-    """Redirects to the appropriate dashboard based on user role."""
+class DashboardRedirectView(View):
+    """Renders the unified dashboard for all roles."""
 
-    permanent = False
+    template_name = "usuarios/dashboard.html"
 
-    def get_redirect_url(self, *args, **kwargs):
-        user = self.request.user
-        if user.rol == "inspector":
-            return "/academico/periodos/"
-        elif user.rol == "docente":
-            return "/asistencia/paralelos/"
-        elif user.rol == "secretaria":
-            return "/secretaria/usuarios/"
-        else:
-            # Estudiante
-            return "/asistencia/mi-asistencia/"
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name)
 
 
 # =============================================================================

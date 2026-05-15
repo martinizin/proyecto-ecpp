@@ -275,35 +275,35 @@ class TestDashboardRedirectView:
         self.client = Client()
         self.url = reverse("usuarios:dashboard")
 
-    def test_dashboard_inspector_redirect(self):
-        """Inspector → /academico/periodos/."""
+    def test_dashboard_inspector_renders(self):
+        """Inspector → renders dashboard template."""
         user = _create_active_user("insp@test.com", rol="inspector")
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
-        assert response.status_code == 302
-        assert response.url == "/academico/periodos/"
+        assert response.status_code == 200
+        assert "usuarios/dashboard.html" in [t.name for t in response.templates]
 
-    def test_dashboard_docente_redirect(self):
-        """Docente → /asistencia/paralelos/."""
+    def test_dashboard_docente_renders(self):
+        """Docente → renders dashboard template."""
         user = _create_active_user("doc@test.com", rol="docente")
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
-        assert response.status_code == 302
-        assert response.url == "/asistencia/paralelos/"
+        assert response.status_code == 200
+        assert "usuarios/dashboard.html" in [t.name for t in response.templates]
 
     def test_dashboard_estudiante_redirect(self):
-        """Estudiante → /asistencia/mi-asistencia/."""
+        """Estudiante → renders dashboard template."""
         user = _create_active_user("est@test.com", rol="estudiante")
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
-        assert response.status_code == 302
-        assert response.url == "/asistencia/mi-asistencia/"
+        assert response.status_code == 200
+        assert "usuarios/dashboard.html" in [t.name for t in response.templates]
 
     def test_dashboard_anonymous_redirect(self):
         """Anonymous user → login page."""
