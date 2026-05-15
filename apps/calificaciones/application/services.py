@@ -33,8 +33,7 @@ class AuditoriaCalificacionService:
             calificacion=calificacion,
             evaluacion_info=str(calificacion.evaluacion),
             estudiante_info=(
-                f"{calificacion.estudiante.get_full_name()} "
-                f"({calificacion.estudiante.cedula})"
+                f"{calificacion.estudiante.get_full_name()} " f"({calificacion.estudiante.cedula})"
             ),
             accion=accion,
             valor_anterior=valor_anterior,
@@ -55,9 +54,7 @@ class RegistroCalificacionAppService:
         )
 
     def obtener_planilla(self, paralelo_id: int) -> dict:
-        evaluaciones = list(
-            Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo")
-        )
+        evaluaciones = list(Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo"))
         matriculas = (
             Matricula.objects.filter(paralelo_id=paralelo_id, estado=Matricula.Estado.ACTIVA)
             .select_related("estudiante")
@@ -105,10 +102,12 @@ class RegistroCalificacionAppService:
             try:
                 nota_vo = CalificacionValidationService.validar_nota(nota_str)
             except (NotaFueraDeRangoError, InvalidOperation):
-                errores.append((
-                    f"nota_{estudiante_id}_{evaluacion_id}",
-                    f"Nota '{nota_str}' fuera de rango (0–20).",
-                ))
+                errores.append(
+                    (
+                        f"nota_{estudiante_id}_{evaluacion_id}",
+                        f"Nota '{nota_str}' fuera de rango (0–20).",
+                    )
+                )
                 continue
 
             valor_anterior = (
@@ -149,21 +148,16 @@ class RegistroCalificacionAppService:
 # Gestión de evaluaciones (CRUD)
 # ---------------------------------------------------------------------------
 
+
 class GestionEvaluacionesAppService:
 
-    TIPOS_ORDENADOS = [
-        "parcial1", "parcial2_10h", "parcial3", "parcial4_10h", "examen_final"
-    ]
+    TIPOS_ORDENADOS = ["parcial1", "parcial2_10h", "parcial3", "parcial4_10h", "examen_final"]
 
     def obtener_evaluaciones(self, paralelo_id: int) -> dict:
-        evaluaciones = list(
-            Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo")
-        )
+        evaluaciones = list(Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo"))
         tipos_usados = {ev.tipo for ev in evaluaciones}
         tipos_disponibles = [
-            (v, label)
-            for v, label in Evaluacion.TipoEvaluacion.choices
-            if v not in tipos_usados
+            (v, label) for v, label in Evaluacion.TipoEvaluacion.choices if v not in tipos_usados
         ]
         total_peso = sum(ev.peso for ev in evaluaciones)
         return {
@@ -223,12 +217,9 @@ class GestionEvaluacionesAppService:
             errores.append("El peso debe ser un número entre 1 y 100.")
             return {"ok": False, "errores": errores}
 
-        total_sin_esta = (
-            Evaluacion.objects.filter(paralelo_id=ev.paralelo_id)
-            .exclude(pk=evaluacion_id)
-            .aggregate(total=Sum("peso"))["total"]
-            or Decimal("0")
-        )
+        total_sin_esta = Evaluacion.objects.filter(paralelo_id=ev.paralelo_id).exclude(
+            pk=evaluacion_id
+        ).aggregate(total=Sum("peso"))["total"] or Decimal("0")
 
         if total_sin_esta + peso > Decimal("100"):
             errores.append(

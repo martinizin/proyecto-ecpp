@@ -50,10 +50,10 @@ class CalificacionValidationService:
         total_peso = sum(Decimal(str(peso)) for _, peso in notas_con_pesos)
         if total_peso == 0:
             return Decimal("0.00")
-        promedio = sum(
-            Decimal(str(nota)) * Decimal(str(peso))
-            for nota, peso in notas_con_pesos
-        ) / total_peso
+        promedio = (
+            sum(Decimal(str(nota)) * Decimal(str(peso)) for nota, peso in notas_con_pesos)
+            / total_peso
+        )
         return promedio.quantize(Decimal("0.01"))
 
     @staticmethod

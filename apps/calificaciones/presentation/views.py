@@ -34,10 +34,7 @@ def _validar_cedula_ecuatoriana(cedula: str) -> bool:
     if int(cedula[2]) >= 6:  # 0-5 = natural person
         return False
     coef = [2, 1, 2, 1, 2, 1, 2, 1, 2]
-    suma = sum(
-        (v - 9 if v > 9 else v)
-        for v in (int(cedula[i]) * coef[i] for i in range(9))
-    )
+    suma = sum((v - 9 if v > 9 else v) for v in (int(cedula[i]) * coef[i] for i in range(9)))
     return (10 - suma % 10) % 10 == int(cedula[9])
 
 
@@ -240,13 +237,10 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
     template_name = "calificaciones/auditoria_calificaciones.html"
 
     def get(self, request):
-        qs = (
-            LogCalificacion.objects.select_related(
-                "calificacion__evaluacion__paralelo__asignatura",
-                "realizado_por",
-            )
-            .order_by("-timestamp")
-        )
+        qs = LogCalificacion.objects.select_related(
+            "calificacion__evaluacion__paralelo__asignatura",
+            "realizado_por",
+        ).order_by("-timestamp")
 
         fecha_inicio = request.GET.get("fecha_inicio", "").strip()
         fecha_fin = request.GET.get("fecha_fin", "").strip()
@@ -276,21 +270,25 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
         total_logs = qs.count()
         truncado = total_logs > LIMITE
 
-        return render(request, self.template_name, {
-            "logs": qs[:LIMITE],
-            "total_logs": total_logs,
-            "truncado": truncado,
-            "limite": LIMITE,
-            "acciones": LogCalificacion.TipoAccion.choices,
-            "docentes": docentes,
-            "filtros": {
-                "fecha_inicio": fecha_inicio,
-                "fecha_fin": fecha_fin,
-                "accion": accion,
-                "docente": docente_id,
-                "estudiante": estudiante_q,
+        return render(
+            request,
+            self.template_name,
+            {
+                "logs": qs[:LIMITE],
+                "total_logs": total_logs,
+                "truncado": truncado,
+                "limite": LIMITE,
+                "acciones": LogCalificacion.TipoAccion.choices,
+                "docentes": docentes,
+                "filtros": {
+                    "fecha_inicio": fecha_inicio,
+                    "fecha_fin": fecha_fin,
+                    "accion": accion,
+                    "docente": docente_id,
+                    "estudiante": estudiante_q,
+                },
+                "errores_filtros": {
+                    "estudiante": error_estudiante,
+                },
             },
-            "errores_filtros": {
-                "estudiante": error_estudiante,
-            },
-        })
+        )

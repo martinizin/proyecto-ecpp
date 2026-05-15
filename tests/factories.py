@@ -206,8 +206,7 @@ class LogCalificacionFactory(factory.django.DjangoModelFactory):
     evaluacion_info = factory.LazyAttribute(lambda o: str(o.calificacion.evaluacion))
     estudiante_info = factory.LazyAttribute(
         lambda o: (
-            f"{o.calificacion.estudiante.get_full_name()} "
-            f"({o.calificacion.estudiante.cedula})"
+            f"{o.calificacion.estudiante.get_full_name()} " f"({o.calificacion.estudiante.cedula})"
         )
     )
     accion = LogCalificacion.TipoAccion.CREACION
