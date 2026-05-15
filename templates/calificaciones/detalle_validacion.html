@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load l10n %}
+
+{% block title %}Validación — {{ paralelo.asignatura.nombre }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'calificaciones:pendientes_validacion' %}" class="hover:text-primary transition-colors">Validación</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Detalle</li>
+    </ol>
+</nav>
+
+<div class="max-w-full mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-gray-800">Validación de Calificaciones</h1>
+        <p class="text-sm text-gray-500 mt-1">
+            {{ paralelo.asignatura.nombre }} ({{ paralelo.asignatura.codigo }}) — Paralelo {{ paralelo.nombre }}
+            <span class="text-gray-400">·</span>
+            {{ paralelo.periodo.nombre }}
+        </p>
+    </div>
+
+    <!-- Info card -->
+    <div class="bg-white rounded-xl shadow-md p-5 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-gray-400 block text-xs">Docente</span>
+                <span class="font-medium text-gray-800">{{ paralelo.docente.get_full_name }}</span>
+            </div>
+            <div>
+                <span class="text-gray-400 block text-xs">Fecha de envío</span>
+                <span class="font-medium text-gray-800">{{ registro.fecha_envio|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div>
+                <span class="text-gray-400 block text-xs">Total estudiantes</span>
+                <span class="font-medium text-gray-800">{{ filas|length }}</span>
+            </div>
+            <div>
+                <span class="text-gray-400 block text-xs">Total evaluaciones</span>
+                <span class="font-medium text-gray-800">{{ evaluaciones|length }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if evaluaciones and filas %}
+    <!-- Planilla readonly -->
+    <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left table-auto">
+                <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-semibold tracking-wider">
+                    <tr>
+                        <th class="px-3 py-3 w-10 text-center">#</th>
+                        <th class="px-3 py-3 min-w-[180px]">Estudiante</th>
+                        {% for ev in evaluaciones %}
+                        <th class="px-2 py-3 text-center">
+                            <div class="text-[11px]">{{ ev.get_tipo_display }}</div>
+                            <div class="text-[10px] font-normal text-gray-400 normal-case">({{ ev.peso }}%)</div>
+                        </th>
+                        {% endfor %}
+                        <th class="px-3 py-3 text-center bg-gray-100">Promedio</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for fila in filas %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-3 py-2.5 text-center text-xs text-gray-400 font-mono">
+                            {{ forloop.counter }}
+                        </td>
+                        <td class="px-3 py-2.5">
+                            <div class="font-medium text-gray-800 text-sm">{{ fila.matricula.estudiante.last_name }} {{ fila.matricula.estudiante.first_name }}</div>
+                            <div class="text-xs text-gray-400">{{ fila.matricula.estudiante.cedula }}</div>
+                        </td>
+                        {% for ev, cal in fila.celdas %}
+                        <td class="px-2 py-2.5 text-center">
+                            {% if cal %}
+                            <span class="text-sm font-semibold text-gray-800">{{ cal.nota|unlocalize }}</span>
+                            {% else %}
+                            <span class="text-gray-300 text-sm">—</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="px-3 py-2.5 text-center bg-gray-50/50">
+                            {% if fila.promedio is not None %}
+                            <span class="font-semibold text-sm {% if fila.promedio >= 16 %}text-green-600{% elif fila.promedio >= 14 %}text-amber-500{% else %}text-red-600{% endif %}">
+                                {{ fila.promedio|floatformat:2 }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-300 text-sm">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Legend -->
+        <div class="px-6 py-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-500">
+            <span class="inline-flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span> ≥ 16: Aprobado
+            </span>
+            <span class="inline-flex items-center gap-1 ml-3">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span> 14–15.99: En riesgo
+            </span>
+            <span class="inline-flex items-center gap-1 ml-3">
+                <span class="w-2 h-2 rounded-full bg-red-500"></span> &lt; 14: Reprobado
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action bar -->
+    <div x-data="{ showRejectModal: false }" class="bg-white rounded-xl shadow-md px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <a href="{% url 'calificaciones:pendientes_validacion' %}"
+           class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+            Volver
+        </a>
+        <div class="flex items-center gap-3">
+            <button @click="showRejectModal = true"
+                    type="button"
+                    class="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                Rechazar
+            </button>
+            <form method="post" action="{% url 'calificaciones:aprobar_calificaciones' paralelo_id=paralelo.pk %}"
+                  onsubmit="return confirm('¿Está seguro de aprobar estas calificaciones? Esta acción no se puede deshacer.')">
+                {% csrf_token %}
+                <button type="submit"
+                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Aprobar
+                </button>
+            </form>
+        </div>
+
+        <!-- Reject modal -->
+        <div x-show="showRejectModal" x-transition
+             class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             @keydown.escape.window="showRejectModal = false">
+            <div class="fixed inset-0 bg-black/50" @click="showRejectModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 z-10">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Rechazar Calificaciones</h3>
+                <p class="text-sm text-gray-500 mb-4">Indique las observaciones para el docente:</p>
+                <form method="post" action="{% url 'calificaciones:rechazar_calificaciones' paralelo_id=paralelo.pk %}"
+                      x-ref="rejectForm">
+                    {% csrf_token %}
+                    <textarea name="observaciones"
+                              rows="4"
+                              required
+                              minlength="10"
+                              placeholder="Describa el motivo del rechazo (mínimo 10 caracteres)..."
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none mb-4"></textarea>
+                    <div class="flex items-center justify-end gap-3">
+                        <button type="button" @click="showRejectModal = false"
+                                class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                            Cancelar
+                        </button>
+                        <button type="submit"
+                                class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                            Confirmar Rechazo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
