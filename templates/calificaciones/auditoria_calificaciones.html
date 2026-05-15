@@ -21,7 +21,7 @@
 
     <!-- Filtros -->
     <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-        <form method="get"
+        <form method="get" id="filtros-form"
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
               x-data="auditoriaBusqueda()"
               x-init="init()"
@@ -31,16 +31,19 @@
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Desde</label>
                 <input type="date" name="fecha_inicio" value="{{ filtros.fecha_inicio }}"
+                       @change="$el.form.submit()"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             </div>
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Hasta</label>
                 <input type="date" name="fecha_fin" value="{{ filtros.fecha_fin }}"
+                       @change="$el.form.submit()"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             </div>
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Tipo de acción</label>
                 <select name="accion"
+                        @change="$el.form.submit()"
                         class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todas</option>
                     {% for value, label in acciones %}
@@ -51,6 +54,7 @@
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Docente</label>
                 <select name="docente"
+                        @change="$el.form.submit()"
                         class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todos</option>
                     {% for d in docentes %}
@@ -68,7 +72,8 @@
                        name="estudiante"
                        x-model="valor"
                        @input="validar()"
-                       @blur="validar()"
+                       @blur="validar(); if (puedeEnviar && valor.trim().length >= 2) $el.form.submit()"
+                       @keydown.enter.prevent="validar(); if (puedeEnviar) $el.form.submit()"
                        :class="error
                            ? 'border-red-400 focus:ring-red-300/30'
                            : 'border-gray-300 focus:ring-primary/30'"
@@ -88,14 +93,6 @@
             </div>
 
             <div class="flex items-end gap-2">
-                <button type="submit"
-                        :disabled="!puedeEnviar"
-                        :class="!puedeEnviar
-                            ? 'opacity-50 cursor-not-allowed bg-primary'
-                            : 'bg-primary hover:bg-secondary'"
-                        class="flex-1 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
-                    Filtrar
-                </button>
                 {% if filtros.fecha_inicio or filtros.fecha_fin or filtros.accion or filtros.docente or filtros.estudiante %}
                 <a href="{% url 'calificaciones:auditoria_calificaciones' %}"
                    class="flex-1 text-center border border-gray-300 hover:border-gray-400 text-gray-600 font-medium py-2 px-4 rounded-lg transition-colors text-sm">
@@ -141,7 +138,6 @@
                     <th class="px-4 py-3 font-semibold text-gray-600 text-center">Anterior</th>
                     <th class="px-4 py-3 font-semibold text-gray-600 text-center">Nueva</th>
                     <th class="px-4 py-3 font-semibold text-gray-600">Realizado por</th>
-                    <th class="px-4 py-3 font-semibold text-gray-600">IP</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -183,9 +179,6 @@
                         {% else %}
                             <span class="text-gray-400">—</span>
                         {% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-gray-500 font-mono text-xs">
-                        {{ log.ip|default:"—" }}
                     </td>
                 </tr>
                 {% endfor %}

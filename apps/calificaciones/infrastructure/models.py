@@ -61,6 +61,45 @@ class Calificacion(models.Model):
         return f"{self.estudiante} - {self.evaluacion}: {self.nota}"
 
 
+class RegistroCalificacionParalelo(models.Model):
+    """Tracks the submission and validation state of grades for a paralelo."""
+
+    class Estado(models.TextChoices):
+        BORRADOR = "borrador", "Borrador"
+        COMPLETO = "completo", "Completo — Pendiente validación"
+        VALIDADO = "validado", "Validado por Secretaría"
+        RECHAZADO = "rechazado", "Rechazado por Secretaría"
+
+    paralelo = models.OneToOneField(
+        "academico.Paralelo",
+        on_delete=models.CASCADE,
+        related_name="registro_calificaciones",
+    )
+    estado = models.CharField(
+        max_length=15,
+        choices=Estado.choices,
+        default=Estado.BORRADOR,
+    )
+    fecha_envio = models.DateTimeField(null=True, blank=True)
+    fecha_validacion = models.DateTimeField(null=True, blank=True)
+    validado_por = models.ForeignKey(
+        "usuarios.Usuario",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registros_validados",
+        limit_choices_to={"rol": "secretaria"},
+    )
+    observaciones_secretaria = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Registro de Calificaciones"
+        verbose_name_plural = "Registros de Calificaciones"
+
+    def __str__(self):
+        return f"{self.paralelo} — {self.get_estado_display()}"
+
+
 class LogCalificacion(models.Model):
     """Registro inmutable de cambios en calificaciones. Nunca actualizar ni eliminar."""
 

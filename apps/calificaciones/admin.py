@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
+from apps.calificaciones.infrastructure.models import (
+    Calificacion,
+    Evaluacion,
+    LogCalificacion,
+    RegistroCalificacionParalelo,
+)
 
 
 @admin.register(Evaluacion)
@@ -58,3 +63,13 @@ class LogCalificacionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(RegistroCalificacionParalelo)
+class RegistroCalificacionParaleloAdmin(admin.ModelAdmin):
+    """Admin configuration for RegistroCalificacionParalelo."""
+
+    list_display = ("paralelo", "estado", "fecha_envio", "fecha_validacion", "validado_por")
+    list_filter = ("estado",)
+    search_fields = ("paralelo__asignatura__nombre",)
+    readonly_fields = ("fecha_envio", "fecha_validacion")

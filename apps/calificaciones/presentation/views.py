@@ -94,12 +94,33 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
             return redir
         service = RegistroCalificacionAppService()
         planilla = service.obtener_planilla(paralelo_id)
-        return render(request, self.template_name, {"paralelo": paralelo, **planilla})
+        registro = service.obtener_o_crear_registro(paralelo_id)
+        puede_editar = service.puede_editar(paralelo_id)
+        planilla_completa = service.verificar_completitud(paralelo_id)
+        return render(
+            request,
+            self.template_name,
+            {
+                "paralelo": paralelo,
+                "registro": registro,
+                "puede_editar": puede_editar,
+                "planilla_completa": planilla_completa,
+                **planilla,
+            },
+        )
 
     def post(self, request, paralelo_id):
         paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
         if redir:
             return redir
+
+        service = RegistroCalificacionAppService()
+        if not service.puede_editar(paralelo_id):
+            messages.error(
+                request,
+                "Las calificaciones ya fueron enviadas y no se pueden modificar.",
+            )
+            return redirect("calificaciones:registrar_calificaciones", paralelo_id=paralelo_id)
 
         notas_data = {}
         for key, value in request.POST.items():
@@ -111,7 +132,6 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                     except ValueError:
                         pass
 
-        service = RegistroCalificacionAppService()
         resultado = service.guardar_calificaciones(
             paralelo_id, notas_data, request.user, _get_client_ip(request)
         )
@@ -292,3 +312,21 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
                 },
             },
         )
+
+
+class EnviarValidacionView(RolRequeridoMixin, View):
+    """Submit grades for secretaría validation."""
+
+    rol_requerido = "docente"
+
+    def post(self, request, paralelo_id):
+        paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
+        if redir:
+            return redir
+        service = RegistroCalificacionAppService()
+        resultado = service.enviar_a_validacion(paralelo_id)
+        if resultado["ok"]:
+            messages.success(request, "Calificaciones enviadas a validación exitosamente.")
+        else:
+            messages.error(request, resultado["error"])
+        return redirect("calificaciones:registrar_calificaciones", paralelo_id=paralelo_id)

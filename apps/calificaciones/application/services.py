@@ -6,11 +6,17 @@ from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from apps.academico.infrastructure.models import Matricula, Paralelo
 from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError
 from apps.calificaciones.domain.services import CalificacionValidationService
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
+from apps.calificaciones.infrastructure.models import (
+    Calificacion,
+    Evaluacion,
+    LogCalificacion,
+    RegistroCalificacionParalelo,
+)
 
 
 class AuditoriaCalificacionService:
@@ -50,8 +56,74 @@ class RegistroCalificacionAppService:
         return (
             Paralelo.objects.filter(docente_id=docente_id)
             .select_related("asignatura", "periodo", "tipo_licencia")
+            .prefetch_related("registro_calificaciones")
             .order_by("asignatura__nombre", "nombre")
         )
+
+    def obtener_o_crear_registro(self, paralelo_id: int):
+        """Get or create the RegistroCalificacionParalelo for a paralelo."""
+        registro, _ = RegistroCalificacionParalelo.objects.get_or_create(paralelo_id=paralelo_id)
+        return registro
+
+    def verificar_completitud(self, paralelo_id: int) -> bool:
+        """Check if ALL evaluaciones have grades for ALL active students."""
+        evaluaciones = Evaluacion.objects.filter(paralelo_id=paralelo_id)
+        if not evaluaciones.exists():
+            return False
+        matriculas_activas = Matricula.objects.filter(
+            paralelo_id=paralelo_id, estado=Matricula.Estado.ACTIVA
+        ).count()
+        if matriculas_activas == 0:
+            return False
+        total_esperado = evaluaciones.count() * matriculas_activas
+        total_existente = Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).count()
+        return total_existente >= total_esperado
+
+    def enviar_a_validacion(self, paralelo_id: int) -> dict:
+        """Change state to COMPLETO if all grades are filled."""
+        registro = self.obtener_o_crear_registro(paralelo_id)
+
+        if registro.estado not in [
+            RegistroCalificacionParalelo.Estado.BORRADOR,
+            RegistroCalificacionParalelo.Estado.RECHAZADO,
+        ]:
+            return {
+                "ok": False,
+                "error": "Las calificaciones ya fueron enviadas a validación.",
+            }
+
+        if not self.verificar_completitud(paralelo_id):
+            return {
+                "ok": False,
+                "error": "No se puede enviar: faltan calificaciones por registrar.",
+            }
+
+        total_peso = Evaluacion.objects.filter(paralelo_id=paralelo_id).aggregate(
+            total=Sum("peso")
+        )["total"]
+        if total_peso != Decimal("100"):
+            return {
+                "ok": False,
+                "error": (
+                    f"Los pesos de las evaluaciones suman {total_peso}% " "(deben sumar 100%)."
+                ),
+            }
+
+        registro.estado = RegistroCalificacionParalelo.Estado.COMPLETO
+        registro.fecha_envio = timezone.now()
+        registro.save(update_fields=["estado", "fecha_envio"])
+        return {"ok": True}
+
+    def puede_editar(self, paralelo_id: int) -> bool:
+        """Returns True if docente can still edit grades (BORRADOR or RECHAZADO)."""
+        try:
+            registro = RegistroCalificacionParalelo.objects.get(paralelo_id=paralelo_id)
+            return registro.estado in [
+                RegistroCalificacionParalelo.Estado.BORRADOR,
+                RegistroCalificacionParalelo.Estado.RECHAZADO,
+            ]
+        except RegistroCalificacionParalelo.DoesNotExist:
+            return True
 
     def obtener_planilla(self, paralelo_id: int) -> dict:
         evaluaciones = list(Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo"))

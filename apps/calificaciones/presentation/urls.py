@@ -4,6 +4,7 @@ from apps.calificaciones.presentation.views import (
     AuditoriaCalificacionesView,
     EditarEvaluacionView,
     EliminarEvaluacionView,
+    EnviarValidacionView,
     GestionEvaluacionesView,
     RegistrarCalificacionesView,
     SeleccionarParaleloCalificacionesView,
@@ -36,6 +37,11 @@ urlpatterns = [
         "paralelo/<int:paralelo_id>/evaluaciones/<int:evaluacion_id>/eliminar/",
         EliminarEvaluacionView.as_view(),
         name="eliminar_evaluacion",
+    ),
+    path(
+        "paralelo/<int:paralelo_id>/enviar-validacion/",
+        EnviarValidacionView.as_view(),
+        name="enviar_validacion",
     ),
     path(
         "auditoria/",
