@@ -62,9 +62,7 @@ class RegistroCalificacionAppService:
 
     def obtener_o_crear_registro(self, paralelo_id: int):
         """Get or create the RegistroCalificacionParalelo for a paralelo."""
-        registro, _ = RegistroCalificacionParalelo.objects.get_or_create(
-            paralelo_id=paralelo_id
-        )
+        registro, _ = RegistroCalificacionParalelo.objects.get_or_create(paralelo_id=paralelo_id)
         return registro
 
     def verificar_completitud(self, paralelo_id: int) -> bool:
@@ -78,9 +76,7 @@ class RegistroCalificacionAppService:
         if matriculas_activas == 0:
             return False
         total_esperado = evaluaciones.count() * matriculas_activas
-        total_existente = Calificacion.objects.filter(
-            evaluacion__paralelo_id=paralelo_id
-        ).count()
+        total_existente = Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).count()
         return total_existente >= total_esperado
 
     def enviar_a_validacion(self, paralelo_id: int) -> dict:
@@ -109,8 +105,7 @@ class RegistroCalificacionAppService:
             return {
                 "ok": False,
                 "error": (
-                    f"Los pesos de las evaluaciones suman {total_peso}% "
-                    "(deben sumar 100%)."
+                    f"Los pesos de las evaluaciones suman {total_peso}% " "(deben sumar 100%)."
                 ),
             }
 

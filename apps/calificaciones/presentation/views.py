@@ -326,11 +326,7 @@ class EnviarValidacionView(RolRequeridoMixin, View):
         service = RegistroCalificacionAppService()
         resultado = service.enviar_a_validacion(paralelo_id)
         if resultado["ok"]:
-            messages.success(
-                request, "Calificaciones enviadas a validación exitosamente."
-            )
+            messages.success(request, "Calificaciones enviadas a validación exitosamente.")
         else:
             messages.error(request, resultado["error"])
-        return redirect(
-            "calificaciones:registrar_calificaciones", paralelo_id=paralelo_id
-        )
+        return redirect("calificaciones:registrar_calificaciones", paralelo_id=paralelo_id)

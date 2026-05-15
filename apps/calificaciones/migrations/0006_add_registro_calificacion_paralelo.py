@@ -8,26 +8,60 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('academico', '0015_paralelo_docente_set_null'),
-        ('calificaciones', '0005_add_logcalificacion'),
+        ("academico", "0015_paralelo_docente_set_null"),
+        ("calificaciones", "0005_add_logcalificacion"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='RegistroCalificacionParalelo',
+            name="RegistroCalificacionParalelo",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('estado', models.CharField(choices=[('borrador', 'Borrador'), ('completo', 'Completo — Pendiente validación'), ('validado', 'Validado por Secretaría'), ('rechazado', 'Rechazado por Secretaría')], default='borrador', max_length=15)),
-                ('fecha_envio', models.DateTimeField(blank=True, null=True)),
-                ('fecha_validacion', models.DateTimeField(blank=True, null=True)),
-                ('observaciones_secretaria', models.TextField(blank=True)),
-                ('paralelo', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='registro_calificaciones', to='academico.paralelo')),
-                ('validado_por', models.ForeignKey(blank=True, limit_choices_to={'rol': 'secretaria'}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='registros_validados', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "estado",
+                    models.CharField(
+                        choices=[
+                            ("borrador", "Borrador"),
+                            ("completo", "Completo — Pendiente validación"),
+                            ("validado", "Validado por Secretaría"),
+                            ("rechazado", "Rechazado por Secretaría"),
+                        ],
+                        default="borrador",
+                        max_length=15,
+                    ),
+                ),
+                ("fecha_envio", models.DateTimeField(blank=True, null=True)),
+                ("fecha_validacion", models.DateTimeField(blank=True, null=True)),
+                ("observaciones_secretaria", models.TextField(blank=True)),
+                (
+                    "paralelo",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="registro_calificaciones",
+                        to="academico.paralelo",
+                    ),
+                ),
+                (
+                    "validado_por",
+                    models.ForeignKey(
+                        blank=True,
+                        limit_choices_to={"rol": "secretaria"},
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="registros_validados",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Registro de Calificaciones',
-                'verbose_name_plural': 'Registros de Calificaciones',
+                "verbose_name": "Registro de Calificaciones",
+                "verbose_name_plural": "Registros de Calificaciones",
             },
         ),
     ]

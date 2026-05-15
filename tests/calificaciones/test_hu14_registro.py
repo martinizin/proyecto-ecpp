@@ -231,9 +231,7 @@ class TestRegistrarCalificacionesView:
         docente = _saved(DocenteFactory())
         paralelo = ParaleloFactory(docente=docente)
         client.force_login(docente)
-        response = client.get(
-            f"/calificaciones/paralelo/{paralelo.pk}/registrar/"
-        )
+        response = client.get(f"/calificaciones/paralelo/{paralelo.pk}/registrar/")
         assert response.status_code == 200
 
     def test_get_planilla_wrong_docente(self, client):
@@ -242,9 +240,7 @@ class TestRegistrarCalificacionesView:
         other_docente = _saved(DocenteFactory())
         paralelo = ParaleloFactory(docente=other_docente)
         client.force_login(docente)
-        response = client.get(
-            f"/calificaciones/paralelo/{paralelo.pk}/registrar/"
-        )
+        response = client.get(f"/calificaciones/paralelo/{paralelo.pk}/registrar/")
         assert response.status_code == 302
 
     def test_post_saves_calificacion(self, client):
@@ -260,9 +256,7 @@ class TestRegistrarCalificacionesView:
             {f"nota_{estudiante.pk}_{ev.pk}": "15.50"},
         )
         assert response.status_code == 302
-        assert Calificacion.objects.filter(
-            evaluacion=ev, estudiante=estudiante
-        ).exists()
+        assert Calificacion.objects.filter(evaluacion=ev, estudiante=estudiante).exists()
 
     def test_post_blocked_when_completo(self, client):
         """POST is blocked when estado is COMPLETO."""
@@ -291,9 +285,7 @@ class TestEnviarValidacionView:
         MatriculaFactory(paralelo=paralelo, estudiante=estudiante)
         CalificacionFactory(evaluacion=ev, estudiante=estudiante)
         client.force_login(docente)
-        response = client.post(
-            f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/"
-        )
+        response = client.post(f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/")
         assert response.status_code == 302
         registro = RegistroCalificacionParalelo.objects.get(paralelo=paralelo)
         assert registro.estado == "completo"
@@ -307,9 +299,7 @@ class TestEnviarValidacionView:
         MatriculaFactory(paralelo=paralelo, estudiante=estudiante)
         # No calificacion
         client.force_login(docente)
-        response = client.post(
-            f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/"
-        )
+        response = client.post(f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/")
         assert response.status_code == 302
         assert not RegistroCalificacionParalelo.objects.filter(
             paralelo=paralelo, estado="completo"
@@ -321,7 +311,5 @@ class TestEnviarValidacionView:
         other = _saved(DocenteFactory())
         paralelo = ParaleloFactory(docente=other)
         client.force_login(docente)
-        response = client.post(
-            f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/"
-        )
+        response = client.post(f"/calificaciones/paralelo/{paralelo.pk}/enviar-validacion/")
         assert response.status_code == 302
