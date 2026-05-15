@@ -15,6 +15,7 @@ from apps.academico.infrastructure.models import Paralelo
 from apps.calificaciones.application.services import (
     GestionEvaluacionesAppService,
     RegistroCalificacionAppService,
+    ValidacionCalificacionAppService,
 )
 from apps.calificaciones.infrastructure.models import Evaluacion, LogCalificacion
 from apps.usuarios.infrastructure.models import Usuario
@@ -330,3 +331,66 @@ class EnviarValidacionView(RolRequeridoMixin, View):
         else:
             messages.error(request, resultado["error"])
         return redirect("calificaciones:registrar_calificaciones", paralelo_id=paralelo_id)
+
+
+# ---------------------------------------------------------------------------
+# HU16: Validación de calificaciones por secretaría
+# ---------------------------------------------------------------------------
+
+
+class PendientesValidacionView(RolRequeridoMixin, View):
+    """List paralelos pending validation. Only secretaria."""
+
+    rol_requerido = "secretaria"
+    template_name = "calificaciones/pendientes_validacion.html"
+
+    def get(self, request):
+        service = ValidacionCalificacionAppService()
+        pendientes = service.obtener_pendientes()
+        return render(request, self.template_name, {"pendientes": pendientes})
+
+
+class DetalleValidacionView(RolRequeridoMixin, View):
+    """Readonly planilla + approve/reject actions. Only secretaria."""
+
+    rol_requerido = "secretaria"
+    template_name = "calificaciones/detalle_validacion.html"
+
+    def get(self, request, paralelo_id):
+        service = ValidacionCalificacionAppService()
+        datos = service.obtener_detalle_validacion(paralelo_id)
+        if datos is None:
+            messages.error(request, "Registro no encontrado o no está pendiente de validación.")
+            return redirect("calificaciones:pendientes_validacion")
+        return render(request, self.template_name, datos)
+
+
+class AprobarCalificacionesView(RolRequeridoMixin, View):
+    """Approve grades. Only secretaria."""
+
+    rol_requerido = "secretaria"
+
+    def post(self, request, paralelo_id):
+        service = ValidacionCalificacionAppService()
+        resultado = service.aprobar(paralelo_id, request.user)
+        if resultado["ok"]:
+            messages.success(request, "Calificaciones aprobadas exitosamente.")
+        else:
+            messages.error(request, resultado["error"])
+        return redirect("calificaciones:pendientes_validacion")
+
+
+class RechazarCalificacionesView(RolRequeridoMixin, View):
+    """Reject grades with observations. Only secretaria."""
+
+    rol_requerido = "secretaria"
+
+    def post(self, request, paralelo_id):
+        service = ValidacionCalificacionAppService()
+        observaciones = request.POST.get("observaciones", "")
+        resultado = service.rechazar(paralelo_id, request.user, observaciones)
+        if resultado["ok"]:
+            messages.success(request, "Calificaciones rechazadas. El docente ha sido notificado.")
+        else:
+            messages.error(request, resultado["error"])
+        return redirect("calificaciones:pendientes_validacion")

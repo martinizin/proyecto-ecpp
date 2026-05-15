@@ -305,6 +305,7 @@ class GestionEvaluacionesAppService:
 
     @transaction.atomic
     def eliminar_evaluacion(self, evaluacion_id: int) -> dict:
+
         try:
             ev = Evaluacion.objects.get(pk=evaluacion_id)
         except Evaluacion.DoesNotExist:
@@ -322,3 +323,86 @@ class GestionEvaluacionesAppService:
         paralelo_id = ev.paralelo_id
         ev.delete()
         return {"ok": True, "paralelo_id": paralelo_id}
+
+
+# ---------------------------------------------------------------------------
+# Validación de calificaciones por secretaría (HU16)
+# ---------------------------------------------------------------------------
+
+
+class ValidacionCalificacionAppService:
+    """Use cases for secretaría grade validation."""
+
+    def obtener_pendientes(self):
+        """Returns registros with estado COMPLETO (pending validation)."""
+        return (
+            RegistroCalificacionParalelo.objects.filter(
+                estado=RegistroCalificacionParalelo.Estado.COMPLETO
+            )
+            .select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo",
+                "paralelo__tipo_licencia",
+                "paralelo__docente",
+            )
+            .order_by("-fecha_envio")
+        )
+
+    def obtener_detalle_validacion(self, paralelo_id: int) -> dict:
+        """Returns planilla data + registro for a paralelo pending validation."""
+        try:
+            registro = RegistroCalificacionParalelo.objects.select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo",
+                "paralelo__tipo_licencia",
+                "paralelo__docente",
+            ).get(paralelo_id=paralelo_id)
+        except RegistroCalificacionParalelo.DoesNotExist:
+            return None
+
+        if registro.estado != RegistroCalificacionParalelo.Estado.COMPLETO:
+            return None
+
+        planilla_service = RegistroCalificacionAppService()
+        planilla = planilla_service.obtener_planilla(paralelo_id)
+        return {"registro": registro, "paralelo": registro.paralelo, **planilla}
+
+    def aprobar(self, paralelo_id: int, usuario) -> dict:
+        """Approve grades: set estado=VALIDADO."""
+        try:
+            registro = RegistroCalificacionParalelo.objects.get(paralelo_id=paralelo_id)
+        except RegistroCalificacionParalelo.DoesNotExist:
+            return {"ok": False, "error": "Registro no encontrado."}
+
+        if registro.estado != RegistroCalificacionParalelo.Estado.COMPLETO:
+            return {
+                "ok": False,
+                "error": "Solo se pueden aprobar calificaciones en estado Completo.",
+            }
+
+        registro.estado = RegistroCalificacionParalelo.Estado.VALIDADO
+        registro.fecha_validacion = timezone.now()
+        registro.validado_por = usuario
+        registro.save(update_fields=["estado", "fecha_validacion", "validado_por"])
+        return {"ok": True}
+
+    def rechazar(self, paralelo_id: int, usuario, observaciones: str) -> dict:
+        """Reject grades: set estado=RECHAZADO with observaciones."""
+        if not observaciones or not observaciones.strip():
+            return {"ok": False, "error": "Debe indicar las observaciones para el docente."}
+
+        try:
+            registro = RegistroCalificacionParalelo.objects.get(paralelo_id=paralelo_id)
+        except RegistroCalificacionParalelo.DoesNotExist:
+            return {"ok": False, "error": "Registro no encontrado."}
+
+        if registro.estado != RegistroCalificacionParalelo.Estado.COMPLETO:
+            return {
+                "ok": False,
+                "error": "Solo se pueden rechazar calificaciones en estado Completo.",
+            }
+
+        registro.estado = RegistroCalificacionParalelo.Estado.RECHAZADO
+        registro.observaciones_secretaria = observaciones.strip()
+        registro.save(update_fields=["estado", "observaciones_secretaria"])
+        return {"ok": True}

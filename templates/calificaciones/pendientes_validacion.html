@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Validación de Calificaciones{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Validación de Calificaciones</li>
+    </ol>
+</nav>
+
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-xl font-semibold text-gray-800 mb-2">Pendientes de Validación</h1>
+    <p class="text-sm text-gray-500 mb-6">Revise y apruebe o rechace las calificaciones enviadas por los docentes.</p>
+
+    {% if pendientes %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for registro in pendientes %}
+        <div class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
+            <div class="p-5 flex flex-col flex-1">
+                <!-- Asignatura -->
+                <h2 class="text-base font-semibold text-gray-800 mb-1">{{ registro.paralelo.asignatura.nombre }}</h2>
+                <p class="text-xs text-gray-400 mb-2">{{ registro.paralelo.asignatura.codigo }} — Paralelo {{ registro.paralelo.nombre }}</p>
+
+                <!-- Docente -->
+                <p class="text-sm text-gray-600 mb-3">
+                    <span class="text-gray-400">Docente:</span> {{ registro.paralelo.docente.get_full_name }}
+                </p>
+
+                <!-- Info pills -->
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ registro.paralelo.tipo_licencia.codigo }}</span>
+                    <span class="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-medium">{{ registro.paralelo.periodo.nombre }}</span>
+                </div>
+
+                <!-- Fecha envío -->
+                <p class="text-xs text-gray-400 mb-4">
+                    Enviado: {{ registro.fecha_envio|date:"d/m/Y H:i" }}
+                </p>
+
+                <!-- Action -->
+                <div class="mt-auto">
+                    <a href="{% url 'calificaciones:detalle_validacion' paralelo_id=registro.paralelo.pk %}"
+                       class="inline-flex items-center justify-center gap-1.5 w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                        </svg>
+                        Revisar Planilla
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-white rounded-xl shadow-md px-6 py-12">
+        <div class="flex flex-col items-center gap-2">
+            <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No hay calificaciones pendientes de validación</p>
+            <p class="text-gray-400 text-xs">Cuando un docente envíe calificaciones, aparecerán aquí.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
