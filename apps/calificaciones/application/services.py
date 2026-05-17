@@ -406,3 +406,130 @@ class ValidacionCalificacionAppService:
         registro.observaciones_secretaria = observaciones.strip()
         registro.save(update_fields=["estado", "observaciones_secretaria"])
         return {"ok": True}
+
+
+class LibretaCalificacionesAppService:
+    """Read-only service: builds the student's grade report (libreta).
+
+    Shows all subjects (paralelos) where the student has an active enrollment
+    in any active period. Grades are only visible when the paralelo's
+    RegistroCalificacionParalelo is in VALIDADO state.
+    """
+
+    @staticmethod
+    def obtener_libreta(estudiante):
+        """Return the full grade report for a student.
+
+        Returns:
+            dict with keys:
+            - materias: list of dicts per paralelo
+            - promedio_general: Decimal or None
+            - total_materias: int
+            - materias_con_promedio: int
+        """
+        from apps.academico.infrastructure.models import Periodo
+
+        materias = []
+
+        # Active enrollments in active periods
+        matriculas = (
+            Matricula.objects.filter(
+                estudiante=estudiante,
+                estado=Matricula.Estado.ACTIVA,
+                paralelo__periodo__activo=True,
+            )
+            .select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo",
+                "paralelo__docente",
+            )
+            .order_by("paralelo__asignatura__codigo")
+        )
+
+        for matricula in matriculas:
+            paralelo = matricula.paralelo
+            materia = LibretaCalificacionesAppService._construir_materia(
+                paralelo, estudiante
+            )
+            materias.append(materia)
+
+        # Promedio general: average of per-subject promedios
+        promedios_validos = [
+            m["promedio"] for m in materias if m["promedio"] is not None
+        ]
+        promedio_general = None
+        if promedios_validos:
+            promedio_general = (
+                sum(promedios_validos) / len(promedios_validos)
+            ).quantize(Decimal("0.01"))
+
+        return {
+            "materias": materias,
+            "promedio_general": promedio_general,
+            "total_materias": len(materias),
+            "materias_con_promedio": len(promedios_validos),
+        }
+
+    @staticmethod
+    def _construir_materia(paralelo, estudiante):
+        """Build a single subject card data dict."""
+        # Check if grades are published (VALIDADO)
+        try:
+            registro = paralelo.registro_calificaciones
+            notas_visibles = (
+                registro.estado == RegistroCalificacionParalelo.Estado.VALIDADO
+            )
+        except RegistroCalificacionParalelo.DoesNotExist:
+            notas_visibles = False
+
+        evaluaciones = paralelo.evaluaciones.order_by("tipo")
+        calificaciones_map = {}
+        if notas_visibles:
+            calificaciones_map = {
+                cal.evaluacion_id: cal
+                for cal in Calificacion.objects.filter(
+                    evaluacion__paralelo=paralelo,
+                    estudiante=estudiante,
+                )
+            }
+
+        filas_evaluaciones = []
+        notas_con_pesos = []
+
+        for ev in evaluaciones:
+            cal = calificaciones_map.get(ev.id)
+            nota = cal.nota if cal else None
+            filas_evaluaciones.append(
+                {
+                    "tipo": ev.get_tipo_display(),
+                    "peso": ev.peso,
+                    "nota": nota,
+                }
+            )
+            if nota is not None:
+                notas_con_pesos.append((nota, ev.peso))
+
+        # Calculate promedio only if there are grades
+        promedio = None
+        if notas_con_pesos:
+            promedio = CalificacionValidationService.calcular_promedio_ponderado(
+                notas_con_pesos
+            )
+
+        # Determine status
+        if not notas_visibles:
+            estado = "pendiente"
+        elif not evaluaciones.exists():
+            estado = "sin_evaluaciones"
+        elif len(notas_con_pesos) < evaluaciones.count():
+            estado = "en_curso"
+        else:
+            estado = CalificacionValidationService.estado_aprobacion(promedio)
+
+        return {
+            "paralelo": paralelo,
+            "evaluaciones": filas_evaluaciones,
+            "promedio": promedio,
+            "estado": estado,
+            "notas_visibles": notas_visibles,
+        }
