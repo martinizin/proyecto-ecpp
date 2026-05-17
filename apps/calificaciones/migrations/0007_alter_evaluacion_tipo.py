@@ -6,13 +6,23 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('calificaciones', '0006_add_registro_calificacion_paralelo'),
+        ("calificaciones", "0006_add_registro_calificacion_paralelo"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='evaluacion',
-            name='tipo',
-            field=models.CharField(choices=[('parcial1', 'Parcial 1'), ('parcial2_10h', 'Parcial 2'), ('parcial3', 'Parcial 3'), ('parcial4_10h', 'Parcial 4'), ('proyecto', 'Proyecto'), ('examen_final', 'Examen Final')], max_length=20),
+            model_name="evaluacion",
+            name="tipo",
+            field=models.CharField(
+                choices=[
+                    ("parcial1", "Parcial 1"),
+                    ("parcial2_10h", "Parcial 2"),
+                    ("parcial3", "Parcial 3"),
+                    ("parcial4_10h", "Parcial 4"),
+                    ("proyecto", "Proyecto"),
+                    ("examen_final", "Examen Final"),
+                ],
+                max_length=20,
+            ),
         ),
     ]
