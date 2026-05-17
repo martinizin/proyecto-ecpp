@@ -26,7 +26,7 @@ from apps.calificaciones.infrastructure.models import (
     RegistroCalificacionParalelo,
 )
 from apps.notificaciones.infrastructure.models import Notificacion
-from apps.solicitudes.infrastructure.models import Solicitud
+from apps.solicitudes.infrastructure.models import HistorialSolicitud, Solicitud
 from apps.usuarios.infrastructure.models import OTPToken, RegistroAuditoria, Usuario
 
 
@@ -254,6 +254,19 @@ class SolicitudFactory(factory.django.DjangoModelFactory):
     estudiante = factory.SubFactory(EstudianteFactory)
     estado = Solicitud.EstadoSolicitud.PENDIENTE
     descripcion = "Solicitud de prueba"
+
+
+class HistorialSolicitudFactory(factory.django.DjangoModelFactory):
+    """Factory for HistorialSolicitud model."""
+
+    class Meta:
+        model = HistorialSolicitud
+
+    solicitud = factory.SubFactory(SolicitudFactory)
+    estado_anterior = Solicitud.EstadoSolicitud.PENDIENTE
+    estado_nuevo = Solicitud.EstadoSolicitud.EN_REVISION
+    cambiado_por = factory.SubFactory(DocenteFactory)
+    comentario = ""
 
 
 class NotificacionFactory(factory.django.DjangoModelFactory):
