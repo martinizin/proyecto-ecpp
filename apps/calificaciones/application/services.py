@@ -427,8 +427,6 @@ class LibretaCalificacionesAppService:
             - total_materias: int
             - materias_con_promedio: int
         """
-        from apps.academico.infrastructure.models import Periodo
-
         materias = []
 
         # Active enrollments in active periods
@@ -448,20 +446,16 @@ class LibretaCalificacionesAppService:
 
         for matricula in matriculas:
             paralelo = matricula.paralelo
-            materia = LibretaCalificacionesAppService._construir_materia(
-                paralelo, estudiante
-            )
+            materia = LibretaCalificacionesAppService._construir_materia(paralelo, estudiante)
             materias.append(materia)
 
         # Promedio general: average of per-subject promedios
-        promedios_validos = [
-            m["promedio"] for m in materias if m["promedio"] is not None
-        ]
+        promedios_validos = [m["promedio"] for m in materias if m["promedio"] is not None]
         promedio_general = None
         if promedios_validos:
-            promedio_general = (
-                sum(promedios_validos) / len(promedios_validos)
-            ).quantize(Decimal("0.01"))
+            promedio_general = (sum(promedios_validos) / len(promedios_validos)).quantize(
+                Decimal("0.01")
+            )
 
         return {
             "materias": materias,
@@ -476,9 +470,7 @@ class LibretaCalificacionesAppService:
         # Check if grades are published (VALIDADO)
         try:
             registro = paralelo.registro_calificaciones
-            notas_visibles = (
-                registro.estado == RegistroCalificacionParalelo.Estado.VALIDADO
-            )
+            notas_visibles = registro.estado == RegistroCalificacionParalelo.Estado.VALIDADO
         except RegistroCalificacionParalelo.DoesNotExist:
             notas_visibles = False
 
@@ -512,9 +504,7 @@ class LibretaCalificacionesAppService:
         # Calculate promedio only if there are grades
         promedio = None
         if notas_con_pesos:
-            promedio = CalificacionValidationService.calcular_promedio_ponderado(
-                notas_con_pesos
-            )
+            promedio = CalificacionValidationService.calcular_promedio_ponderado(notas_con_pesos)
 
         # Determine status
         if not notas_visibles:

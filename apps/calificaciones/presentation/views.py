@@ -379,7 +379,6 @@ class MiLibretaView(RolRequeridoMixin, View):
     def get(self, request):
         libreta = LibretaCalificacionesAppService.obtener_libreta(request.user)
         return render(request, "calificaciones/mi_libreta.html", libreta)
-        return render(request, self.template_name, datos)
 
 
 class AprobarCalificacionesView(RolRequeridoMixin, View):

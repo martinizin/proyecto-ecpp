@@ -127,12 +127,8 @@ class TestLibretaCalificacionesAppService:
         est = EstudianteFactory()
         est.save()
         MatriculaFactory(paralelo=paralelo, estudiante=est)
-        ev1 = EvaluacionFactory(
-            paralelo=paralelo, tipo="parcial1", peso=Decimal("50.00")
-        )
-        EvaluacionFactory(
-            paralelo=paralelo, tipo="parcial3", peso=Decimal("50.00")
-        )
+        ev1 = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("50.00"))
+        EvaluacionFactory(paralelo=paralelo, tipo="parcial3", peso=Decimal("50.00"))
         CalificacionFactory(evaluacion=ev1, estudiante=est, nota=Decimal("18.00"))
         RegistroCalificacionParaleloFactory(
             paralelo=paralelo,
@@ -188,9 +184,7 @@ class TestLibretaCalificacionesAppService:
         paralelo = ParaleloFactory(periodo=periodo, tipo_licencia=tipo_lic)
         est = EstudianteFactory()
         est.save()
-        MatriculaFactory(
-            paralelo=paralelo, estudiante=est, estado="retirada"
-        )
+        MatriculaFactory(paralelo=paralelo, estudiante=est, estado="retirada")
 
         libreta = LibretaCalificacionesAppService.obtener_libreta(est)
 
@@ -219,12 +213,8 @@ class TestLibretaCalificacionesAppService:
         est = EstudianteFactory()
         est.save()
         MatriculaFactory(paralelo=paralelo, estudiante=est)
-        ev1 = EvaluacionFactory(
-            paralelo=paralelo, tipo="parcial1", peso=Decimal("60.00")
-        )
-        ev2 = EvaluacionFactory(
-            paralelo=paralelo, tipo="examen_final", peso=Decimal("40.00")
-        )
+        ev1 = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("60.00"))
+        ev2 = EvaluacionFactory(paralelo=paralelo, tipo="examen_final", peso=Decimal("40.00"))
         CalificacionFactory(evaluacion=ev1, estudiante=est, nota=Decimal("20.00"))
         CalificacionFactory(evaluacion=ev2, estudiante=est, nota=Decimal("10.00"))
         RegistroCalificacionParaleloFactory(
@@ -290,9 +280,7 @@ class TestMiLibretaView:
         response = self.client.get(self.url)
 
         assert response.status_code == 200
-        assert "calificaciones/mi_libreta.html" in [
-            t.name for t in response.templates
-        ]
+        assert "calificaciones/mi_libreta.html" in [t.name for t in response.templates]
 
     def test_estudiante_sees_materia_validada(self):
         """Estudiante sees materia with validated grades."""
