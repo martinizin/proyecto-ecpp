@@ -1,18 +1,27 @@
 """
 Application services (use cases) for the Solicitudes bounded context.
 
-Sprint 3 — HU18: Solicitudes de recalificación y justificación de inasistencia.
+Sprint 3 — HU18/HU19: Solicitudes de recalificación y justificación.
 """
 
-from django.core.mail import send_mail
-from django.conf import settings
+from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
+from django.core.mail import send_mail
+from django.db import models
+from django.utils import timezone
 
 from apps.academico.infrastructure.models import Matricula
 from apps.asistencia.infrastructure.models import Asistencia
-from apps.calificaciones.infrastructure.models import Calificacion
+from apps.calificaciones.infrastructure.models import (
+    Calificacion,
+    LogCalificacion,
+)
 from apps.notificaciones.infrastructure.models import Notificacion
-from apps.solicitudes.infrastructure.models import Solicitud
+from apps.solicitudes.infrastructure.models import (
+    HistorialSolicitud,
+    Solicitud,
+)
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
@@ -277,3 +286,326 @@ class SolicitudAppService:
                 )
             except Exception:
                 pass  # Don't break the flow if email fails
+
+    # ── HU19: Listados para docente / secretaría / inspector ──────────
+
+    @staticmethod
+    def obtener_pendientes_docente(docente):
+        """Solicitudes de recalificación pendientes en paralelos del docente.
+
+        1ra solicitud: PENDIENTE (docente toma directamente).
+        2da+: EN_REVISION (secretaría ya validó, ahora toca docente).
+        """
+        return (
+            Solicitud.objects.filter(
+                tipo=Solicitud.TipoSolicitud.RECTIFICACION,
+                calificacion__evaluacion__paralelo__docente=docente,
+            )
+            .filter(
+                # 1ra: pendiente sin secretaría | 2da+: en_revision con secretaría
+                models.Q(
+                    estado=Solicitud.EstadoSolicitud.PENDIENTE,
+                    requiere_secretaria=False,
+                )
+                | models.Q(
+                    estado=Solicitud.EstadoSolicitud.EN_REVISION,
+                    requiere_secretaria=True,
+                )
+            )
+            .select_related(
+                "estudiante",
+                "calificacion__evaluacion__paralelo__asignatura",
+            )
+            .order_by("-fecha_creacion")
+        )
+
+    @staticmethod
+    def obtener_pendientes_secretaria():
+        """Solicitudes que requieren validación de secretaría.
+
+        Recalificación 2da+: PENDIENTE con requiere_secretaria=True.
+        """
+        return (
+            Solicitud.objects.filter(
+                tipo=Solicitud.TipoSolicitud.RECTIFICACION,
+                estado=Solicitud.EstadoSolicitud.PENDIENTE,
+                requiere_secretaria=True,
+            )
+            .select_related(
+                "estudiante",
+                "calificacion__evaluacion__paralelo__asignatura",
+                "calificacion__evaluacion__paralelo__docente",
+            )
+            .order_by("-fecha_creacion")
+        )
+
+    @staticmethod
+    def obtener_pendientes_justificacion():
+        """Solicitudes de justificación pendientes (para inspector o secretaría)."""
+        return (
+            Solicitud.objects.filter(
+                tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+                estado__in=[
+                    Solicitud.EstadoSolicitud.PENDIENTE,
+                    Solicitud.EstadoSolicitud.EN_REVISION,
+                ],
+            )
+            .select_related(
+                "estudiante",
+                "asistencia__paralelo__asignatura",
+            )
+            .order_by("-fecha_creacion")
+        )
+
+    # ── HU19: Transiciones de estado ──────────────────────────────────
+
+    @staticmethod
+    def _registrar_historial(solicitud, estado_anterior, estado_nuevo, usuario, comentario=""):
+        """Create a HistorialSolicitud entry."""
+        HistorialSolicitud.objects.create(
+            solicitud=solicitud,
+            estado_anterior=estado_anterior,
+            estado_nuevo=estado_nuevo,
+            cambiado_por=usuario,
+            comentario=comentario,
+        )
+
+    @staticmethod
+    def _notificar_estudiante_cambio(solicitud, estado_nuevo, comentario=""):
+        """Notify student (in-app + email) about state change."""
+        estados_display = dict(Solicitud.EstadoSolicitud.choices)
+        tipo_display = solicitud.get_tipo_display()
+        estado_label = estados_display.get(estado_nuevo, estado_nuevo)
+
+        titulo = f"Su {tipo_display} fue actualizada a: {estado_label}"
+        mensaje = f"Su solicitud #{solicitud.numero_solicitud} cambió a {estado_label}."
+        if comentario:
+            mensaje += f"\n\nComentario: {comentario}"
+
+        Notificacion.objects.create(
+            destinatario=solicitud.estudiante,
+            tipo=Notificacion.Tipo.CAMBIO_ESTADO_SOLICITUD,
+            titulo=titulo,
+            mensaje=mensaje,
+            url="/solicitudes/mis-solicitudes/",
+        )
+
+        if solicitud.estudiante.email:
+            try:
+                send_mail(
+                    subject=f"[ECPPP] {titulo}",
+                    message=mensaje,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[solicitud.estudiante.email],
+                    fail_silently=True,
+                )
+            except Exception:
+                pass
+
+    @staticmethod
+    def tomar_solicitud(solicitud_id, usuario):
+        """Move solicitud from PENDIENTE to EN_REVISION.
+
+        Used by docente (1ra recalificación) or inspector/secretaría (justificación).
+        Returns dict with 'ok' and 'error' or 'solicitud'.
+        """
+        try:
+            solicitud = Solicitud.objects.select_related("estudiante").get(
+                pk=solicitud_id
+            )
+        except Solicitud.DoesNotExist:
+            return {"ok": False, "error": "Solicitud no encontrada."}
+
+        if solicitud.estado != Solicitud.EstadoSolicitud.PENDIENTE:
+            return {"ok": False, "error": "Solo se pueden tomar solicitudes pendientes."}
+
+        estado_anterior = solicitud.estado
+        solicitud.estado = Solicitud.EstadoSolicitud.EN_REVISION
+        solicitud.save(update_fields=["estado"])
+
+        SolicitudAppService._registrar_historial(
+            solicitud, estado_anterior, solicitud.estado, usuario, "Solicitud tomada."
+        )
+        SolicitudAppService._notificar_estudiante_cambio(
+            solicitud, solicitud.estado
+        )
+        return {"ok": True, "solicitud": solicitud}
+
+    @staticmethod
+    def escalar_a_docente(solicitud_id, usuario, comentario=""):
+        """Secretaría validates 2da+ recalificación and escalates to docente.
+
+        PENDIENTE → EN_REVISION. Notifies docente.
+        """
+        try:
+            solicitud = Solicitud.objects.select_related(
+                "estudiante",
+                "calificacion__evaluacion__paralelo__docente",
+                "calificacion__evaluacion__paralelo__asignatura",
+            ).get(pk=solicitud_id)
+        except Solicitud.DoesNotExist:
+            return {"ok": False, "error": "Solicitud no encontrada."}
+
+        if solicitud.estado != Solicitud.EstadoSolicitud.PENDIENTE:
+            return {"ok": False, "error": "Solo se pueden escalar solicitudes pendientes."}
+
+        if not solicitud.requiere_secretaria:
+            return {
+                "ok": False,
+                "error": "Esta solicitud no requiere validación de secretaría.",
+            }
+
+        estado_anterior = solicitud.estado
+        solicitud.estado = Solicitud.EstadoSolicitud.EN_REVISION
+        solicitud.save(update_fields=["estado"])
+
+        SolicitudAppService._registrar_historial(
+            solicitud,
+            estado_anterior,
+            solicitud.estado,
+            usuario,
+            comentario or "Validada por secretaría, escalada a docente.",
+        )
+
+        # Notify docente
+        docente = solicitud.calificacion.evaluacion.paralelo.docente
+        if docente:
+            asignatura = solicitud.calificacion.evaluacion.paralelo.asignatura.nombre
+            Notificacion.objects.create(
+                destinatario=docente,
+                tipo=Notificacion.Tipo.SOLICITUD_RECALIFICACION,
+                titulo=f"Solicitud de recalificación escalada — {asignatura}",
+                mensaje=(
+                    f"Secretaría validó la solicitud #{solicitud.numero_solicitud} "
+                    f"de {solicitud.estudiante.get_full_name()}. "
+                    f"Requiere su resolución."
+                ),
+                url="/solicitudes/pendientes/",
+            )
+
+        SolicitudAppService._notificar_estudiante_cambio(
+            solicitud, solicitud.estado, "Su solicitud fue validada por secretaría."
+        )
+        return {"ok": True, "solicitud": solicitud}
+
+    @staticmethod
+    def resolver_solicitud(
+        solicitud_id, usuario, accion, comentario="", nueva_nota=None
+    ):
+        """Approve or reject a solicitud.
+
+        Args:
+            solicitud_id: PK of the solicitud.
+            usuario: User resolving (docente/inspector/secretaría).
+            accion: 'aprobar' or 'rechazar'.
+            comentario: Resolution comment (required for rejection).
+            nueva_nota: New grade (required when approving recalificación).
+
+        Returns:
+            dict with 'ok' and 'error' or 'solicitud'.
+        """
+        if accion not in ("aprobar", "rechazar"):
+            return {"ok": False, "error": "Acción no válida."}
+
+        try:
+            solicitud = Solicitud.objects.select_related(
+                "estudiante",
+                "calificacion__evaluacion__paralelo__asignatura",
+                "calificacion__evaluacion__paralelo__docente",
+                "asistencia__paralelo__asignatura",
+            ).get(pk=solicitud_id)
+        except Solicitud.DoesNotExist:
+            return {"ok": False, "error": "Solicitud no encontrada."}
+
+        # Must be PENDIENTE (1ra sin secretaría) or EN_REVISION
+        estados_validos = [
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        ]
+        if solicitud.estado not in estados_validos:
+            return {"ok": False, "error": "Esta solicitud ya fue resuelta."}
+
+        if accion == "rechazar" and not comentario.strip():
+            return {"ok": False, "error": "Debe indicar el motivo del rechazo."}
+
+        # Approve recalificación: validate nueva_nota
+        if (
+            accion == "aprobar"
+            and solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION
+        ):
+            if nueva_nota is None or str(nueva_nota).strip() == "":
+                return {"ok": False, "error": "Debe indicar la nueva nota."}
+            try:
+                nueva_nota_decimal = Decimal(str(nueva_nota))
+            except (InvalidOperation, ValueError):
+                return {"ok": False, "error": "La nota debe ser un valor numérico."}
+            if nueva_nota_decimal < 0 or nueva_nota_decimal > 20:
+                return {"ok": False, "error": "La nota debe estar entre 0 y 20."}
+
+        estado_anterior = solicitud.estado
+        if accion == "aprobar":
+            solicitud.estado = Solicitud.EstadoSolicitud.APROBADA
+        else:
+            solicitud.estado = Solicitud.EstadoSolicitud.RECHAZADA
+
+        solicitud.respuesta = comentario.strip()
+        solicitud.resuelto_por = usuario
+        solicitud.fecha_resolucion = timezone.now()
+        solicitud.save(
+            update_fields=["estado", "respuesta", "resuelto_por", "fecha_resolucion"]
+        )
+
+        SolicitudAppService._registrar_historial(
+            solicitud, estado_anterior, solicitud.estado, usuario, comentario
+        )
+
+        # Side effects on approval
+        if accion == "aprobar":
+            if solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION:
+                SolicitudAppService._aplicar_recalificacion(
+                    solicitud, nueva_nota_decimal, usuario
+                )
+            elif solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION:
+                SolicitudAppService._aplicar_justificacion(solicitud)
+
+        SolicitudAppService._notificar_estudiante_cambio(
+            solicitud, solicitud.estado, comentario
+        )
+        return {"ok": True, "solicitud": solicitud}
+
+    @staticmethod
+    def _aplicar_recalificacion(solicitud, nueva_nota, usuario):
+        """Update the calificacion and create audit log."""
+        calificacion = solicitud.calificacion
+        if not calificacion:
+            return
+
+        valor_anterior = calificacion.nota
+        calificacion.nota = nueva_nota
+        calificacion.save(update_fields=["nota"])
+
+        LogCalificacion.objects.create(
+            calificacion=calificacion,
+            evaluacion_info=str(calificacion.evaluacion),
+            estudiante_info=(
+                f"{solicitud.estudiante.get_full_name()} "
+                f"({solicitud.estudiante.cedula})"
+            ),
+            accion=LogCalificacion.TipoAccion.RECALIFICACION,
+            valor_anterior=valor_anterior,
+            valor_nuevo=nueva_nota,
+            realizado_por=usuario,
+            motivo=(
+                f"Recalificación aprobada — Solicitud #{solicitud.numero_solicitud}. "
+                f"{solicitud.respuesta}"
+            ),
+        )
+
+    @staticmethod
+    def _aplicar_justificacion(solicitud):
+        """Change asistencia from AUSENTE to JUSTIFICADO."""
+        asistencia = solicitud.asistencia
+        if not asistencia:
+            return
+        asistencia.estado = Asistencia.Estado.JUSTIFICADO
+        asistencia.save(update_fields=["estado"])

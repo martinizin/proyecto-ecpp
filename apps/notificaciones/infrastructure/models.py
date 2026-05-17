@@ -11,6 +11,10 @@ class Notificacion(models.Model):
         ALERTA_INASISTENCIA = "alerta_inasistencia", "Alerta de inasistencia"
         SOLICITUD_RECALIFICACION = "solicitud_recalificacion", "Solicitud de recalificación"
         SOLICITUD_JUSTIFICACION = "solicitud_justificacion", "Solicitud de justificación"
+        CAMBIO_ESTADO_SOLICITUD = (
+            "cambio_estado_solicitud",
+            "Cambio de estado de solicitud",
+        )
         GENERAL = "general", "General"
 
     destinatario = models.ForeignKey(
