@@ -32,12 +32,13 @@ class TestSolicitud:
         assert len(choices) == 2
 
     def test_estado_choices(self):
-        """Three solicitud states should be defined."""
+        """Four solicitud states should be defined."""
         choices = [c[0] for c in Solicitud.EstadoSolicitud.choices]
         assert "pendiente" in choices
+        assert "en_revision" in choices
         assert "aprobada" in choices
         assert "rechazada" in choices
-        assert len(choices) == 3
+        assert len(choices) == 4
 
     def test_str(self):
         solicitud = SolicitudFactory()
