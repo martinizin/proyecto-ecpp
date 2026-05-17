@@ -9,6 +9,8 @@ from django.db import models
 class Notificacion(models.Model):
     class Tipo(models.TextChoices):
         ALERTA_INASISTENCIA = "alerta_inasistencia", "Alerta de inasistencia"
+        SOLICITUD_RECALIFICACION = "solicitud_recalificacion", "Solicitud de recalificación"
+        SOLICITUD_JUSTIFICACION = "solicitud_justificacion", "Solicitud de justificación"
         GENERAL = "general", "General"
 
     destinatario = models.ForeignKey(
