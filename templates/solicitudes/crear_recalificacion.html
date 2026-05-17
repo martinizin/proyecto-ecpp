@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitar Recalificación{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'solicitudes:mis_solicitudes' %}" class="hover:text-primary transition-colors">Mis Solicitudes</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Recalificación</li>
+    </ol>
+</nav>
+
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">Solicitar Recalificación</h1>
+            <p class="text-sm text-gray-500 mt-1">Seleccione la evaluación a reclamar e indique el motivo detallado.</p>
+        </div>
+
+        {% if calificaciones %}
+        <form method="post" enctype="multipart/form-data" class="px-6 py-5 space-y-5">
+            {% csrf_token %}
+
+            <!-- Selección de evaluación -->
+            <div class="flex flex-col gap-1.5">
+                <label for="calificacion" class="text-sm font-medium text-gray-700">Evaluación a reclamar</label>
+                <select name="calificacion" id="calificacion" required
+                        class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Seleccione...</option>
+                    {% for cal in calificaciones %}
+                    <option value="{{ cal.pk }}"
+                            {% if form_data.calificacion == cal.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ cal.evaluacion.paralelo.asignatura.nombre }} —
+                        {{ cal.evaluacion.get_tipo_display }}
+                        (Nota actual: {{ cal.nota }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Motivo -->
+            <div class="flex flex-col gap-1.5">
+                <label for="descripcion" class="text-sm font-medium text-gray-700">Motivo de la solicitud</label>
+                <textarea name="descripcion" id="descripcion" rows="4" required
+                          placeholder="Describa detalladamente el motivo de su solicitud de recalificación..."
+                          class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y">{% if form_data.descripcion %}{{ form_data.descripcion }}{% endif %}</textarea>
+            </div>
+
+            <!-- Archivo adjunto -->
+            <div class="flex flex-col gap-1.5">
+                <label for="archivo_adjunto" class="text-sm font-medium text-gray-700">
+                    Archivo adjunto <span class="text-gray-400 font-normal">(opcional)</span>
+                </label>
+                <input type="file" name="archivo_adjunto" id="archivo_adjunto"
+                       accept=".pdf,.jpg,.jpeg,.png"
+                       class="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 file:cursor-pointer file:transition-colors">
+                <p class="text-xs text-gray-400">PDF, JPG o PNG. Máximo 5 MB.</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <a href="{% url 'solicitudes:mis_solicitudes' %}"
+                   class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Cancelar
+                </a>
+                <button type="submit"
+                        class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                    Enviar Solicitud
+                </button>
+            </div>
+        </form>
+
+        {% else %}
+        <!-- No calificaciones reclamables -->
+        <div class="px-6 py-12 text-center">
+            <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No tiene evaluaciones reclamables</p>
+            <p class="text-gray-400 text-xs mt-1">Solo puede reclamar evaluaciones con notas validadas por secretaría en el período activo.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
