@@ -362,7 +362,8 @@ class DetalleValidacionView(RolRequeridoMixin, View):
         datos = service.obtener_detalle_validacion(paralelo_id)
         if datos is None:
             messages.error(request, "Registro no encontrado o no está pendiente de validación.")
-        return redirect("calificaciones:pendientes_validacion")
+            return redirect("calificaciones:pendientes_validacion")
+        return render(request, self.template_name, datos)
 
 
 # =============================================================================

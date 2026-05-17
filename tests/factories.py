@@ -19,7 +19,12 @@ from apps.academico.infrastructure.models import (
     TipoLicencia,
 )
 from apps.asistencia.infrastructure.models import Asistencia
-from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion, LogCalificacion
+from apps.calificaciones.infrastructure.models import (
+    Calificacion,
+    Evaluacion,
+    LogCalificacion,
+    RegistroCalificacionParalelo,
+)
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.solicitudes.infrastructure.models import Solicitud
 from apps.usuarios.infrastructure.models import OTPToken, RegistroAuditoria, Usuario
@@ -215,6 +220,16 @@ class LogCalificacionFactory(factory.django.DjangoModelFactory):
     realizado_por = factory.SubFactory(DocenteFactory)
     ip = "127.0.0.1"
     motivo = ""
+
+
+class RegistroCalificacionParaleloFactory(factory.django.DjangoModelFactory):
+    """Factory for RegistroCalificacionParalelo model."""
+
+    class Meta:
+        model = RegistroCalificacionParalelo
+
+    paralelo = factory.SubFactory(ParaleloFactory)
+    estado = RegistroCalificacionParalelo.Estado.BORRADOR
 
 
 class AsistenciaFactory(factory.django.DjangoModelFactory):
