@@ -8,6 +8,7 @@ from apps.calificaciones.presentation.views import (
     EliminarEvaluacionView,
     EnviarValidacionView,
     GestionEvaluacionesView,
+    MiLibretaView,
     PendientesValidacionView,
     RechazarCalificacionesView,
     RegistrarCalificacionesView,
@@ -71,5 +72,10 @@ urlpatterns = [
         "paralelo/<int:paralelo_id>/rechazar/",
         RechazarCalificacionesView.as_view(),
         name="rechazar_calificaciones",
+    ),
+    path(
+        "mi-libreta/",
+        MiLibretaView.as_view(),
+        name="mi_libreta",
     ),
 ]

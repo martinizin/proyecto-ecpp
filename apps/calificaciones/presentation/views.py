@@ -14,6 +14,7 @@ from django.views import View
 from apps.academico.infrastructure.models import Paralelo
 from apps.calificaciones.application.services import (
     GestionEvaluacionesAppService,
+    LibretaCalificacionesAppService,
     RegistroCalificacionAppService,
     ValidacionCalificacionAppService,
 )
@@ -363,6 +364,21 @@ class DetalleValidacionView(RolRequeridoMixin, View):
             messages.error(request, "Registro no encontrado o no está pendiente de validación.")
             return redirect("calificaciones:pendientes_validacion")
         return render(request, self.template_name, datos)
+
+
+# =============================================================================
+# HU17 — Libreta de calificaciones (Estudiante)
+# =============================================================================
+
+
+class MiLibretaView(RolRequeridoMixin, View):
+    """Student grade report — read-only view of all subjects and grades."""
+
+    rol_requerido = "estudiante"
+
+    def get(self, request):
+        libreta = LibretaCalificacionesAppService.obtener_libreta(request.user)
+        return render(request, "calificaciones/mi_libreta.html", libreta)
 
 
 class AprobarCalificacionesView(RolRequeridoMixin, View):
