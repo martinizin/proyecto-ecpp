@@ -38,9 +38,7 @@ class CrearRecalificacionView(RolRequeridoMixin, View):
         )
 
         if resultado["ok"]:
-            messages.success(
-                request, "Solicitud de recalificación enviada correctamente."
-            )
+            messages.success(request, "Solicitud de recalificación enviada correctamente.")
             return redirect("solicitudes:mis_solicitudes")
 
         messages.error(request, resultado["error"])
@@ -83,9 +81,7 @@ class CrearJustificacionView(RolRequeridoMixin, View):
         )
 
         if resultado["ok"]:
-            messages.success(
-                request, "Solicitud de justificación enviada correctamente."
-            )
+            messages.success(request, "Solicitud de justificación enviada correctamente.")
             return redirect("solicitudes:mis_solicitudes")
 
         messages.error(request, resultado["error"])
@@ -112,9 +108,7 @@ class MisSolicitudesView(RolRequeridoMixin, View):
     def get(self, request):
         service = SolicitudAppService()
         tipo_filtro = request.GET.get("tipo", "")
-        solicitudes = service.obtener_mis_solicitudes(
-            request.user, tipo=tipo_filtro or None
-        )
+        solicitudes = service.obtener_mis_solicitudes(request.user, tipo=tipo_filtro or None)
         return render(
             request,
             self.template_name,

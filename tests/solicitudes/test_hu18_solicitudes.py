@@ -32,7 +32,7 @@ from tests.factories import (
 @pytest.mark.django_db
 class TestObtenerCalificacionesReclamables:
     def _setup_validada(self):
-        """Helper: create a calificacion with VALIDADO registro, active period, active matricula."""
+        """Helper: calificacion with VALIDADO registro, active period, active matricula."""
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
         estudiante = EstudianteFactory()
@@ -87,9 +87,7 @@ class TestCrearRecalificacion:
     def test_crear_recalificacion_exitosa(self):
         estudiante, calificacion = self._setup()
         service = SolicitudAppService()
-        result = service.crear_recalificacion(
-            estudiante, calificacion.pk, "Nota incorrecta"
-        )
+        result = service.crear_recalificacion(estudiante, calificacion.pk, "Nota incorrecta")
         assert result["ok"] is True
         sol = result["solicitud"]
         assert sol.tipo == Solicitud.TipoSolicitud.RECTIFICACION
@@ -193,12 +191,8 @@ class TestObtenerMisSolicitudes:
     def test_obtener_mis_solicitudes_filtro_tipo(self):
         estudiante = EstudianteFactory()
         estudiante.save()
-        SolicitudFactory(
-            estudiante=estudiante, tipo=Solicitud.TipoSolicitud.RECTIFICACION
-        )
-        SolicitudFactory(
-            estudiante=estudiante, tipo=Solicitud.TipoSolicitud.JUSTIFICACION
-        )
+        SolicitudFactory(estudiante=estudiante, tipo=Solicitud.TipoSolicitud.RECTIFICACION)
+        SolicitudFactory(estudiante=estudiante, tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
         service = SolicitudAppService()
         qs = service.obtener_mis_solicitudes(
             estudiante, tipo=Solicitud.TipoSolicitud.RECTIFICACION
@@ -262,10 +256,13 @@ class TestCrearRecalificacionView:
     def test_crear_recalificacion_post_exitoso(self, client):
         estudiante, calificacion = self._setup(client)
         url = reverse("solicitudes:crear_recalificacion")
-        response = client.post(url, {
-            "calificacion": calificacion.pk,
-            "descripcion": "Error en nota",
-        })
+        response = client.post(
+            url,
+            {
+                "calificacion": calificacion.pk,
+                "descripcion": "Error en nota",
+            },
+        )
         assert response.status_code == 302
         assert Solicitud.objects.filter(estudiante=estudiante).exists()
 
@@ -291,10 +288,13 @@ class TestCrearJustificacionView:
     def test_crear_justificacion_post_exitoso(self, client):
         estudiante, asistencia = self._setup(client)
         url = reverse("solicitudes:crear_justificacion")
-        response = client.post(url, {
-            "asistencia": asistencia.pk,
-            "descripcion": "Estuve enfermo",
-        })
+        response = client.post(
+            url,
+            {
+                "asistencia": asistencia.pk,
+                "descripcion": "Estuve enfermo",
+            },
+        )
         assert response.status_code == 302
         assert Solicitud.objects.filter(
             estudiante=estudiante, tipo=Solicitud.TipoSolicitud.JUSTIFICACION
@@ -318,12 +318,8 @@ class TestMisSolicitudesView:
 
     def test_mis_solicitudes_filtro_tipo(self, client):
         estudiante = self._login_estudiante(client)
-        SolicitudFactory(
-            estudiante=estudiante, tipo=Solicitud.TipoSolicitud.RECTIFICACION
-        )
-        SolicitudFactory(
-            estudiante=estudiante, tipo=Solicitud.TipoSolicitud.JUSTIFICACION
-        )
+        SolicitudFactory(estudiante=estudiante, tipo=Solicitud.TipoSolicitud.RECTIFICACION)
+        SolicitudFactory(estudiante=estudiante, tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
         url = reverse("solicitudes:mis_solicitudes")
         response = client.get(url, {"tipo": "rectificacion"})
         assert response.status_code == 200
@@ -339,4 +335,8 @@ class TestDashboardEstudiante:
         response = client.get(url)
         assert response.status_code == 200
         content = response.content.decode()
-        assert "solicitudes" in content.lower() or "recalificacion" in content.lower() or reverse("solicitudes:mis_solicitudes") in content
+        assert (
+            "solicitudes" in content.lower()
+            or "recalificacion" in content.lower()
+            or reverse("solicitudes:mis_solicitudes") in content
+        )

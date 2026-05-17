@@ -97,7 +97,4 @@ class Solicitud(models.Model):
         ordering = ["-fecha_creacion"]
 
     def __str__(self):
-        return (
-            f"{self.get_tipo_display()} - "
-            f"{self.estudiante} ({self.get_estado_display()})"
-        )
+        return f"{self.get_tipo_display()} - " f"{self.estudiante} ({self.get_estado_display()})"

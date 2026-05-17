@@ -6,8 +6,7 @@ Sprint 3 — HU18: Solicitudes de recalificación y justificación de inasistenc
 
 from django.core.mail import send_mail
 from django.conf import settings
-from django.template.loader import render_to_string
-from django.utils import timezone
+
 
 from apps.academico.infrastructure.models import Matricula
 from apps.asistencia.infrastructure.models import Asistencia
@@ -125,9 +124,7 @@ class SolicitudAppService:
         )
 
         # Notify docente (in-app + email)
-        SolicitudAppService._notificar_docente_recalificacion(
-            solicitud, calificacion
-        )
+        SolicitudAppService._notificar_docente_recalificacion(solicitud, calificacion)
 
         return {"ok": True, "solicitud": solicitud}
 
