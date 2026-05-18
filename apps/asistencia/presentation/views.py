@@ -226,6 +226,19 @@ class SupervisionAsistenciaView(RolRequeridoMixin, View):
         datos["en_riesgo"] = en_riesgo
         datos["normales"] = datos["total_estudiantes"] - en_riesgo
 
+        # Calificaciones tab data
+        from apps.calificaciones.application.services import (
+            SupervisionCalificacionesAppService,
+        )
+
+        datos_cal = SupervisionCalificacionesAppService.obtener_datos_supervision(tipo_licencia_id)
+        datos["cal_estudiantes"] = datos_cal["estudiantes"]
+        datos["cal_total"] = datos_cal["total_estudiantes"]
+        datos["cal_en_riesgo"] = datos_cal["en_riesgo"]
+
+        # Active tab
+        datos["tab"] = request.GET.get("tab", "asistencia")
+
         return render(request, self.template_name, datos)
 
 
