@@ -300,7 +300,11 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
                 "total_logs": total_logs,
                 "truncado": truncado,
                 "limite": LIMITE,
-                "acciones": LogCalificacion.TipoAccion.choices,
+                "acciones": [
+                    c
+                    for c in LogCalificacion.TipoAccion.choices
+                    if c[0] not in ("creacion", "modificacion", "eliminacion")
+                ],
                 "docentes": docentes,
                 "filtros": {
                     "fecha_inicio": fecha_inicio,
