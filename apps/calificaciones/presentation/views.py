@@ -410,3 +410,31 @@ class RechazarCalificacionesView(RolRequeridoMixin, View):
         else:
             messages.error(request, resultado["error"])
         return redirect("calificaciones:pendientes_validacion")
+
+
+# ---------------------------------------------------------------------------
+# Supervisión de calificaciones (Inspector)
+# ---------------------------------------------------------------------------
+
+
+class SupervisionCalificacionesView(RolRequeridoMixin, View):
+    """Inspector supervision panel — overview of student grades."""
+
+    rol_requerido = "inspector"
+    template_name = "calificaciones/supervision_calificaciones.html"
+
+    def get(self, request):
+        from apps.calificaciones.application.services import (
+            SupervisionCalificacionesAppService,
+        )
+
+        tipo_licencia_id = request.GET.get("tipo_licencia")
+        if tipo_licencia_id:
+            try:
+                tipo_licencia_id = int(tipo_licencia_id)
+            except (ValueError, TypeError):
+                tipo_licencia_id = None
+
+        datos = SupervisionCalificacionesAppService.obtener_datos_supervision(tipo_licencia_id)
+        datos["tipo_licencia_seleccionado"] = tipo_licencia_id
+        return render(request, self.template_name, datos)

@@ -534,3 +534,70 @@ class LibretaCalificacionesAppService:
             "estado": estado,
             "notas_visibles": notas_visibles,
         }
+
+
+class SupervisionCalificacionesAppService:
+    """Inspector view: lista de estudiantes con promedios generales."""
+
+    @staticmethod
+    def obtener_datos_supervision(tipo_licencia_id=None):
+        """Return all active students with their overall GPA for supervision.
+
+        Returns:
+            dict with keys:
+            - estudiantes: list of dicts (estudiante, promedio_general, total_materias, riesgo)
+            - tipos_licencia: queryset for filter dropdown
+        """
+        from apps.academico.infrastructure.models import TipoLicencia
+
+        # Get all students with active enrollments in active periods
+        filtro = {
+            "estado": Matricula.Estado.ACTIVA,
+            "paralelo__periodo__activo": True,
+        }
+        if tipo_licencia_id:
+            filtro["paralelo__tipo_licencia_id"] = tipo_licencia_id
+
+        estudiante_ids = (
+            Matricula.objects.filter(**filtro).values_list("estudiante_id", flat=True).distinct()
+        )
+
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiantes_qs = Usuario.objects.filter(id__in=estudiante_ids, rol="estudiante").order_by(
+            "last_name", "first_name"
+        )
+
+        resultados = []
+        for est in estudiantes_qs:
+            libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+            promedio = libreta["promedio_general"]
+
+            # Determine risk level
+            if promedio is None:
+                riesgo = "sin_datos"
+            elif promedio < Decimal("14"):
+                riesgo = "rojo"
+            elif promedio < Decimal("16"):
+                riesgo = "amarillo"
+            else:
+                riesgo = "verde"
+
+            resultados.append(
+                {
+                    "estudiante": est,
+                    "promedio_general": promedio,
+                    "total_materias": libreta["total_materias"],
+                    "materias_con_promedio": libreta["materias_con_promedio"],
+                    "riesgo": riesgo,
+                }
+            )
+
+        tipos_licencia = TipoLicencia.objects.order_by("codigo")
+
+        return {
+            "estudiantes": resultados,
+            "tipos_licencia": tipos_licencia,
+            "total_estudiantes": len(resultados),
+            "en_riesgo": sum(1 for e in resultados if e["riesgo"] == "rojo"),
+        }
