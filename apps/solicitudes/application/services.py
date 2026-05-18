@@ -22,6 +22,7 @@ from apps.solicitudes.infrastructure.models import (
     HistorialSolicitud,
     Solicitud,
 )
+from apps.usuarios.infrastructure.models import Usuario
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
@@ -132,8 +133,17 @@ class SolicitudAppService:
             requiere_secretaria=requiere_secretaria,
         )
 
-        # Notify docente (in-app + email)
-        SolicitudAppService._notificar_docente_recalificacion(solicitud, calificacion)
+        # Notify based on flow
+        if requiere_secretaria:
+            # 2da+: notify secretaría (they must validate first)
+            SolicitudAppService._notificar_secretaria_recalificacion(
+                solicitud, calificacion
+            )
+        else:
+            # 1ra: notify docente directly
+            SolicitudAppService._notificar_docente_recalificacion(
+                solicitud, calificacion
+            )
 
         return {"ok": True, "solicitud": solicitud}
 
@@ -286,6 +296,42 @@ class SolicitudAppService:
                 )
             except Exception:
                 pass  # Don't break the flow if email fails
+
+    @staticmethod
+    def _notificar_secretaria_recalificacion(solicitud, calificacion):
+        """Notify all secretaría users about a 2da+ recalificación request."""
+        asignatura = calificacion.evaluacion.paralelo.asignatura.nombre
+        evaluacion = calificacion.evaluacion.get_tipo_display()
+        estudiante_nombre = solicitud.estudiante.get_full_name()
+
+        titulo = f"Recalificación requiere validación — {asignatura}"
+        mensaje = (
+            f"El estudiante {estudiante_nombre} ha presentado la solicitud "
+            f"#{solicitud.numero_solicitud} de recalificación para "
+            f"{evaluacion} en {asignatura}.\n\n"
+            f"Requiere validación de secretaría antes de escalar al docente."
+        )
+
+        secretarias = Usuario.objects.filter(rol="secretaria", is_active=True)
+        for sec in secretarias:
+            Notificacion.objects.create(
+                destinatario=sec,
+                tipo=Notificacion.Tipo.SOLICITUD_RECALIFICACION,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/solicitudes/secretaria/",
+            )
+            if sec.email:
+                try:
+                    send_mail(
+                        subject=f"[ECPPP] {titulo}",
+                        message=mensaje,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[sec.email],
+                        fail_silently=True,
+                    )
+                except Exception:
+                    pass
 
     # ── HU19: Listados para docente / secretaría / inspector ──────────
 
