@@ -98,8 +98,8 @@ class TestLibretaCalificacionesAppService:
         assert materia["estado"] == "pendiente"
         assert materia["promedio"] is None
 
-    def test_libreta_hides_notas_completo(self):
-        """Notes are hidden when registro is COMPLETO (pending validation)."""
+    def test_libreta_shows_notas_completo(self):
+        """Notes are visible when registro is COMPLETO (sent for validation)."""
         tipo_lic = TipoLicenciaFactory()
         periodo = PeriodoFactory(tipo_licencia=tipo_lic, activo=True)
         paralelo = ParaleloFactory(periodo=periodo, tipo_licencia=tipo_lic)
@@ -116,8 +116,8 @@ class TestLibretaCalificacionesAppService:
         libreta = LibretaCalificacionesAppService.obtener_libreta(est)
         materia = libreta["materias"][0]
 
-        assert materia["notas_visibles"] is False
-        assert materia["estado"] == "pendiente"
+        assert materia["notas_visibles"] is True
+        assert materia["promedio"] == Decimal("15.00")
 
     def test_libreta_estado_en_curso(self):
         """When not all evaluaciones have grades, estado is 'en_curso'."""

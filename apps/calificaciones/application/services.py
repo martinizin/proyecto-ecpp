@@ -243,7 +243,7 @@ class RegistroCalificacionAppService:
                 tipo=Notificacion.Tipo.ENVIO_PLANILLA,
                 titulo=titulo,
                 mensaje=mensaje,
-                url="/calificaciones/validacion/",
+                url="/calificaciones/pendientes-validacion/",
             )
             if sec.email:
                 try:
@@ -590,10 +590,13 @@ class LibretaCalificacionesAppService:
     @staticmethod
     def _construir_materia(paralelo, estudiante):
         """Build a single subject card data dict."""
-        # Check if grades are published (VALIDADO)
+        # Check if grades are published (COMPLETO or VALIDADO)
         try:
             registro = paralelo.registro_calificaciones
-            notas_visibles = registro.estado == RegistroCalificacionParalelo.Estado.VALIDADO
+            notas_visibles = registro.estado in [
+                RegistroCalificacionParalelo.Estado.COMPLETO,
+                RegistroCalificacionParalelo.Estado.VALIDADO,
+            ]
         except RegistroCalificacionParalelo.DoesNotExist:
             notas_visibles = False
 
