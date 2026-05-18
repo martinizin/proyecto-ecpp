@@ -32,7 +32,8 @@ class TestSendAlertaInasistencia:
         email = mail.outbox[0]
         assert email.subject == "ECPP — Alerta de inasistencia"
         # HTML email: body is the plain-text fallback, check alternatives for HTML
-        assert "Juan Pérez" in email.body or "Juan Pérez" in (email.alternatives[0][0] if email.alternatives else "")
+        html_content = email.alternatives[0][0] if email.alternatives else ""
+        assert "Juan Pérez" in email.body or "Juan Pérez" in html_content
         assert email.to == ["inspector@test.com"]
 
 
