@@ -177,6 +177,15 @@
                 </table>
             </div>
 
+            <!-- Missing grades notice -->
+            <div x-show="puede_editar && missingCount > 0" x-transition x-cloak
+                 class="px-6 py-3 border-t border-blue-200 bg-blue-50 flex items-center gap-2 text-sm text-blue-700">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+                </svg>
+                <span x-text="missingCount === 1 ? 'Falta 1 calificación por registrar.' : 'Faltan ' + missingCount + ' calificaciones por registrar.'"></span>
+            </div>
+
             <!-- Unsaved changes notice -->
             <div x-show="hasChanges" x-transition
                  class="px-6 py-3 border-t border-amber-200 bg-amber-50 flex items-center gap-2 text-sm text-amber-700">
@@ -300,6 +309,8 @@ function planillaCalificaciones() {
         editing: {},
         values: {},
         hasChanges: false,
+        missingCount: 0,
+        puede_editar: {{ puede_editar|yesno:"true,false" }},
 
         init() {
             // Read initial values from real DOM inputs (not x-if templates)
@@ -313,6 +324,7 @@ function planillaCalificaciones() {
                 estudiantes.add(input.dataset.estudiante);
             });
             estudiantes.forEach(estId => this.calcularPromedio(estId));
+            this.contarFaltantes();
         },
 
         startEdit(key) {
@@ -336,6 +348,7 @@ function planillaCalificaciones() {
             this.values[key] = input.value;
             this.hasChanges = true;
             this.calcularPromedio(estudianteId);
+            this.contarFaltantes();
         },
 
         stopEdit(key, estudianteId) {
@@ -353,7 +366,10 @@ function planillaCalificaciones() {
                 delete this.values[key];
             }
             this.editing[key] = false;
-            this.$nextTick(() => this.calcularPromedio(estudianteId));
+            this.$nextTick(() => {
+                this.calcularPromedio(estudianteId);
+                this.contarFaltantes();
+            });
         },
 
         calcularPromedio(estudianteId) {
@@ -390,6 +406,19 @@ function planillaCalificaciones() {
             if (promedio >= 16) return 'text-green-600';
             if (promedio >= 14) return 'text-amber-500';
             return 'text-red-600';
+        },
+
+        contarFaltantes() {
+            let count = 0;
+            this.$el.querySelectorAll('input[type="number"][data-estudiante]').forEach(input => {
+                if (!input.value || input.value.trim() === '') {
+                    count++;
+                    input.classList.add('ring-1', 'ring-amber-400', 'border-amber-400');
+                } else {
+                    input.classList.remove('ring-1', 'ring-amber-400', 'border-amber-400');
+                }
+            });
+            this.missingCount = count;
         }
     }
 }
