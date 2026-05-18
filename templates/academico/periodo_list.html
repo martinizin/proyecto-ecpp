@@ -57,13 +57,63 @@
                         <div class="flex items-center gap-3">
                             <a href="{% url 'academico:periodo_update' periodo.pk %}" class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
                             {% if periodo.activo %}
-                            <form method="post" action="{% url 'academico:periodo_desactivar' periodo.pk %}"
-                                  x-data x-on:submit.prevent="if(confirm('¿Está seguro de desactivar el período «{{ periodo.nombre }}»?')) $el.submit()">
-                                {% csrf_token %}
-                                <button type="submit" class="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">
+                            <div x-data="{ showDeactivateModal: false }">
+                                <button type="button" @click="showDeactivateModal = true"
+                                        class="text-red-600 hover:text-red-800 font-medium text-sm transition-colors">
                                     Desactivar
                                 </button>
-                            </form>
+
+                                <!-- Deactivate confirmation modal -->
+                                <div x-show="showDeactivateModal"
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0"
+                                     x-transition:enter-end="opacity-100"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100"
+                                     x-transition:leave-end="opacity-0"
+                                     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                                     @keydown.escape.window="showDeactivateModal = false"
+                                     style="display: none;">
+                                    <div class="absolute inset-0 bg-black/50" @click="showDeactivateModal = false"></div>
+                                    <div x-show="showDeactivateModal"
+                                         x-transition:enter="transition ease-out duration-200"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-150"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                                        <div class="flex items-center gap-3 mb-4">
+                                            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h3 class="text-lg font-semibold text-gray-800">Desactivar Período</h3>
+                                                <p class="text-sm text-gray-500">Esta acción requiere confirmación</p>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm text-gray-600 mb-6">
+                                            ¿Está seguro de desactivar el período <strong>{{ periodo.nombre }}</strong>?
+                                        </p>
+                                        <div class="flex items-center justify-end gap-3">
+                                            <button type="button"
+                                                    @click="showDeactivateModal = false"
+                                                    class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                                                Cancelar
+                                            </button>
+                                            <form method="post" action="{% url 'academico:periodo_desactivar' periodo.pk %}">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                                                    Confirmar Desactivación
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             {% endif %}
                         </div>
                     </td>
