@@ -410,9 +410,7 @@ class SolicitudAppService:
         Returns dict with 'ok' and 'error' or 'solicitud'.
         """
         try:
-            solicitud = Solicitud.objects.select_related("estudiante").get(
-                pk=solicitud_id
-            )
+            solicitud = Solicitud.objects.select_related("estudiante").get(pk=solicitud_id)
         except Solicitud.DoesNotExist:
             return {"ok": False, "error": "Solicitud no encontrada."}
 
@@ -426,9 +424,7 @@ class SolicitudAppService:
         SolicitudAppService._registrar_historial(
             solicitud, estado_anterior, solicitud.estado, usuario, "Solicitud tomada."
         )
-        SolicitudAppService._notificar_estudiante_cambio(
-            solicitud, solicitud.estado
-        )
+        SolicitudAppService._notificar_estudiante_cambio(solicitud, solicitud.estado)
         return {"ok": True, "solicitud": solicitud}
 
     @staticmethod
@@ -489,9 +485,7 @@ class SolicitudAppService:
         return {"ok": True, "solicitud": solicitud}
 
     @staticmethod
-    def resolver_solicitud(
-        solicitud_id, usuario, accion, comentario="", nueva_nota=None
-    ):
+    def resolver_solicitud(solicitud_id, usuario, accion, comentario="", nueva_nota=None):
         """Approve or reject a solicitud.
 
         Args:
@@ -529,10 +523,7 @@ class SolicitudAppService:
             return {"ok": False, "error": "Debe indicar el motivo del rechazo."}
 
         # Approve recalificación: validate nueva_nota
-        if (
-            accion == "aprobar"
-            and solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION
-        ):
+        if accion == "aprobar" and solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION:
             if nueva_nota is None or str(nueva_nota).strip() == "":
                 return {"ok": False, "error": "Debe indicar la nueva nota."}
             try:
@@ -551,9 +542,7 @@ class SolicitudAppService:
         solicitud.respuesta = comentario.strip()
         solicitud.resuelto_por = usuario
         solicitud.fecha_resolucion = timezone.now()
-        solicitud.save(
-            update_fields=["estado", "respuesta", "resuelto_por", "fecha_resolucion"]
-        )
+        solicitud.save(update_fields=["estado", "respuesta", "resuelto_por", "fecha_resolucion"])
 
         SolicitudAppService._registrar_historial(
             solicitud, estado_anterior, solicitud.estado, usuario, comentario
@@ -562,15 +551,11 @@ class SolicitudAppService:
         # Side effects on approval
         if accion == "aprobar":
             if solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION:
-                SolicitudAppService._aplicar_recalificacion(
-                    solicitud, nueva_nota_decimal, usuario
-                )
+                SolicitudAppService._aplicar_recalificacion(solicitud, nueva_nota_decimal, usuario)
             elif solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION:
                 SolicitudAppService._aplicar_justificacion(solicitud)
 
-        SolicitudAppService._notificar_estudiante_cambio(
-            solicitud, solicitud.estado, comentario
-        )
+        SolicitudAppService._notificar_estudiante_cambio(solicitud, solicitud.estado, comentario)
         return {"ok": True, "solicitud": solicitud}
 
     @staticmethod
@@ -588,8 +573,7 @@ class SolicitudAppService:
             calificacion=calificacion,
             evaluacion_info=str(calificacion.evaluacion),
             estudiante_info=(
-                f"{solicitud.estudiante.get_full_name()} "
-                f"({solicitud.estudiante.cedula})"
+                f"{solicitud.estudiante.get_full_name()} " f"({solicitud.estudiante.cedula})"
             ),
             accion=LogCalificacion.TipoAccion.RECALIFICACION,
             valor_anterior=valor_anterior,

@@ -135,9 +135,7 @@ class PendientesDocenteView(RolRequeridoMixin, View):
     def get(self, request):
         service = SolicitudAppService()
         solicitudes = service.obtener_pendientes_docente(request.user)
-        return render(
-            request, self.template_name, {"solicitudes": solicitudes}
-        )
+        return render(request, self.template_name, {"solicitudes": solicitudes})
 
 
 class PendientesSecretariaView(RolRequeridoMixin, View):
@@ -172,9 +170,7 @@ class PendientesJustificacionView(RolRequeridoMixin, View):
     def get(self, request):
         service = SolicitudAppService()
         solicitudes = service.obtener_pendientes_justificacion()
-        return render(
-            request, self.template_name, {"solicitudes": solicitudes}
-        )
+        return render(request, self.template_name, {"solicitudes": solicitudes})
 
 
 class ResolverSolicitudView(MultiRolRequeridoMixin, View):
@@ -212,9 +208,7 @@ class ResolverSolicitudView(MultiRolRequeridoMixin, View):
 
         # Escalar a docente (secretaría validates 2da+)
         if accion == "escalar":
-            resultado = service.escalar_a_docente(
-                pk, request.user, comentario
-            )
+            resultado = service.escalar_a_docente(pk, request.user, comentario)
         # Tomar solicitud (PENDIENTE → EN_REVISION)
         elif accion == "tomar":
             resultado = service.tomar_solicitud(pk, request.user)

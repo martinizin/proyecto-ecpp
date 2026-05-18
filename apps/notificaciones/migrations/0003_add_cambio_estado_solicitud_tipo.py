@@ -6,13 +6,23 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('notificaciones', '0002_alter_notificacion_tipo'),
+        ("notificaciones", "0002_alter_notificacion_tipo"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='notificacion',
-            name='tipo',
-            field=models.CharField(choices=[('alerta_inasistencia', 'Alerta de inasistencia'), ('solicitud_recalificacion', 'Solicitud de recalificación'), ('solicitud_justificacion', 'Solicitud de justificación'), ('cambio_estado_solicitud', 'Cambio de estado de solicitud'), ('general', 'General')], default='general', max_length=30),
+            model_name="notificacion",
+            name="tipo",
+            field=models.CharField(
+                choices=[
+                    ("alerta_inasistencia", "Alerta de inasistencia"),
+                    ("solicitud_recalificacion", "Solicitud de recalificación"),
+                    ("solicitud_justificacion", "Solicitud de justificación"),
+                    ("cambio_estado_solicitud", "Cambio de estado de solicitud"),
+                    ("general", "General"),
+                ],
+                default="general",
+                max_length=30,
+            ),
         ),
     ]

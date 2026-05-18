@@ -18,7 +18,7 @@ from apps.calificaciones.infrastructure.models import (
 )
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.solicitudes.application.services import SolicitudAppService
-from apps.solicitudes.infrastructure.models import HistorialSolicitud, Solicitud
+from apps.solicitudes.infrastructure.models import HistorialSolicitud
 from tests.factories import (
     AsistenciaFactory,
     CalificacionFactory,
@@ -98,7 +98,9 @@ class TestObtenerPendientesDocente:
     def test_obtener_pendientes_docente_1ra_solicitud(self):
         """1ra solicitud: PENDIENTE + requiere_secretaria=False → appears for docente."""
         est, doc, cal, _ = _setup_recalificacion_chain()
-        sol = _make_rectificacion_solicitud(est, cal, estado="pendiente", requiere_secretaria=False)
+        sol = _make_rectificacion_solicitud(
+            est, cal, estado="pendiente", requiere_secretaria=False
+        )
 
         qs = SolicitudAppService.obtener_pendientes_docente(doc)
         assert sol in qs
@@ -287,9 +289,7 @@ class TestResolverRecalificacion:
         est, doc, cal, _ = _setup_recalificacion_chain()
         sol = _make_rectificacion_solicitud(est, cal, estado="en_revision")
 
-        result = SolicitudAppService.resolver_solicitud(
-            sol.pk, doc, "aprobar", nueva_nota="abc"
-        )
+        result = SolicitudAppService.resolver_solicitud(sol.pk, doc, "aprobar", nueva_nota="abc")
         assert result["ok"] is False
         assert "numérico" in result["error"].lower()
 
@@ -298,17 +298,13 @@ class TestResolverRecalificacion:
         est, doc, cal, _ = _setup_recalificacion_chain()
         sol = _make_rectificacion_solicitud(est, cal, estado="en_revision")
 
-        result = SolicitudAppService.resolver_solicitud(
-            sol.pk, doc, "aprobar", nueva_nota="25"
-        )
+        result = SolicitudAppService.resolver_solicitud(sol.pk, doc, "aprobar", nueva_nota="25")
         assert result["ok"] is False
         assert "entre 0 y 20" in result["error"].lower()
 
         # Also test negative
         sol2 = _make_rectificacion_solicitud(est, cal, estado="en_revision")
-        result2 = SolicitudAppService.resolver_solicitud(
-            sol2.pk, doc, "aprobar", nueva_nota="-1"
-        )
+        result2 = SolicitudAppService.resolver_solicitud(sol2.pk, doc, "aprobar", nueva_nota="-1")
         assert result2["ok"] is False
 
     def test_rechazar_recalificacion(self):
@@ -324,18 +320,14 @@ class TestResolverRecalificacion:
         sol.refresh_from_db()
         assert sol.estado == "rechazada"
         assert sol.respuesta == "No procede"
-        assert HistorialSolicitud.objects.filter(
-            solicitud=sol, estado_nuevo="rechazada"
-        ).exists()
+        assert HistorialSolicitud.objects.filter(solicitud=sol, estado_nuevo="rechazada").exists()
 
     def test_rechazar_sin_comentario(self):
         """Returns error 'Debe indicar el motivo del rechazo'."""
         est, doc, cal, _ = _setup_recalificacion_chain()
         sol = _make_rectificacion_solicitud(est, cal, estado="en_revision")
 
-        result = SolicitudAppService.resolver_solicitud(
-            sol.pk, doc, "rechazar", comentario=""
-        )
+        result = SolicitudAppService.resolver_solicitud(sol.pk, doc, "rechazar", comentario="")
         assert result["ok"] is False
         assert "motivo del rechazo" in result["error"].lower()
 
