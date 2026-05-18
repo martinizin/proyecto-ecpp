@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitudes Pendientes{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Solicitudes Pendientes</li>
+    </ol>
+</nav>
+
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-gray-800">Solicitudes de Recalificación</h1>
+        <p class="text-sm text-gray-500 mt-1">Solicitudes asignadas a sus paralelos que requieren resolución.</p>
+    </div>
+
+    {% if solicitudes %}
+    <div class="space-y-3">
+        {% for sol in solicitudes %}
+        <a href="{% url 'solicitudes:resolver_solicitud' sol.pk %}"
+           class="block bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+            <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                        {% if sol.estado == "pendiente" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pendiente</span>
+                        {% elif sol.estado == "en_revision" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">En Revisión</span>
+                        {% endif %}
+                        {% if sol.requiere_secretaria %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Escalada por Secretaría</span>
+                        {% endif %}
+                        <span class="text-xs text-gray-400">Solicitud #{{ sol.numero_solicitud }}</span>
+                    </div>
+                    {% if sol.calificacion %}
+                    <p class="text-sm text-gray-800 font-medium truncate">
+                        {{ sol.calificacion.evaluacion.paralelo.asignatura.nombre }} —
+                        {{ sol.calificacion.evaluacion.get_tipo_display }}
+                        <span class="text-gray-400 font-normal">(Nota actual: {{ sol.calificacion.nota }})</span>
+                    </p>
+                    {% endif %}
+                    <p class="text-sm text-gray-600 mt-0.5">{{ sol.estudiante.get_full_name }}</p>
+                    <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ sol.descripcion }}</p>
+                </div>
+                <div class="flex flex-col items-end gap-1 text-xs text-gray-400 flex-shrink-0">
+                    <span>{{ sol.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                    <span class="text-primary font-medium">Resolver →</span>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-md px-6 py-12">
+        <div class="flex flex-col items-center gap-2">
+            <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No tiene solicitudes pendientes</p>
+            <p class="text-gray-400 text-xs">Las solicitudes de recalificación aparecerán aquí.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

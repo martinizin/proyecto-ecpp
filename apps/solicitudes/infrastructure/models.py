@@ -98,3 +98,40 @@ class Solicitud(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - " f"{self.estudiante} ({self.get_estado_display()})"
+
+
+class HistorialSolicitud(models.Model):
+    """Tracks every state change of a solicitud for full traceability."""
+
+    solicitud = models.ForeignKey(
+        Solicitud,
+        on_delete=models.CASCADE,
+        related_name="historial",
+    )
+    estado_anterior = models.CharField(
+        max_length=15,
+        choices=Solicitud.EstadoSolicitud.choices,
+    )
+    estado_nuevo = models.CharField(
+        max_length=15,
+        choices=Solicitud.EstadoSolicitud.choices,
+    )
+    cambiado_por = models.ForeignKey(
+        "usuarios.Usuario",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    comentario = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Historial de Solicitud"
+        verbose_name_plural = "Historial de Solicitudes"
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return (
+            f"{self.solicitud_id}: "
+            f"{self.estado_anterior} → {self.estado_nuevo} "
+            f"({self.cambiado_por})"
+        )
