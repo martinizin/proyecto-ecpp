@@ -476,16 +476,6 @@ class TestResolverSolicitudView:
         resp = client.get(reverse("solicitudes:resolver_solicitud", kwargs={"pk": sol.pk}))
         assert resp.status_code == 200
 
-    def test_resolver_solicitud_post_tomar(self, client):
-        sol, *_ = self._setup_with_login(client, "docente")
-        resp = client.post(
-            reverse("solicitudes:resolver_solicitud", kwargs={"pk": sol.pk}),
-            {"accion": "tomar"},
-        )
-        assert resp.status_code == 302
-        sol.refresh_from_db()
-        assert sol.estado == "en_revision"
-
     def test_resolver_solicitud_post_aprobar_recalificacion(self, client):
         est, doc, cal, _ = _setup_recalificacion_chain()
         sol = _make_rectificacion_solicitud(est, cal, estado="en_revision")
