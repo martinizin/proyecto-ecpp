@@ -2,6 +2,8 @@
 URL configuration for ECPPP project.
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import TemplateView
@@ -22,3 +24,7 @@ urlpatterns = [
     path("calificaciones/", include("apps.calificaciones.presentation.urls")),
     path("solicitudes/", include("apps.solicitudes.presentation.urls")),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
