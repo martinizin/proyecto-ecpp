@@ -529,6 +529,11 @@ class SolicitudAppService:
                 return {"ok": False, "error": "La nota debe ser un valor numérico."}
             if nueva_nota_decimal < 0 or nueva_nota_decimal > 20:
                 return {"ok": False, "error": "La nota debe estar entre 0 y 20."}
+            if solicitud.calificacion and nueva_nota_decimal < solicitud.calificacion.nota:
+                return {
+                    "ok": False,
+                    "error": "La nueva nota no puede ser menor a la nota actual.",
+                }
 
         estado_anterior = solicitud.estado
         if accion == "aprobar":
