@@ -79,7 +79,7 @@ class RegistroCalificacionAppService:
         total_existente = Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).count()
         return total_existente >= total_esperado
 
-    def enviar_a_validacion(self, paralelo_id: int) -> dict:
+    def enviar_a_validacion(self, paralelo_id: int, usuario=None) -> dict:
         """Change state to COMPLETO if all grades are filled."""
         registro = self.obtener_o_crear_registro(paralelo_id)
 
@@ -112,6 +112,14 @@ class RegistroCalificacionAppService:
         registro.estado = RegistroCalificacionParalelo.Estado.COMPLETO
         registro.fecha_envio = timezone.now()
         registro.save(update_fields=["estado", "fecha_envio"])
+
+        # Log macro: envío de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.ENVIO_PLANILLA,
+            realizado_por=usuario,
+            motivo=f"Planilla enviada a validación — {registro.paralelo}",
+        )
+
         return {"ok": True}
 
     def puede_editar(self, paralelo_id: int) -> bool:
@@ -199,19 +207,6 @@ class RegistroCalificacionAppService:
 
             if created or valor_anterior != nota_vo.valor:
                 guardadas += 1
-                accion = (
-                    LogCalificacion.TipoAccion.CREACION
-                    if created
-                    else LogCalificacion.TipoAccion.MODIFICACION
-                )
-                AuditoriaCalificacionService.registrar_cambio(
-                    calificacion=cal,
-                    accion=accion,
-                    valor_anterior=valor_anterior,
-                    valor_nuevo=nota_vo.valor,
-                    usuario=usuario,
-                    ip=ip,
-                )
 
         return {"guardadas": guardadas, "errores": errores}
 
@@ -384,6 +379,14 @@ class ValidacionCalificacionAppService:
         registro.fecha_validacion = timezone.now()
         registro.validado_por = usuario
         registro.save(update_fields=["estado", "fecha_validacion", "validado_por"])
+
+        # Log macro: aprobación de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.APROBACION_PLANILLA,
+            realizado_por=usuario,
+            motivo=f"Planilla aprobada — {registro.paralelo}",
+        )
+
         return {"ok": True}
 
     def rechazar(self, paralelo_id: int, usuario, observaciones: str) -> dict:
@@ -405,6 +408,14 @@ class ValidacionCalificacionAppService:
         registro.estado = RegistroCalificacionParalelo.Estado.RECHAZADO
         registro.observaciones_secretaria = observaciones.strip()
         registro.save(update_fields=["estado", "observaciones_secretaria"])
+
+        # Log macro: rechazo de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.RECHAZO_PLANILLA,
+            realizado_por=usuario,
+            motivo=f"Planilla rechazada — {registro.paralelo}. {observaciones.strip()}",
+        )
+
         return {"ok": True}
 
 

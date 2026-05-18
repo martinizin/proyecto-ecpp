@@ -108,6 +108,10 @@ class LogCalificacion(models.Model):
         MODIFICACION = "modificacion", "Modificación"
         RECALIFICACION = "recalificacion", "Recalificación"
         ELIMINACION = "eliminacion", "Eliminación"
+        ENVIO_PLANILLA = "envio_planilla", "Envío de Planilla"
+        APROBACION_PLANILLA = "aprobacion_planilla", "Aprobación de Planilla"
+        RECHAZO_PLANILLA = "rechazo_planilla", "Rechazo de Planilla"
+        JUSTIFICACION = "justificacion", "Justificación de Asistencia"
 
     calificacion = models.ForeignKey(
         Calificacion,
@@ -115,9 +119,9 @@ class LogCalificacion(models.Model):
         null=True,
         related_name="logs",
     )
-    evaluacion_info = models.CharField(max_length=200)
-    estudiante_info = models.CharField(max_length=200)
-    accion = models.CharField(max_length=20, choices=TipoAccion.choices)
+    evaluacion_info = models.CharField(max_length=200, blank=True, default="")
+    estudiante_info = models.CharField(max_length=200, blank=True, default="")
+    accion = models.CharField(max_length=25, choices=TipoAccion.choices)
     valor_anterior = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     valor_nuevo = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     realizado_por = models.ForeignKey(

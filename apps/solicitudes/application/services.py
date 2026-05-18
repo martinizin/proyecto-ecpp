@@ -136,14 +136,10 @@ class SolicitudAppService:
         # Notify based on flow
         if requiere_secretaria:
             # 2da+: notify secretaría (they must validate first)
-            SolicitudAppService._notificar_secretaria_recalificacion(
-                solicitud, calificacion
-            )
+            SolicitudAppService._notificar_secretaria_recalificacion(solicitud, calificacion)
         else:
             # 1ra: notify docente directly
-            SolicitudAppService._notificar_docente_recalificacion(
-                solicitud, calificacion
-            )
+            SolicitudAppService._notificar_docente_recalificacion(solicitud, calificacion)
 
         return {"ok": True, "solicitud": solicitud}
 
@@ -601,7 +597,7 @@ class SolicitudAppService:
             if solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION:
                 SolicitudAppService._aplicar_recalificacion(solicitud, nueva_nota_decimal, usuario)
             elif solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION:
-                SolicitudAppService._aplicar_justificacion(solicitud)
+                SolicitudAppService._aplicar_justificacion(solicitud, usuario)
 
         SolicitudAppService._notificar_estudiante_cambio(solicitud, solicitud.estado, comentario)
         return {"ok": True, "solicitud": solicitud}
@@ -634,10 +630,23 @@ class SolicitudAppService:
         )
 
     @staticmethod
-    def _aplicar_justificacion(solicitud):
+    def _aplicar_justificacion(solicitud, usuario):
         """Change asistencia from AUSENTE to JUSTIFICADO."""
         asistencia = solicitud.asistencia
         if not asistencia:
             return
         asistencia.estado = Asistencia.Estado.JUSTIFICADO
         asistencia.save(update_fields=["estado"])
+
+        # Log macro: justificación de asistencia
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.JUSTIFICACION,
+            estudiante_info=(
+                f"{solicitud.estudiante.get_full_name()} ({solicitud.estudiante.cedula})"
+            ),
+            realizado_por=usuario,
+            motivo=(
+                f"Justificación aprobada — Solicitud #{solicitud.numero_solicitud}. "
+                f"{solicitud.respuesta}"
+            ),
+        )

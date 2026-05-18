@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Auditoría de Calificaciones{% endblock %}
+{% block title %}Auditorías{% endblock %}
 
 {% block content %}
 <!-- Breadcrumb -->
@@ -8,7 +8,7 @@
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
-        <li class="text-gray-800 font-medium">Auditoría de Calificaciones</li>
+        <li class="text-gray-800 font-medium">Auditorías</li>
     </ol>
 </nav>
 
@@ -16,8 +16,8 @@
     <!-- Header -->
     <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <h1 class="text-xl font-semibold text-gray-800">Registro de Auditoría — Calificaciones</h1>
-            <p class="text-sm text-gray-500 mt-1">Historial inmutable de todos los cambios en calificaciones.</p>
+            <h1 class="text-xl font-semibold text-gray-800">Auditorías</h1>
+            <p class="text-sm text-gray-500 mt-1">Historial de eventos importantes: envíos de planillas, aprobaciones, rechazos, recalificaciones y justificaciones.</p>
         </div>
         {% if user.rol == "secretaria" %}
         <a href="{% url 'calificaciones:pendientes_validacion' %}"
