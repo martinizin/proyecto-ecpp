@@ -293,8 +293,7 @@ class SolicitudAppService:
     def obtener_pendientes_docente(docente):
         """Solicitudes de recalificación pendientes en paralelos del docente.
 
-        1ra solicitud: PENDIENTE (docente toma directamente).
-        2da+: EN_REVISION (secretaría ya validó, ahora toca docente).
+        Includes PENDIENTE (1ra) and EN_REVISION (escaladas por secretaría).
         """
         return (
             Solicitud.objects.filter(
@@ -302,14 +301,12 @@ class SolicitudAppService:
                 calificacion__evaluacion__paralelo__docente=docente,
             )
             .filter(
-                # 1ra: pendiente sin secretaría | 2da+: en_revision con secretaría
                 models.Q(
                     estado=Solicitud.EstadoSolicitud.PENDIENTE,
                     requiere_secretaria=False,
                 )
                 | models.Q(
                     estado=Solicitud.EstadoSolicitud.EN_REVISION,
-                    requiere_secretaria=True,
                 )
             )
             .select_related(
