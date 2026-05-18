@@ -396,9 +396,7 @@ class TestRecalificacionDesdeCompleto:
         evaluacion = EvaluacionFactory(paralelo=paralelo)
         calificacion = CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante)
 
-        result = SolicitudAppService.crear_recalificacion(
-            estudiante, calificacion.pk, "Motivo"
-        )
+        result = SolicitudAppService.crear_recalificacion(estudiante, calificacion.pk, "Motivo")
         assert result["ok"] is False
         assert "planilla ya fue enviada" in result["error"].lower()
 
