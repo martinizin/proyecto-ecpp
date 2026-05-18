@@ -49,12 +49,16 @@ class SolicitudAppService:
     def obtener_calificaciones_reclamables(estudiante):
         """Return calificaciones the student can request rectification for.
 
-        Only grades in VALIDADO paralelos, in active periods, with active enrollment.
+        Grades in COMPLETO or VALIDADO paralelos, in active periods, with active enrollment.
+        Students can request rectification once the docente sends the planilla (COMPLETO).
         """
         return (
             Calificacion.objects.filter(
                 estudiante=estudiante,
-                evaluacion__paralelo__registro_calificaciones__estado="validado",
+                evaluacion__paralelo__registro_calificaciones__estado__in=[
+                    "completo",
+                    "validado",
+                ],
                 evaluacion__paralelo__periodo__activo=True,
                 evaluacion__paralelo__matriculas__estudiante=estudiante,
                 evaluacion__paralelo__matriculas__estado=Matricula.Estado.ACTIVA,
@@ -96,12 +100,12 @@ class SolicitudAppService:
                 "error": "Solo puede solicitar recalificación en el período activo.",
             }
 
-        # Must be VALIDADO
+        # Must be COMPLETO or VALIDADO (planilla already sent)
         registro = getattr(paralelo, "registro_calificaciones", None)
-        if not registro or registro.estado != "validado":
+        if not registro or registro.estado not in ("completo", "validado"):
             return {
                 "ok": False,
-                "error": "Solo puede reclamar evaluaciones con notas validadas.",
+                "error": "Solo puede reclamar evaluaciones cuya planilla ya fue enviada.",
             }
 
         # Validate file
@@ -235,6 +239,7 @@ class SolicitudAppService:
             numero_solicitud=numero,
         )
 
+        SolicitudAppService._notificar_inspectores_justificacion(solicitud, asistencia)
         return {"ok": True, "solicitud": solicitud}
 
     # ── Listar mis solicitudes ────────────────────────────────────────
@@ -319,6 +324,39 @@ class SolicitudAppService:
                 try:
                     enviar_email_html(
                         destinatario=sec.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
+                    )
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _notificar_inspectores_justificacion(solicitud, asistencia):
+        """Notify all inspectors (in-app + email) about a new absence justification."""
+        asignatura = asistencia.paralelo.asignatura.nombre
+        estudiante_nombre = solicitud.estudiante.get_full_name()
+
+        titulo = f"Solicitud de justificación — {asignatura}"
+        mensaje = (
+            f"El estudiante {estudiante_nombre} ha solicitado "
+            f"justificación de inasistencia en {asignatura}.\n\n"
+            f"Motivo: {solicitud.descripcion}"
+        )
+
+        inspectores = Usuario.objects.filter(rol="inspector", is_active=True)
+        for inspector in inspectores:
+            Notificacion.objects.create(
+                destinatario=inspector,
+                tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/solicitudes/justificaciones/",
+            )
+            if inspector.email:
+                try:
+                    enviar_email_html(
+                        destinatario=inspector.email,
                         asunto=f"[ECPP] {titulo}",
                         template="emails/notificacion_general.html",
                         contexto={"titulo": titulo, "mensaje": mensaje},
