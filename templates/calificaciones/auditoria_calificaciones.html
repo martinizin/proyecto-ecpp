@@ -174,10 +174,30 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
                             Eliminación
                         </span>
+                        {% elif log.accion == "envio_planilla" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                            Envío de Planilla
+                        </span>
+                        {% elif log.accion == "aprobacion_planilla" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                            Aprobación de Planilla
+                        </span>
+                        {% elif log.accion == "rechazo_planilla" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                            Rechazo de Planilla
+                        </span>
+                        {% elif log.accion == "justificacion" %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                            Justificación
+                        </span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3 text-gray-700">{{ log.estudiante_info }}</td>
-                    <td class="px-4 py-3 text-gray-700">{{ log.evaluacion_info }}</td>
+                    <td class="px-4 py-3 text-gray-700">
+                        {% if log.estudiante_info %}{{ log.estudiante_info }}{% elif log.motivo %}—{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">
+                        {% if log.evaluacion_info %}{{ log.evaluacion_info }}{% elif log.motivo %}<span class="text-xs text-gray-500">{{ log.motivo }}</span>{% else %}—{% endif %}
+                    </td>
                     <td class="px-4 py-3 text-center text-gray-500">
                         {% if log.valor_anterior is not None %}{{ log.valor_anterior }}{% else %}—{% endif %}
                     </td>

@@ -113,12 +113,19 @@ class RegistroCalificacionAppService:
         registro.fecha_envio = timezone.now()
         registro.save(update_fields=["estado", "fecha_envio"])
 
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
         # Log macro: envío de planilla
         LogCalificacion.objects.create(
             accion=LogCalificacion.TipoAccion.ENVIO_PLANILLA,
             realizado_por=usuario,
-            motivo=f"Planilla enviada a validación — {registro.paralelo}",
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla enviada a validación — {info_paralelo}",
         )
+
+        # Notify secretaría (in-app + email)
+        self._notificar_secretaria_envio(registro, usuario)
 
         return {"ok": True}
 
@@ -209,6 +216,45 @@ class RegistroCalificacionAppService:
                 guardadas += 1
 
         return {"guardadas": guardadas, "errores": errores}
+
+    def _notificar_secretaria_envio(self, registro, usuario):
+        """Notify all secretaría users that a planilla was submitted."""
+        import logging
+
+        from apps.notificaciones.infrastructure.models import Notificacion
+        from apps.shared.email_utils import enviar_email_html
+        from apps.usuarios.infrastructure.models import Usuario
+
+        logger = logging.getLogger(__name__)
+        paralelo = registro.paralelo
+        docente_nombre = usuario.get_full_name() if usuario else "Docente"
+        info = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        titulo = f"Planilla enviada — {info}"
+        mensaje = (
+            f"El docente {docente_nombre} ha enviado la planilla de "
+            f"calificaciones de {info} para su validación."
+        )
+
+        secretarias = Usuario.objects.filter(rol="secretaria", is_active=True)
+        for sec in secretarias:
+            Notificacion.objects.create(
+                destinatario=sec,
+                tipo=Notificacion.Tipo.ENVIO_PLANILLA,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/calificaciones/validacion/",
+            )
+            if sec.email:
+                try:
+                    enviar_email_html(
+                        destinatario=sec.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
+                    )
+                except Exception:
+                    logger.exception("Error enviando email a secretaría.")
 
 
 # ---------------------------------------------------------------------------
@@ -380,12 +426,19 @@ class ValidacionCalificacionAppService:
         registro.validado_por = usuario
         registro.save(update_fields=["estado", "fecha_validacion", "validado_por"])
 
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
         # Log macro: aprobación de planilla
         LogCalificacion.objects.create(
             accion=LogCalificacion.TipoAccion.APROBACION_PLANILLA,
             realizado_por=usuario,
-            motivo=f"Planilla aprobada — {registro.paralelo}",
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla aprobada — {info_paralelo}",
         )
+
+        # Notify docente (in-app + email)
+        self._notificar_docente_resultado(registro, usuario, aprobado=True)
 
         return {"ok": True}
 
@@ -409,14 +462,73 @@ class ValidacionCalificacionAppService:
         registro.observaciones_secretaria = observaciones.strip()
         registro.save(update_fields=["estado", "observaciones_secretaria"])
 
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
         # Log macro: rechazo de planilla
         LogCalificacion.objects.create(
             accion=LogCalificacion.TipoAccion.RECHAZO_PLANILLA,
             realizado_por=usuario,
-            motivo=f"Planilla rechazada — {registro.paralelo}. {observaciones.strip()}",
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla rechazada — {info_paralelo}. {observaciones.strip()}",
+        )
+
+        # Notify docente (in-app + email)
+        self._notificar_docente_resultado(
+            registro, usuario, aprobado=False, observaciones=observaciones.strip()
         )
 
         return {"ok": True}
+
+    def _notificar_docente_resultado(self, registro, usuario, aprobado=True, observaciones=""):
+        """Notify docente that their planilla was approved/rejected."""
+        import logging
+
+        from apps.notificaciones.infrastructure.models import Notificacion
+        from apps.shared.email_utils import enviar_email_html
+
+        logger = logging.getLogger(__name__)
+        paralelo = registro.paralelo
+        docente = paralelo.docente
+        if not docente:
+            return
+
+        info = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        if aprobado:
+            titulo = f"Planilla aprobada — {info}"
+            mensaje = (
+                f"Su planilla de calificaciones de {info} ha sido aprobada "
+                f"por secretaría. Las notas ya son visibles para los estudiantes."
+            )
+            tipo_notif = Notificacion.Tipo.APROBACION_PLANILLA
+        else:
+            titulo = f"Planilla rechazada — {info}"
+            mensaje = (
+                f"Su planilla de calificaciones de {info} ha sido rechazada "
+                f"por secretaría.\n\nObservaciones: {observaciones}\n\n"
+                f"Por favor corrija y reenvíe."
+            )
+            tipo_notif = Notificacion.Tipo.RECHAZO_PLANILLA
+
+        Notificacion.objects.create(
+            destinatario=docente,
+            tipo=tipo_notif,
+            titulo=titulo,
+            mensaje=mensaje,
+            url="/calificaciones/paralelos/",
+        )
+
+        if docente.email:
+            try:
+                enviar_email_html(
+                    destinatario=docente.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
+                )
+            except Exception:
+                logger.exception("Error enviando email a docente.")
 
 
 class LibretaCalificacionesAppService:
