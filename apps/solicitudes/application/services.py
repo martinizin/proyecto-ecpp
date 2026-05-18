@@ -6,8 +6,7 @@ Sprint 3 — HU18/HU19: Solicitudes de recalificación y justificación.
 
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
-from django.core.mail import send_mail
+from apps.shared.email_utils import enviar_email_html
 from django.db import models
 from django.utils import timezone
 
@@ -283,12 +282,11 @@ class SolicitudAppService:
         # Email notification
         if docente.email:
             try:
-                send_mail(
-                    subject=f"[ECPPP] {titulo}",
-                    message=mensaje,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[docente.email],
-                    fail_silently=True,
+                enviar_email_html(
+                    destinatario=docente.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
                 )
             except Exception:
                 pass  # Don't break the flow if email fails
@@ -319,12 +317,11 @@ class SolicitudAppService:
             )
             if sec.email:
                 try:
-                    send_mail(
-                        subject=f"[ECPPP] {titulo}",
-                        message=mensaje,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[sec.email],
-                        fail_silently=True,
+                    enviar_email_html(
+                        destinatario=sec.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
                     )
                 except Exception:
                     pass
@@ -431,12 +428,11 @@ class SolicitudAppService:
 
         if solicitud.estudiante.email:
             try:
-                send_mail(
-                    subject=f"[ECPPP] {titulo}",
-                    message=mensaje,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[solicitud.estudiante.email],
-                    fail_silently=True,
+                enviar_email_html(
+                    destinatario=solicitud.estudiante.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
                 )
             except Exception:
                 pass

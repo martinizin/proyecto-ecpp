@@ -1,0 +1,21 @@
+{% extends "emails/base_email.html" %}
+{% block subject %}ECPP — Cuenta bloqueada{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px; font-weight: 600;">
+    Cuenta bloqueada temporalmente
+</h2>
+<p style="margin: 0 0 12px; color: #374151; font-size: 15px; line-height: 1.6;">
+    Hola <strong>{{ nombre }}</strong>,
+</p>
+<p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+    Su cuenta ha sido bloqueada temporalmente debido a <strong>{{ max_intentos }} intentos fallidos</strong> de inicio de sesi&oacute;n.
+</p>
+<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; padding: 12px 16px; margin: 0 0 20px;">
+    <p style="margin: 0; color: #991b1b; font-size: 14px;">
+        Podr&aacute; intentar nuevamente en <strong>{{ lockout_minutos }} minutos</strong>.
+    </p>
+</div>
+<p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+    Si no fue usted quien intent&oacute; acceder, le recomendamos cambiar su contrase&ntilde;a en cuanto recupere el acceso.
+</p>
+{% endblock %}

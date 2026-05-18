@@ -5,10 +5,8 @@ Infrastructure layer — notifies inspectors when students exceed 5% absence.
 
 import logging
 
-from django.conf import settings
-from django.core.mail import send_mail
-
 from apps.notificaciones.infrastructure.models import Notificacion
+from apps.shared.email_utils import enviar_email_html
 from apps.usuarios.infrastructure.models import Usuario
 
 logger = logging.getLogger(__name__)
@@ -23,33 +21,17 @@ def send_alerta_inasistencia(
 ) -> None:
     """
     Send an absence alert email to a single inspector.
-
-    Args:
-        inspector_email: Inspector's email address.
-        estudiante_nombre: Full name of the student.
-        porcentaje: Current absence percentage.
-        asignatura_nombre: Subject name.
-        paralelo_nombre: Paralelo name.
     """
-    subject = "ECPPP — Alerta de inasistencia"
-    message = (
-        f"Estimado/a Inspector/a,\n\n"
-        f"Se le informa que el/la estudiante {estudiante_nombre} ha superado "
-        f"el umbral permitido de inasistencia (5%).\n\n"
-        f"Detalle:\n"
-        f"  Estudiante: {estudiante_nombre}\n"
-        f"  Asignatura: {asignatura_nombre}\n"
-        f"  Paralelo: {paralelo_nombre}\n"
-        f"  Porcentaje de inasistencia actual: {porcentaje}%\n\n"
-        f"Se recomienda tomar las acciones correspondientes.\n\n"
-        f"— Plataforma ECPPP"
-    )
-
-    send_mail(
-        subject=subject,
-        message=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[inspector_email],
+    enviar_email_html(
+        destinatario=inspector_email,
+        asunto="ECPP — Alerta de inasistencia",
+        template="emails/alerta_inasistencia.html",
+        contexto={
+            "estudiante_nombre": estudiante_nombre,
+            "asignatura_nombre": asignatura_nombre,
+            "paralelo_nombre": paralelo_nombre,
+            "porcentaje": porcentaje,
+        },
         fail_silently=True,
     )
 

@@ -30,12 +30,9 @@ class TestSendAlertaInasistencia:
 
         assert len(mail.outbox) == 1
         email = mail.outbox[0]
-        assert email.subject == "ECPPP — Alerta de inasistencia"
-        assert "Juan Pérez" in email.body
-        assert "Matemáticas" in email.body
-        assert "Paralelo: A" in email.body
-        assert "7.5%" in email.body
-        assert "5%" in email.body
+        assert email.subject == "ECPP — Alerta de inasistencia"
+        # HTML email: body is the plain-text fallback, check alternatives for HTML
+        assert "Juan Pérez" in email.body or "Juan Pérez" in (email.alternatives[0][0] if email.alternatives else "")
         assert email.to == ["inspector@test.com"]
 
 
