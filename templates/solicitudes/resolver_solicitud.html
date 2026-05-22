@@ -142,18 +142,6 @@
                 </button>
                 {% endif %}
 
-                {% if solicitud.estado == "pendiente" and not solicitud.requiere_secretaria %}
-                <!-- Tomar solicitud (1ra recalificación: docente / justificación: inspector o secretaría) -->
-                <form method="post" class="inline">
-                    {% csrf_token %}
-                    <input type="hidden" name="accion" value="tomar">
-                    <button type="submit"
-                            class="inline-flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
-                        Tomar Solicitud
-                    </button>
-                </form>
-                {% endif %}
-
                 {% if solicitud.estado == "en_revision" or solicitud.estado == "pendiente" and not solicitud.requiere_secretaria %}
                 <!-- Aprobar / Rechazar -->
                 <button @click="modal = 'aprobar'"

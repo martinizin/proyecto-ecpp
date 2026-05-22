@@ -79,7 +79,7 @@ class RegistroCalificacionAppService:
         total_existente = Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).count()
         return total_existente >= total_esperado
 
-    def enviar_a_validacion(self, paralelo_id: int) -> dict:
+    def enviar_a_validacion(self, paralelo_id: int, usuario=None) -> dict:
         """Change state to COMPLETO if all grades are filled."""
         registro = self.obtener_o_crear_registro(paralelo_id)
 
@@ -112,6 +112,21 @@ class RegistroCalificacionAppService:
         registro.estado = RegistroCalificacionParalelo.Estado.COMPLETO
         registro.fecha_envio = timezone.now()
         registro.save(update_fields=["estado", "fecha_envio"])
+
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        # Log macro: envío de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.ENVIO_PLANILLA,
+            realizado_por=usuario,
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla enviada a validación — {info_paralelo}",
+        )
+
+        # Notify secretaría (in-app + email)
+        self._notificar_secretaria_envio(registro, usuario)
+
         return {"ok": True}
 
     def puede_editar(self, paralelo_id: int) -> bool:
@@ -199,21 +214,47 @@ class RegistroCalificacionAppService:
 
             if created or valor_anterior != nota_vo.valor:
                 guardadas += 1
-                accion = (
-                    LogCalificacion.TipoAccion.CREACION
-                    if created
-                    else LogCalificacion.TipoAccion.MODIFICACION
-                )
-                AuditoriaCalificacionService.registrar_cambio(
-                    calificacion=cal,
-                    accion=accion,
-                    valor_anterior=valor_anterior,
-                    valor_nuevo=nota_vo.valor,
-                    usuario=usuario,
-                    ip=ip,
-                )
 
         return {"guardadas": guardadas, "errores": errores}
+
+    def _notificar_secretaria_envio(self, registro, usuario):
+        """Notify all secretaría users that a planilla was submitted."""
+        import logging
+
+        from apps.notificaciones.infrastructure.models import Notificacion
+        from apps.shared.email_utils import enviar_email_html
+        from apps.usuarios.infrastructure.models import Usuario
+
+        logger = logging.getLogger(__name__)
+        paralelo = registro.paralelo
+        docente_nombre = usuario.get_full_name() if usuario else "Docente"
+        info = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        titulo = f"Planilla enviada — {info}"
+        mensaje = (
+            f"El docente {docente_nombre} ha enviado la planilla de "
+            f"calificaciones de {info} para su validación."
+        )
+
+        secretarias = Usuario.objects.filter(rol="secretaria", is_active=True)
+        for sec in secretarias:
+            Notificacion.objects.create(
+                destinatario=sec,
+                tipo=Notificacion.Tipo.ENVIO_PLANILLA,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/calificaciones/pendientes-validacion/",
+            )
+            if sec.email:
+                try:
+                    enviar_email_html(
+                        destinatario=sec.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
+                    )
+                except Exception:
+                    logger.exception("Error enviando email a secretaría.")
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +425,21 @@ class ValidacionCalificacionAppService:
         registro.fecha_validacion = timezone.now()
         registro.validado_por = usuario
         registro.save(update_fields=["estado", "fecha_validacion", "validado_por"])
+
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        # Log macro: aprobación de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.APROBACION_PLANILLA,
+            realizado_por=usuario,
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla aprobada — {info_paralelo}",
+        )
+
+        # Notify docente (in-app + email)
+        self._notificar_docente_resultado(registro, usuario, aprobado=True)
+
         return {"ok": True}
 
     def rechazar(self, paralelo_id: int, usuario, observaciones: str) -> dict:
@@ -405,7 +461,74 @@ class ValidacionCalificacionAppService:
         registro.estado = RegistroCalificacionParalelo.Estado.RECHAZADO
         registro.observaciones_secretaria = observaciones.strip()
         registro.save(update_fields=["estado", "observaciones_secretaria"])
+
+        paralelo = registro.paralelo
+        info_paralelo = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        # Log macro: rechazo de planilla
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.RECHAZO_PLANILLA,
+            realizado_por=usuario,
+            evaluacion_info=info_paralelo,
+            motivo=f"Planilla rechazada — {info_paralelo}. {observaciones.strip()}",
+        )
+
+        # Notify docente (in-app + email)
+        self._notificar_docente_resultado(
+            registro, usuario, aprobado=False, observaciones=observaciones.strip()
+        )
+
         return {"ok": True}
+
+    def _notificar_docente_resultado(self, registro, usuario, aprobado=True, observaciones=""):
+        """Notify docente that their planilla was approved/rejected."""
+        import logging
+
+        from apps.notificaciones.infrastructure.models import Notificacion
+        from apps.shared.email_utils import enviar_email_html
+
+        logger = logging.getLogger(__name__)
+        paralelo = registro.paralelo
+        docente = paralelo.docente
+        if not docente:
+            return
+
+        info = f"{paralelo.asignatura} — Paralelo {paralelo.nombre}"
+
+        if aprobado:
+            titulo = f"Planilla aprobada — {info}"
+            mensaje = (
+                f"Su planilla de calificaciones de {info} ha sido aprobada "
+                f"por secretaría. Las notas ya son visibles para los estudiantes."
+            )
+            tipo_notif = Notificacion.Tipo.APROBACION_PLANILLA
+        else:
+            titulo = f"Planilla rechazada — {info}"
+            mensaje = (
+                f"Su planilla de calificaciones de {info} ha sido rechazada "
+                f"por secretaría.\n\nObservaciones: {observaciones}\n\n"
+                f"Por favor corrija y reenvíe."
+            )
+            tipo_notif = Notificacion.Tipo.RECHAZO_PLANILLA
+
+        Notificacion.objects.create(
+            destinatario=docente,
+            tipo=tipo_notif,
+            titulo=titulo,
+            mensaje=mensaje,
+            url="/calificaciones/paralelos/",
+        )
+
+        if docente.email:
+            try:
+                enviar_email_html(
+                    destinatario=docente.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
+                )
+            except Exception:
+                logger.exception("Error enviando email a docente.")
 
 
 class LibretaCalificacionesAppService:
@@ -467,10 +590,13 @@ class LibretaCalificacionesAppService:
     @staticmethod
     def _construir_materia(paralelo, estudiante):
         """Build a single subject card data dict."""
-        # Check if grades are published (VALIDADO)
+        # Check if grades are published (COMPLETO or VALIDADO)
         try:
             registro = paralelo.registro_calificaciones
-            notas_visibles = registro.estado == RegistroCalificacionParalelo.Estado.VALIDADO
+            notas_visibles = registro.estado in [
+                RegistroCalificacionParalelo.Estado.COMPLETO,
+                RegistroCalificacionParalelo.Estado.VALIDADO,
+            ]
         except RegistroCalificacionParalelo.DoesNotExist:
             notas_visibles = False
 
@@ -522,4 +648,71 @@ class LibretaCalificacionesAppService:
             "promedio": promedio,
             "estado": estado,
             "notas_visibles": notas_visibles,
+        }
+
+
+class SupervisionCalificacionesAppService:
+    """Inspector view: lista de estudiantes con promedios generales."""
+
+    @staticmethod
+    def obtener_datos_supervision(tipo_licencia_id=None):
+        """Return all active students with their overall GPA for supervision.
+
+        Returns:
+            dict with keys:
+            - estudiantes: list of dicts (estudiante, promedio_general, total_materias, riesgo)
+            - tipos_licencia: queryset for filter dropdown
+        """
+        from apps.academico.infrastructure.models import TipoLicencia
+
+        # Get all students with active enrollments in active periods
+        filtro = {
+            "estado": Matricula.Estado.ACTIVA,
+            "paralelo__periodo__activo": True,
+        }
+        if tipo_licencia_id:
+            filtro["paralelo__tipo_licencia_id"] = tipo_licencia_id
+
+        estudiante_ids = (
+            Matricula.objects.filter(**filtro).values_list("estudiante_id", flat=True).distinct()
+        )
+
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiantes_qs = Usuario.objects.filter(id__in=estudiante_ids, rol="estudiante").order_by(
+            "last_name", "first_name"
+        )
+
+        resultados = []
+        for est in estudiantes_qs:
+            libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+            promedio = libreta["promedio_general"]
+
+            # Determine risk level
+            if promedio is None:
+                riesgo = "sin_datos"
+            elif promedio < Decimal("14"):
+                riesgo = "rojo"
+            elif promedio < Decimal("16"):
+                riesgo = "amarillo"
+            else:
+                riesgo = "verde"
+
+            resultados.append(
+                {
+                    "estudiante": est,
+                    "promedio_general": promedio,
+                    "total_materias": libreta["total_materias"],
+                    "materias_con_promedio": libreta["materias_con_promedio"],
+                    "riesgo": riesgo,
+                }
+            )
+
+        tipos_licencia = TipoLicencia.objects.order_by("codigo")
+
+        return {
+            "estudiantes": resultados,
+            "tipos_licencia": tipos_licencia,
+            "total_estudiantes": len(resultados),
+            "en_riesgo": sum(1 for e in resultados if e["riesgo"] == "rojo"),
         }

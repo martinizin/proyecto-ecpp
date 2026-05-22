@@ -13,6 +13,7 @@ from apps.calificaciones.presentation.views import (
     RechazarCalificacionesView,
     RegistrarCalificacionesView,
     SeleccionarParaleloCalificacionesView,
+    SupervisionCalificacionesView,
 )
 
 app_name = "calificaciones"
@@ -77,5 +78,10 @@ urlpatterns = [
         "mi-libreta/",
         MiLibretaView.as_view(),
         name="mi_libreta",
+    ),
+    path(
+        "supervision/",
+        SupervisionCalificacionesView.as_view(),
+        name="supervision_calificaciones",
     ),
 ]

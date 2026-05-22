@@ -16,6 +16,7 @@ from tests.factories import (
     DocenteFactory,
     EstudianteFactory,
     EvaluacionFactory,
+    InspectorFactory,
     MatriculaFactory,
     ParaleloFactory,
     PeriodoFactory,
@@ -340,3 +341,104 @@ class TestDashboardEstudiante:
             or "recalificacion" in content.lower()
             or reverse("solicitudes:mis_solicitudes") in content
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS — Recalificación desde COMPLETO + Notificaciones justificación
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.django_db
+class TestRecalificacionDesdeCompleto:
+    """Reclamable grades should include COMPLETO (planilla enviada, no validada aún)."""
+
+    def test_calificaciones_reclamables_incluye_completo(self):
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        RegistroCalificacionParaleloFactory(
+            paralelo=paralelo, estado=RegistroCalificacionParalelo.Estado.COMPLETO
+        )
+        evaluacion = EvaluacionFactory(paralelo=paralelo)
+        calificacion = CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante)
+
+        qs = SolicitudAppService.obtener_calificaciones_reclamables(estudiante)
+        assert calificacion in qs
+
+    def test_crear_recalificacion_con_estado_completo(self):
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        RegistroCalificacionParaleloFactory(
+            paralelo=paralelo, estado=RegistroCalificacionParalelo.Estado.COMPLETO
+        )
+        evaluacion = EvaluacionFactory(paralelo=paralelo)
+        calificacion = CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante)
+
+        result = SolicitudAppService.crear_recalificacion(
+            estudiante, calificacion.pk, "Nota incorrecta"
+        )
+        assert result["ok"] is True
+
+    def test_crear_recalificacion_rechaza_borrador(self):
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        RegistroCalificacionParaleloFactory(
+            paralelo=paralelo, estado=RegistroCalificacionParalelo.Estado.BORRADOR
+        )
+        evaluacion = EvaluacionFactory(paralelo=paralelo)
+        calificacion = CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante)
+
+        result = SolicitudAppService.crear_recalificacion(estudiante, calificacion.pk, "Motivo")
+        assert result["ok"] is False
+        assert "planilla ya fue enviada" in result["error"].lower()
+
+
+@pytest.mark.django_db
+class TestNotificacionInspectorJustificacion:
+    """Inspector should be notified (in-app + email) when a justification is created."""
+
+    def test_crear_justificacion_notifica_inspector(self):
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        asistencia = AsistenciaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        inspector = InspectorFactory()
+        inspector.save()
+
+        result = SolicitudAppService.crear_justificacion(
+            estudiante, asistencia.pk, "Estuve enfermo"
+        )
+        assert result["ok"] is True
+
+        # Inspector receives in-app notification
+        notif = Notificacion.objects.filter(
+            destinatario=inspector,
+            tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
+        )
+        assert notif.exists()
+        assert "justificación" in notif.first().titulo.lower()
+
+    def test_crear_justificacion_sin_inspector_no_falla(self):
+        """If no inspectors exist, justification creation still succeeds."""
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        asistencia = AsistenciaFactory(estudiante=estudiante, paralelo=paralelo)
+
+        result = SolicitudAppService.crear_justificacion(
+            estudiante, asistencia.pk, "Motivo válido"
+        )
+        assert result["ok"] is True

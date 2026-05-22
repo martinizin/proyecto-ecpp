@@ -226,6 +226,20 @@ class SupervisionAsistenciaView(RolRequeridoMixin, View):
         datos["en_riesgo"] = en_riesgo
         datos["normales"] = datos["total_estudiantes"] - en_riesgo
 
+        # Calificaciones tab data
+        from apps.calificaciones.application.services import (
+            SupervisionCalificacionesAppService,
+        )
+
+        datos_cal = SupervisionCalificacionesAppService.obtener_datos_supervision(tipo_licencia_id)
+        datos["cal_estudiantes"] = datos_cal["estudiantes"]
+        datos["cal_total"] = datos_cal["total_estudiantes"]
+        datos["cal_en_riesgo"] = datos_cal["en_riesgo"]
+        datos["cal_aprobados"] = datos_cal["total_estudiantes"] - datos_cal["en_riesgo"]
+
+        # Active tab
+        datos["tab"] = request.GET.get("tab", "asistencia")
+
         return render(request, self.template_name, datos)
 
 
@@ -255,3 +269,45 @@ class DetalleInasistenciaEstudianteView(RolRequeridoMixin, View):
             )
 
         return JsonResponse({"asignaturas": asignaturas})
+
+
+class DetalleCalificacionesEstudianteView(RolRequeridoMixin, View):
+    """API endpoint: returns per-subject grade breakdown for a student (inspector only)."""
+
+    rol_requerido = "inspector"
+
+    def get(self, request, estudiante_id):
+        from apps.calificaciones.application.services import (
+            LibretaCalificacionesAppService,
+        )
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiante = Usuario.objects.filter(id=estudiante_id, rol="estudiante").first()
+        if not estudiante:
+            return JsonResponse({"materias": []})
+
+        libreta = LibretaCalificacionesAppService.obtener_libreta(estudiante)
+
+        materias = []
+        for m in libreta["materias"]:
+            paralelo = m["paralelo"]
+            materias.append(
+                {
+                    "asignatura": str(paralelo.asignatura),
+                    "codigo": paralelo.asignatura.codigo,
+                    "paralelo": paralelo.nombre,
+                    "docente": (paralelo.docente.get_full_name() if paralelo.docente else "—"),
+                    "promedio": float(m["promedio"]) if m["promedio"] else None,
+                    "estado": m["estado"],
+                    "evaluaciones": [
+                        {
+                            "tipo": ev["tipo"],
+                            "peso": ev["peso"],
+                            "nota": float(ev["nota"]) if ev["nota"] is not None else None,
+                        }
+                        for ev in m["evaluaciones"]
+                    ],
+                }
+            )
+
+        return JsonResponse({"materias": materias})

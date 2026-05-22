@@ -1,0 +1,24 @@
+{% extends "emails/base_email.html" %}
+{% block subject %}ECPP — Código de verificación{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #1f2937; font-size: 20px; font-weight: 600;">
+    C&oacute;digo de verificaci&oacute;n
+</h2>
+<p style="margin: 0 0 12px; color: #374151; font-size: 15px; line-height: 1.6;">
+    Hola <strong>{{ nombre }}</strong>,
+</p>
+<p style="margin: 0 0 24px; color: #374151; font-size: 15px; line-height: 1.6;">
+    Se ha solicitado un c&oacute;digo de verificaci&oacute;n para su cuenta. Ingrese el siguiente c&oacute;digo en la plataforma:
+</p>
+<div style="text-align: center; margin: 0 0 24px;">
+    <span style="display: inline-block; background-color: #f0fdf4; border: 2px solid #1B5E20; border-radius: 8px; padding: 16px 32px; font-size: 28px; font-weight: 700; color: #1B5E20; letter-spacing: 6px;">
+        {{ codigo }}
+    </span>
+</div>
+<p style="margin: 0 0 8px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+    Este c&oacute;digo expira en <strong>{{ expiracion_minutos }} minutos</strong>.
+</p>
+<p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+    Si usted no solicit&oacute; este c&oacute;digo, ignore este mensaje.
+</p>
+{% endblock %}

@@ -209,9 +209,6 @@ class ResolverSolicitudView(MultiRolRequeridoMixin, View):
         # Escalar a docente (secretaría validates 2da+)
         if accion == "escalar":
             resultado = service.escalar_a_docente(pk, request.user, comentario)
-        # Tomar solicitud (PENDIENTE → EN_REVISION)
-        elif accion == "tomar":
-            resultado = service.tomar_solicitud(pk, request.user)
         # Aprobar / Rechazar
         else:
             resultado = service.resolver_solicitud(
@@ -224,7 +221,6 @@ class ResolverSolicitudView(MultiRolRequeridoMixin, View):
 
         if resultado["ok"]:
             msg = {
-                "tomar": "Solicitud tomada correctamente.",
                 "escalar": "Solicitud escalada al docente.",
                 "aprobar": "Solicitud aprobada correctamente.",
                 "rechazar": "Solicitud rechazada.",

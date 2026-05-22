@@ -8,6 +8,7 @@ from django.urls import path
 
 from .views import (
     DashboardAsistenciaEstudianteView,
+    DetalleCalificacionesEstudianteView,
     DetalleInasistenciaEstudianteView,
     HistorialAsistenciaView,
     RegistrarAsistenciaView,
@@ -47,5 +48,10 @@ urlpatterns = [
         "supervision/estudiante/<int:estudiante_id>/detalle/",
         DetalleInasistenciaEstudianteView.as_view(),
         name="supervision_detalle_estudiante",
+    ),
+    path(
+        "supervision/estudiante/<int:estudiante_id>/detalle-calificaciones/",
+        DetalleCalificacionesEstudianteView.as_view(),
+        name="supervision_detalle_calificaciones",
     ),
 ]

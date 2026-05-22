@@ -6,8 +6,7 @@ Sprint 3 — HU18/HU19: Solicitudes de recalificación y justificación.
 
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
-from django.core.mail import send_mail
+from apps.shared.email_utils import enviar_email_html
 from django.db import models
 from django.utils import timezone
 
@@ -22,6 +21,7 @@ from apps.solicitudes.infrastructure.models import (
     HistorialSolicitud,
     Solicitud,
 )
+from apps.usuarios.infrastructure.models import Usuario
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
@@ -49,12 +49,16 @@ class SolicitudAppService:
     def obtener_calificaciones_reclamables(estudiante):
         """Return calificaciones the student can request rectification for.
 
-        Only grades in VALIDADO paralelos, in active periods, with active enrollment.
+        Grades in COMPLETO or VALIDADO paralelos, in active periods, with active enrollment.
+        Students can request rectification once the docente sends the planilla (COMPLETO).
         """
         return (
             Calificacion.objects.filter(
                 estudiante=estudiante,
-                evaluacion__paralelo__registro_calificaciones__estado="validado",
+                evaluacion__paralelo__registro_calificaciones__estado__in=[
+                    "completo",
+                    "validado",
+                ],
                 evaluacion__paralelo__periodo__activo=True,
                 evaluacion__paralelo__matriculas__estudiante=estudiante,
                 evaluacion__paralelo__matriculas__estado=Matricula.Estado.ACTIVA,
@@ -96,12 +100,12 @@ class SolicitudAppService:
                 "error": "Solo puede solicitar recalificación en el período activo.",
             }
 
-        # Must be VALIDADO
+        # Must be COMPLETO or VALIDADO (planilla already sent)
         registro = getattr(paralelo, "registro_calificaciones", None)
-        if not registro or registro.estado != "validado":
+        if not registro or registro.estado not in ("completo", "validado"):
             return {
                 "ok": False,
-                "error": "Solo puede reclamar evaluaciones con notas validadas.",
+                "error": "Solo puede reclamar evaluaciones cuya planilla ya fue enviada.",
             }
 
         # Validate file
@@ -132,8 +136,13 @@ class SolicitudAppService:
             requiere_secretaria=requiere_secretaria,
         )
 
-        # Notify docente (in-app + email)
-        SolicitudAppService._notificar_docente_recalificacion(solicitud, calificacion)
+        # Notify based on flow
+        if requiere_secretaria:
+            # 2da+: notify secretaría (they must validate first)
+            SolicitudAppService._notificar_secretaria_recalificacion(solicitud, calificacion)
+        else:
+            # 1ra: notify docente directly
+            SolicitudAppService._notificar_docente_recalificacion(solicitud, calificacion)
 
         return {"ok": True, "solicitud": solicitud}
 
@@ -230,6 +239,7 @@ class SolicitudAppService:
             numero_solicitud=numero,
         )
 
+        SolicitudAppService._notificar_inspectores_justificacion(solicitud, asistencia)
         return {"ok": True, "solicitud": solicitud}
 
     # ── Listar mis solicitudes ────────────────────────────────────────
@@ -277,15 +287,82 @@ class SolicitudAppService:
         # Email notification
         if docente.email:
             try:
-                send_mail(
-                    subject=f"[ECPPP] {titulo}",
-                    message=mensaje,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[docente.email],
-                    fail_silently=True,
+                enviar_email_html(
+                    destinatario=docente.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
                 )
             except Exception:
                 pass  # Don't break the flow if email fails
+
+    @staticmethod
+    def _notificar_secretaria_recalificacion(solicitud, calificacion):
+        """Notify all secretaría users about a 2da+ recalificación request."""
+        asignatura = calificacion.evaluacion.paralelo.asignatura.nombre
+        evaluacion = calificacion.evaluacion.get_tipo_display()
+        estudiante_nombre = solicitud.estudiante.get_full_name()
+
+        titulo = f"Recalificación requiere validación — {asignatura}"
+        mensaje = (
+            f"El estudiante {estudiante_nombre} ha presentado la solicitud "
+            f"#{solicitud.numero_solicitud} de recalificación para "
+            f"{evaluacion} en {asignatura}.\n\n"
+            f"Requiere validación de secretaría antes de escalar al docente."
+        )
+
+        secretarias = Usuario.objects.filter(rol="secretaria", is_active=True)
+        for sec in secretarias:
+            Notificacion.objects.create(
+                destinatario=sec,
+                tipo=Notificacion.Tipo.SOLICITUD_RECALIFICACION,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/solicitudes/secretaria/",
+            )
+            if sec.email:
+                try:
+                    enviar_email_html(
+                        destinatario=sec.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
+                    )
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _notificar_inspectores_justificacion(solicitud, asistencia):
+        """Notify all inspectors (in-app + email) about a new absence justification."""
+        asignatura = asistencia.paralelo.asignatura.nombre
+        estudiante_nombre = solicitud.estudiante.get_full_name()
+
+        titulo = f"Solicitud de justificación — {asignatura}"
+        mensaje = (
+            f"El estudiante {estudiante_nombre} ha solicitado "
+            f"justificación de inasistencia en {asignatura}.\n\n"
+            f"Motivo: {solicitud.descripcion}"
+        )
+
+        inspectores = Usuario.objects.filter(rol="inspector", is_active=True)
+        for inspector in inspectores:
+            Notificacion.objects.create(
+                destinatario=inspector,
+                tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
+                titulo=titulo,
+                mensaje=mensaje,
+                url="/solicitudes/justificaciones/",
+            )
+            if inspector.email:
+                try:
+                    enviar_email_html(
+                        destinatario=inspector.email,
+                        asunto=f"[ECPP] {titulo}",
+                        template="emails/notificacion_general.html",
+                        contexto={"titulo": titulo, "mensaje": mensaje},
+                    )
+                except Exception:
+                    pass
 
     # ── HU19: Listados para docente / secretaría / inspector ──────────
 
@@ -293,8 +370,7 @@ class SolicitudAppService:
     def obtener_pendientes_docente(docente):
         """Solicitudes de recalificación pendientes en paralelos del docente.
 
-        1ra solicitud: PENDIENTE (docente toma directamente).
-        2da+: EN_REVISION (secretaría ya validó, ahora toca docente).
+        Includes PENDIENTE (1ra) and EN_REVISION (escaladas por secretaría).
         """
         return (
             Solicitud.objects.filter(
@@ -302,14 +378,12 @@ class SolicitudAppService:
                 calificacion__evaluacion__paralelo__docente=docente,
             )
             .filter(
-                # 1ra: pendiente sin secretaría | 2da+: en_revision con secretaría
                 models.Q(
                     estado=Solicitud.EstadoSolicitud.PENDIENTE,
                     requiere_secretaria=False,
                 )
                 | models.Q(
                     estado=Solicitud.EstadoSolicitud.EN_REVISION,
-                    requiere_secretaria=True,
                 )
             )
             .select_related(
@@ -392,12 +466,11 @@ class SolicitudAppService:
 
         if solicitud.estudiante.email:
             try:
-                send_mail(
-                    subject=f"[ECPPP] {titulo}",
-                    message=mensaje,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[solicitud.estudiante.email],
-                    fail_silently=True,
+                enviar_email_html(
+                    destinatario=solicitud.estudiante.email,
+                    asunto=f"[ECPP] {titulo}",
+                    template="emails/notificacion_general.html",
+                    contexto={"titulo": titulo, "mensaje": mensaje},
                 )
             except Exception:
                 pass
@@ -532,6 +605,11 @@ class SolicitudAppService:
                 return {"ok": False, "error": "La nota debe ser un valor numérico."}
             if nueva_nota_decimal < 0 or nueva_nota_decimal > 20:
                 return {"ok": False, "error": "La nota debe estar entre 0 y 20."}
+            if solicitud.calificacion and nueva_nota_decimal < solicitud.calificacion.nota:
+                return {
+                    "ok": False,
+                    "error": "La nueva nota no puede ser menor a la nota actual.",
+                }
 
         estado_anterior = solicitud.estado
         if accion == "aprobar":
@@ -553,7 +631,7 @@ class SolicitudAppService:
             if solicitud.tipo == Solicitud.TipoSolicitud.RECTIFICACION:
                 SolicitudAppService._aplicar_recalificacion(solicitud, nueva_nota_decimal, usuario)
             elif solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION:
-                SolicitudAppService._aplicar_justificacion(solicitud)
+                SolicitudAppService._aplicar_justificacion(solicitud, usuario)
 
         SolicitudAppService._notificar_estudiante_cambio(solicitud, solicitud.estado, comentario)
         return {"ok": True, "solicitud": solicitud}
@@ -586,10 +664,23 @@ class SolicitudAppService:
         )
 
     @staticmethod
-    def _aplicar_justificacion(solicitud):
+    def _aplicar_justificacion(solicitud, usuario):
         """Change asistencia from AUSENTE to JUSTIFICADO."""
         asistencia = solicitud.asistencia
         if not asistencia:
             return
         asistencia.estado = Asistencia.Estado.JUSTIFICADO
         asistencia.save(update_fields=["estado"])
+
+        # Log macro: justificación de asistencia
+        LogCalificacion.objects.create(
+            accion=LogCalificacion.TipoAccion.JUSTIFICACION,
+            estudiante_info=(
+                f"{solicitud.estudiante.get_full_name()} ({solicitud.estudiante.cedula})"
+            ),
+            realizado_por=usuario,
+            motivo=(
+                f"Justificación aprobada — Solicitud #{solicitud.numero_solicitud}. "
+                f"{solicitud.respuesta}"
+            ),
+        )

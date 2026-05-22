@@ -170,9 +170,10 @@ class TestAuditoriaCalificacionService:
 
 
 class TestAuditoriaIntegracion:
-    """Pruebas de integración: guardar_calificaciones genera logs automáticamente."""
+    """Pruebas de integración: logs macro en cambios de estado de planilla."""
 
-    def test_crear_calificacion_genera_log_creacion(self):
+    def test_guardar_calificaciones_no_genera_log_individual(self):
+        """guardar_calificaciones ya NO genera logs individuales."""
         ev = EvaluacionFactory(peso=Decimal("100"))
         matricula = MatriculaFactory(paralelo=ev.paralelo)
         docente = ev.paralelo.docente
@@ -184,28 +185,22 @@ class TestAuditoriaIntegracion:
             ip="127.0.0.1",
         )
 
+        assert LogCalificacion.objects.count() == 0
+
+    def test_enviar_a_validacion_genera_log_envio(self):
+        ev = EvaluacionFactory(peso=Decimal("100"))
+        matricula = MatriculaFactory(paralelo=ev.paralelo)
+        docente = ev.paralelo.docente
+        CalificacionFactory(evaluacion=ev, estudiante=matricula.estudiante, nota=Decimal("16"))
+
+        service = RegistroCalificacionAppService()
+        result = service.enviar_a_validacion(ev.paralelo_id, usuario=docente)
+
+        assert result["ok"]
         assert LogCalificacion.objects.filter(
-            accion=LogCalificacion.TipoAccion.CREACION,
-            valor_anterior=None,
-            valor_nuevo=Decimal("16"),
+            accion=LogCalificacion.TipoAccion.ENVIO_PLANILLA,
+            realizado_por=docente,
         ).exists()
-
-    def test_modificar_calificacion_genera_log_modificacion(self):
-        cal = CalificacionFactory(nota=Decimal("10.00"))
-        docente = cal.evaluacion.paralelo.docente
-        MatriculaFactory(paralelo=cal.evaluacion.paralelo, estudiante=cal.estudiante)
-
-        RegistroCalificacionAppService().guardar_calificaciones(
-            paralelo_id=cal.evaluacion.paralelo_id,
-            notas_data={(cal.estudiante_id, cal.evaluacion_id): "18"},
-            usuario=docente,
-            ip="127.0.0.1",
-        )
-
-        log = LogCalificacion.objects.get(calificacion=cal)
-        assert log.accion == LogCalificacion.TipoAccion.MODIFICACION
-        assert log.valor_anterior == Decimal("10.00")
-        assert log.valor_nuevo == Decimal("18.00")
 
     def test_nota_sin_cambio_no_incrementa_guardadas(self):
         """Si la nota no cambia, guardadas=0: el mensaje al docente no debe ser engañoso."""

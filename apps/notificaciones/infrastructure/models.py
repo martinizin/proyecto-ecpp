@@ -15,6 +15,9 @@ class Notificacion(models.Model):
             "cambio_estado_solicitud",
             "Cambio de estado de solicitud",
         )
+        ENVIO_PLANILLA = "envio_planilla", "Envío de planilla"
+        APROBACION_PLANILLA = "aprobacion_planilla", "Aprobación de planilla"
+        RECHAZO_PLANILLA = "rechazo_planilla", "Rechazo de planilla"
         GENERAL = "general", "General"
 
     destinatario = models.ForeignKey(

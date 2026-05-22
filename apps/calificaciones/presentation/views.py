@@ -300,7 +300,11 @@ class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
                 "total_logs": total_logs,
                 "truncado": truncado,
                 "limite": LIMITE,
-                "acciones": LogCalificacion.TipoAccion.choices,
+                "acciones": [
+                    c
+                    for c in LogCalificacion.TipoAccion.choices
+                    if c[0] not in ("creacion", "modificacion", "eliminacion")
+                ],
                 "docentes": docentes,
                 "filtros": {
                     "fecha_inicio": fecha_inicio,
@@ -326,7 +330,7 @@ class EnviarValidacionView(RolRequeridoMixin, View):
         if redir:
             return redir
         service = RegistroCalificacionAppService()
-        resultado = service.enviar_a_validacion(paralelo_id)
+        resultado = service.enviar_a_validacion(paralelo_id, usuario=request.user)
         if resultado["ok"]:
             messages.success(request, "Calificaciones enviadas a validación exitosamente.")
         else:
@@ -410,3 +414,17 @@ class RechazarCalificacionesView(RolRequeridoMixin, View):
         else:
             messages.error(request, resultado["error"])
         return redirect("calificaciones:pendientes_validacion")
+
+
+# ---------------------------------------------------------------------------
+# Supervisión de calificaciones (Inspector)
+# ---------------------------------------------------------------------------
+
+
+class SupervisionCalificacionesView(RolRequeridoMixin, View):
+    """Redirect to unified supervision view with calificaciones tab active."""
+
+    rol_requerido = "inspector"
+
+    def get(self, request):
+        return redirect("/asistencia/supervision/?tab=calificaciones")
