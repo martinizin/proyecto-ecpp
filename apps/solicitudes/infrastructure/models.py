@@ -3,6 +3,8 @@ import os
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
+from apps.solicitudes.domain.value_objects import TipoCertificado
+
 
 def solicitud_upload_path(instance, filename):
     """Upload to solicitudes/YYYY/MM/filename."""
@@ -151,10 +153,10 @@ class CertificadoJustificacion(models.Model):
     ``CertificadoValidationService`` in the domain layer.
     """
 
-    class TipoCertificado(models.TextChoices):
-        MEDICO = "medico", "Certificado Médico"
-        LABORAL = "laboral", "Certificado Laboral"
-        CALAMIDAD = "calamidad", "Calamidad Doméstica"
+    # Re-exported so ``CertificadoJustificacion.TipoCertificado`` keeps
+    # working for callers that already use it; the canonical definition
+    # lives in ``apps.solicitudes.domain.value_objects``.
+    TipoCertificado = TipoCertificado
 
     solicitud = models.OneToOneField(
         "solicitudes.Solicitud",
@@ -206,7 +208,12 @@ class ArchivoSolicitud(models.Model):
         on_delete=models.CASCADE,
         related_name="archivos",
     )
-    archivo = models.FileField(upload_to="solicitudes/%Y/%m/")
+    archivo = models.FileField(
+        upload_to="solicitudes/%Y/%m/",
+        validators=[
+            FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"]),
+        ],
+    )
     nombre_original = models.CharField(max_length=255)
     tipo_mime = models.CharField(max_length=100, blank=True)
     tamanio_bytes = models.PositiveIntegerField()
