@@ -5,8 +5,6 @@ These exceptions are raised by ``CertificadoValidationService`` and the
 during the justification-with-certificate flow.
 """
 
-import pytest
-
 from apps.solicitudes.domain.exceptions import (
     ArchivoInvalidoError,
     CamposObligatoriosFaltantesError,
