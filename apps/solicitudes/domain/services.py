@@ -80,9 +80,7 @@ class CertificadoValidationService:
     # date
     # ------------------------------------------------------------------ #
     @classmethod
-    def validar_fecha_certificado(
-        cls, fecha_certificado: date, fecha_referencia: date
-    ) -> bool:
+    def validar_fecha_certificado(cls, fecha_certificado: date, fecha_referencia: date) -> bool:
         """Return ``True`` iff ``fecha_certificado <= fecha_referencia``.
 
         ``fecha_referencia`` is typically ``date.today()`` in the server

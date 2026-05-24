@@ -7,50 +7,95 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('solicitudes', '0004_add_historial_solicitud'),
+        ("solicitudes", "0004_add_historial_solicitud"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ArchivoSolicitud',
+            name="ArchivoSolicitud",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('archivo', models.FileField(upload_to='solicitudes/%Y/%m/')),
-                ('nombre_original', models.CharField(max_length=255)),
-                ('tipo_mime', models.CharField(blank=True, max_length=100)),
-                ('tamanio_bytes', models.PositiveIntegerField()),
-                ('subido_en', models.DateTimeField(auto_now_add=True)),
-                ('solicitud', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='archivos', to='solicitudes.solicitud')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("archivo", models.FileField(upload_to="solicitudes/%Y/%m/")),
+                ("nombre_original", models.CharField(max_length=255)),
+                ("tipo_mime", models.CharField(blank=True, max_length=100)),
+                ("tamanio_bytes", models.PositiveIntegerField()),
+                ("subido_en", models.DateTimeField(auto_now_add=True)),
+                (
+                    "solicitud",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="archivos",
+                        to="solicitudes.solicitud",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Archivo de Solicitud',
-                'verbose_name_plural': 'Archivos de Solicitud',
-                'ordering': ['subido_en'],
-                'indexes': [models.Index(fields=['solicitud'], name='solicitudes_solicit_d16360_idx')],
-                'constraints': [models.CheckConstraint(condition=models.Q(('tamanio_bytes__lte', 5242880)), name='archivo_max_5mb')],
+                "verbose_name": "Archivo de Solicitud",
+                "verbose_name_plural": "Archivos de Solicitud",
+                "ordering": ["subido_en"],
+                "indexes": [
+                    models.Index(fields=["solicitud"], name="solicitudes_solicit_d16360_idx")
+                ],
+                "constraints": [
+                    models.CheckConstraint(
+                        condition=models.Q(("tamanio_bytes__lte", 5242880)), name="archivo_max_5mb"
+                    )
+                ],
             },
         ),
         migrations.CreateModel(
-            name='CertificadoJustificacion',
+            name="CertificadoJustificacion",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('tipo', models.CharField(choices=[('medico', 'Certificado Médico'), ('laboral', 'Certificado Laboral'), ('calamidad', 'Calamidad Doméstica')], max_length=15)),
-                ('institucion_emisora', models.CharField(blank=True, max_length=200)),
-                ('fecha_certificado', models.DateField()),
-                ('numero_documento', models.CharField(blank=True, max_length=100)),
-                ('nombre_medico', models.CharField(blank=True, max_length=200)),
-                ('dias_reposo', models.PositiveIntegerField(blank=True, null=True)),
-                ('cargo', models.CharField(blank=True, max_length=200)),
-                ('descripcion_evento', models.TextField(blank=True)),
-                ('relacion_familiar', models.CharField(blank=True, max_length=100)),
-                ('fecha_creacion', models.DateTimeField(auto_now_add=True)),
-                ('fecha_actualizacion', models.DateTimeField(auto_now=True)),
-                ('solicitud', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='certificado', to='solicitudes.solicitud')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "tipo",
+                    models.CharField(
+                        choices=[
+                            ("medico", "Certificado Médico"),
+                            ("laboral", "Certificado Laboral"),
+                            ("calamidad", "Calamidad Doméstica"),
+                        ],
+                        max_length=15,
+                    ),
+                ),
+                ("institucion_emisora", models.CharField(blank=True, max_length=200)),
+                ("fecha_certificado", models.DateField()),
+                ("numero_documento", models.CharField(blank=True, max_length=100)),
+                ("nombre_medico", models.CharField(blank=True, max_length=200)),
+                ("dias_reposo", models.PositiveIntegerField(blank=True, null=True)),
+                ("cargo", models.CharField(blank=True, max_length=200)),
+                ("descripcion_evento", models.TextField(blank=True)),
+                ("relacion_familiar", models.CharField(blank=True, max_length=100)),
+                ("fecha_creacion", models.DateTimeField(auto_now_add=True)),
+                ("fecha_actualizacion", models.DateTimeField(auto_now=True)),
+                (
+                    "solicitud",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="certificado",
+                        to="solicitudes.solicitud",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Certificado de Justificación',
-                'verbose_name_plural': 'Certificados de Justificación',
-                'indexes': [models.Index(fields=['tipo'], name='solicitudes_tipo_a5f195_idx'), models.Index(fields=['fecha_certificado'], name='solicitudes_fecha_c_afe939_idx')],
+                "verbose_name": "Certificado de Justificación",
+                "verbose_name_plural": "Certificados de Justificación",
+                "indexes": [
+                    models.Index(fields=["tipo"], name="solicitudes_tipo_a5f195_idx"),
+                    models.Index(
+                        fields=["fecha_certificado"], name="solicitudes_fecha_c_afe939_idx"
+                    ),
+                ],
             },
         ),
     ]

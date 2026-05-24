@@ -54,10 +54,7 @@ class MaximoArchivosExcedidoError(SolicitudError):
         super().__init__(cantidad)
 
     def __str__(self) -> str:
-        return (
-            f"Se excedió el máximo de archivos permitidos "
-            f"(recibidos: {self.cantidad})."
-        )
+        return f"Se excedió el máximo de archivos permitidos " f"(recibidos: {self.cantidad})."
 
 
 class ArchivoInvalidoError(SolicitudError):
