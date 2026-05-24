@@ -7,7 +7,7 @@ Sprint 3 — HU18/HU19: Solicitudes de recalificación y justificación.
 from decimal import Decimal, InvalidOperation
 
 from apps.shared.email_utils import enviar_email_html
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from apps.academico.infrastructure.models import Matricula
@@ -17,7 +17,19 @@ from apps.calificaciones.infrastructure.models import (
     LogCalificacion,
 )
 from apps.notificaciones.infrastructure.models import Notificacion
+from apps.solicitudes.application.notifications import (
+    notificar_nueva_justificacion,
+)
+from apps.solicitudes.domain.exceptions import (
+    ArchivoInvalidoError,
+    CamposObligatoriosFaltantesError,
+    FechaCertificadoInvalidaError,
+    MaximoArchivosExcedidoError,
+)
+from apps.solicitudes.domain.services import CertificadoValidationService
 from apps.solicitudes.infrastructure.models import (
+    ArchivoSolicitud,
+    CertificadoJustificacion,
     HistorialSolicitud,
     Solicitud,
 )
@@ -239,7 +251,7 @@ class SolicitudAppService:
             numero_solicitud=numero,
         )
 
-        SolicitudAppService._notificar_inspectores_justificacion(solicitud, asistencia)
+        notificar_nueva_justificacion(solicitud)
         return {"ok": True, "solicitud": solicitud}
 
     # ── Listar mis solicitudes ────────────────────────────────────────
@@ -333,36 +345,15 @@ class SolicitudAppService:
 
     @staticmethod
     def _notificar_inspectores_justificacion(solicitud, asistencia):
-        """Notify all inspectors (in-app + email) about a new absence justification."""
-        asignatura = asistencia.paralelo.asignatura.nombre
-        estudiante_nombre = solicitud.estudiante.get_full_name()
+        """Deprecated shim — kept for backwards compatibility.
 
-        titulo = f"Solicitud de justificación — {asignatura}"
-        mensaje = (
-            f"El estudiante {estudiante_nombre} ha solicitado "
-            f"justificación de inasistencia en {asignatura}.\n\n"
-            f"Motivo: {solicitud.descripcion}"
-        )
-
-        inspectores = Usuario.objects.filter(rol="inspector", is_active=True)
-        for inspector in inspectores:
-            Notificacion.objects.create(
-                destinatario=inspector,
-                tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
-                titulo=titulo,
-                mensaje=mensaje,
-                url="/solicitudes/justificaciones/",
-            )
-            if inspector.email:
-                try:
-                    enviar_email_html(
-                        destinatario=inspector.email,
-                        asunto=f"[ECPP] {titulo}",
-                        template="emails/notificacion_general.html",
-                        contexto={"titulo": titulo, "mensaje": mensaje},
-                    )
-                except Exception:
-                    pass
+        The real logic now lives in
+        :func:`apps.solicitudes.application.notifications.notificar_nueva_justificacion`.
+        This wrapper exists so external code (if any) that still imports the
+        old name keeps working. The Slice 2 refactor removed all internal
+        callers; new code MUST call the helper directly.
+        """
+        notificar_nueva_justificacion(solicitud)
 
     # ── HU19: Listados para docente / secretaría / inspector ──────────
 
@@ -684,3 +675,113 @@ class SolicitudAppService:
                 f"{solicitud.respuesta}"
             ),
         )
+
+
+# --------------------------------------------------------------------------- #
+# HU20 — Justificación con certificado categorizado
+# --------------------------------------------------------------------------- #
+
+
+class JustificacionCertificadoAppService:
+    """Orchestrates HU20 absence-justification with categorized certificate.
+
+    Sibling of :class:`SolicitudAppService.crear_justificacion` — the legacy
+    flow remains intact for callers that only need the single-file flow.
+    This service adds:
+
+    * Per-tipo required-field validation via
+      :class:`CertificadoValidationService`.
+    * Multi-file uploads (up to ``MAX_ARCHIVOS``) with per-file extension
+      and size validation.
+    * Atomic ``transaction.atomic()`` wrapper so a mid-flight error
+      rolls back the Solicitud + Certificado + Archivos together.
+    * Reuses :func:`notificar_nueva_justificacion` (same notification
+      semantics as HU18).
+
+    Domain exceptions raised by this service are propagated unchanged so
+    the presentation layer can map them to user-facing messages.
+    """
+
+    def crear_justificacion_con_certificado(
+        self,
+        asistencia,
+        estudiante,
+        tipo_certificado: str,
+        datos_certificado: dict,
+        archivos: list,
+        motivo: str,
+    ) -> Solicitud:
+        """Create Solicitud + CertificadoJustificacion + ArchivoSolicitud rows.
+
+        Validation order (fail-fast, before any DB write):
+
+        1. ``len(archivos) <= MAX_ARCHIVOS``
+        2. Each file passes ext + size validation
+        3. ``datos_certificado`` contains all required fields for ``tipo_certificado``
+        4. ``fecha_certificado <= today``
+
+        After validation, everything is created inside a single
+        ``transaction.atomic()`` block; the inspector notification is
+        invoked once the block commits.
+        """
+
+        # 1) max files
+        if len(archivos) > CertificadoValidationService.MAX_ARCHIVOS:
+            raise MaximoArchivosExcedidoError(len(archivos))
+
+        # 2) per-file validation (strict atomic — reject the whole batch on first bad file)
+        for archivo in archivos:
+            errores = CertificadoValidationService.validar_archivo(archivo.name, archivo.size)
+            if errores:
+                raise ArchivoInvalidoError(archivo.name, errores)
+
+        # 3) required fields per tipo
+        faltantes = CertificadoValidationService.validar_campos_obligatorios(
+            tipo_certificado, datos_certificado
+        )
+        if faltantes:
+            raise CamposObligatoriosFaltantesError(faltantes)
+
+        # 4) fecha not in future
+        fecha_cert = datos_certificado.get("fecha_certificado")
+        if not CertificadoValidationService.validar_fecha_certificado(
+            fecha_cert, timezone.localdate()
+        ):
+            raise FechaCertificadoInvalidaError()
+
+        with transaction.atomic():
+            numero = (
+                Solicitud.objects.filter(
+                    estudiante=estudiante,
+                    asistencia=asistencia,
+                    tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+                ).count()
+                + 1
+            )
+
+            solicitud = Solicitud.objects.create(
+                tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+                estudiante=estudiante,
+                asistencia=asistencia,
+                descripcion=(motivo or "").strip(),
+                numero_solicitud=numero,
+            )
+
+            CertificadoJustificacion.objects.create(
+                solicitud=solicitud,
+                tipo=tipo_certificado,
+                **{k: v for k, v in datos_certificado.items() if v is not None},
+            )
+
+            for archivo in archivos:
+                ArchivoSolicitud.objects.create(
+                    solicitud=solicitud,
+                    archivo=archivo,
+                    nombre_original=archivo.name,
+                    tipo_mime=getattr(archivo, "content_type", "") or "",
+                    tamanio_bytes=archivo.size,
+                )
+
+            notificar_nueva_justificacion(solicitud)
+
+        return solicitud
