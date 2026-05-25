@@ -12,7 +12,7 @@
         {% if user.rol == "secretaria" %}
         <li><a href="{% url 'solicitudes:pendientes_secretaria' %}" class="hover:text-primary transition-colors">Solicitudes</a></li>
         {% elif user.rol == "inspector" %}
-        <li><a href="{% url 'solicitudes:pendientes_justificacion' %}" class="hover:text-primary transition-colors">Justificaciones</a></li>
+        <li><a href="{% url 'solicitudes:inspector_justificaciones_dashboard' %}" class="hover:text-primary transition-colors">Justificaciones</a></li>
         {% else %}
         <li><a href="{% url 'solicitudes:pendientes_docente' %}" class="hover:text-primary transition-colors">Pendientes</a></li>
         {% endif %}
