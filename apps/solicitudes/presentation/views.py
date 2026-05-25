@@ -6,9 +6,14 @@ Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
+from django.views.generic import ListView
 
+from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.solicitudes.application.services import (
     JustificacionCertificadoAppService,
@@ -20,7 +25,12 @@ from apps.solicitudes.domain.exceptions import (
     FechaCertificadoInvalidaError,
     MaximoArchivosExcedidoError,
 )
-from apps.solicitudes.infrastructure.models import Solicitud
+from apps.solicitudes.domain.services import clasificar_urgencia
+from apps.solicitudes.domain.value_objects import TipoCertificado
+from apps.solicitudes.infrastructure.models import (
+    ConfiguracionJustificacion,
+    Solicitud,
+)
 from apps.solicitudes.presentation.forms import JustificacionCertificadoForm
 from apps.usuarios.presentation.permissions import (
     MultiRolRequeridoMixin,
@@ -416,3 +426,195 @@ class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMix
 
         messages.success(request, "Solicitud de justificación enviada correctamente.")
         return redirect("solicitudes:mis_solicitudes")
+
+
+# --------------------------------------------------------------------------- #
+# HU21 — Inspector justifications dashboard + placeholders for T5/T6/T7
+# --------------------------------------------------------------------------- #
+
+
+class _InspectorRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """Shared access mixin for the inspector justifications surface (HU21).
+
+    Behavior:
+      * Anonymous → 302 to LOGIN_URL (via LoginRequiredMixin).
+      * Authenticated, ``rol != "inspector"`` → 403.
+
+    The 403 branch is achieved by toggling ``raise_exception`` ONLY when
+    the user is authenticated; anonymous users still take the default
+    redirect path. Reused by the dashboard view (T4) and the upcoming
+    detalle/resolver/bulk views (T5/T6/T7).
+    """
+
+    raise_exception = False
+
+    def test_func(self) -> bool:
+        user = self.request.user
+        return user.is_authenticated and user.rol == "inspector"
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            # Authenticated but wrong role → 403.
+            self.raise_exception = True
+        return super().handle_no_permission()
+
+
+class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
+    """HU21 — Institute-wide paginated dashboard of justification requests.
+
+    Lists every ``Solicitud(tipo=JUSTIFICACION)`` ordered by ``fecha_creacion``
+    desc, paginated 20/page. Supports GET filters: ``estado``,
+    ``tipo_certificado``, ``paralelo``, ``q`` (search over estudiante's
+    first_name / last_name / cedula, icontains).
+
+    Each row gets a precomputed ``urgencia`` attribute (``"normal"`` /
+    ``"alerta"`` / ``"vencido"``) so the template renders the badge
+    without recomputing the classifier per row.
+
+    Stats panel exposes 4 counters: pendientes (PENDIENTE+EN_REVISION
+    total), aprobadas_hoy, rechazadas_hoy, vencidas (PENDIENTE/EN_REVISION
+    past the deadline).
+    """
+
+    template_name = "solicitudes/inspector/dashboard.html"
+    context_object_name = "solicitudes"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = (
+            Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+            .select_related(
+                "estudiante",
+                "asistencia__paralelo__asignatura",
+                "certificado",
+                "resuelto_por",
+            )
+            .prefetch_related("archivos")
+        )
+        params = self.request.GET
+
+        estado = params.get("estado")
+        if estado:
+            qs = qs.filter(estado=estado)
+
+        tipo_cert = params.get("tipo_certificado")
+        if tipo_cert:
+            qs = qs.filter(certificado__tipo=tipo_cert)
+
+        paralelo = params.get("paralelo")
+        if paralelo:
+            qs = qs.filter(asistencia__paralelo_id=paralelo)
+
+        q = params.get("q")
+        if q:
+            qs = qs.filter(
+                Q(estudiante__first_name__icontains=q)
+                | Q(estudiante__last_name__icontains=q)
+                | Q(estudiante__cedula__icontains=q)
+            )
+
+        return qs.order_by("-fecha_creacion")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+
+        # Single config fetch — reuse both values to avoid a second round-trip.
+        config, _ = ConfiguracionJustificacion.get_singleton()
+        deadline_dias = config.deadline_dias
+        alerta_dias = config.alerta_dias
+        today = timezone.localdate()
+
+        # Precompute urgencia per row in the current page (perf-correct
+        # location per design: not inside the template).
+        page_solicitudes = ctx.get("solicitudes") or []
+        for sol in page_solicitudes:
+            sol.urgencia = clasificar_urgencia(
+                sol.fecha_creacion.date(),
+                deadline_dias,
+                alerta_dias,
+                today,
+            )
+
+        # Stats panel — 4 cheap COUNTs over the JUSTIFICACION universe.
+        base = Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+        pendiente_states = [
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        ]
+        pendientes_qs = base.filter(estado__in=pendiente_states)
+
+        # vencidas requires per-row classification — limited to PENDIENTE
+        # which is a bounded set in practice. Documented in design as
+        # acceptable for current scale.
+        vencidas = sum(
+            1
+            for s in pendientes_qs.only("fecha_creacion")
+            if clasificar_urgencia(s.fecha_creacion.date(), deadline_dias, alerta_dias, today)
+            == "vencido"
+        )
+
+        ctx["stats"] = {
+            "pendientes": pendientes_qs.count(),
+            "aprobadas_hoy": base.filter(
+                estado=Solicitud.EstadoSolicitud.APROBADA,
+                fecha_resolucion__date=today,
+            ).count(),
+            "rechazadas_hoy": base.filter(
+                estado=Solicitud.EstadoSolicitud.RECHAZADA,
+                fecha_resolucion__date=today,
+            ).count(),
+            "vencidas": vencidas,
+        }
+
+        ctx["deadline_dias"] = deadline_dias
+        ctx["alerta_dias"] = alerta_dias
+
+        # Filter dropdown data.
+        ctx["estados"] = Solicitud.EstadoSolicitud.choices
+        ctx["tipos_certificado"] = TipoCertificado.choices
+        ctx["paralelos"] = (
+            Paralelo.objects.filter(
+                asistencias__solicitudes_justificacion__tipo=(
+                    Solicitud.TipoSolicitud.JUSTIFICACION
+                )
+            )
+            .select_related("asignatura")
+            .distinct()
+            .order_by("asignatura__codigo", "nombre")
+        )
+
+        # Current filter values (for re-populating the form).
+        ctx["filtros"] = {
+            "estado": self.request.GET.get("estado", ""),
+            "tipo_certificado": self.request.GET.get("tipo_certificado", ""),
+            "paralelo": self.request.GET.get("paralelo", ""),
+            "q": self.request.GET.get("q", ""),
+        }
+
+        # Querystring for pagination links (drops ``page``).
+        qd = self.request.GET.copy()
+        qd.pop("page", None)
+        ctx["query_string"] = qd.urlencode()
+
+        return ctx
+
+
+class _PlaceholderInspectorView(_InspectorRequiredMixin, View):
+    """Temporary stub for T5/T6/T7 routes registered ahead of time.
+
+    T4 registers all four URL names from the HU21 design so the dashboard
+    template can reverse them today. The detalle/resolver/bulk endpoints
+    return 501 until their real views land in T5/T6/T7.
+    """
+
+    def get(self, request, *args, **kwargs):
+        return HttpResponse(
+            "Pendiente de implementación (T5/T6/T7)",
+            status=501,
+        )
+
+    def post(self, request, *args, **kwargs):
+        return HttpResponse(
+            "Pendiente de implementación (T5/T6/T7)",
+            status=501,
+        )

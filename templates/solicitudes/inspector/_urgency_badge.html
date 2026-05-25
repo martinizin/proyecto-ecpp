@@ -1,0 +1,25 @@
+{% comment %}
+HU21 — Urgency badge partial.
+
+Usage:
+    {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=sol.urgencia %}
+
+Renders a coloured pill based on the precomputed ``urgencia`` string
+("normal" | "alerta" | "vencido"). The CSS classes use both Tailwind
+utility tokens (``bg-green-100`` etc.) AND semantic ``badge-verde``
+fragments so tests can pin the visual mapping without coupling to a
+specific colour shade.
+{% endcomment %}
+{% if urgencia == "vencido" %}
+<span class="badge-rojo inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+    Vencido
+</span>
+{% elif urgencia == "alerta" %}
+<span class="badge-amarillo inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+    Por vencer
+</span>
+{% else %}
+<span class="badge-verde inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+    Al día
+</span>
+{% endif %}
