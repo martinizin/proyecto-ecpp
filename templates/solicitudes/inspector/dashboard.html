@@ -3,6 +3,16 @@
 {% block title %}Dashboard de Justificaciones — Inspector{% endblock %}
 
 {% block content %}
+<!-- Hidden bulk-form: checkboxes target this via form="bulk-form". -->
+<form id="bulk-form" method="post"
+      action="{% url 'solicitudes:inspector_justificaciones_bulk' %}"
+      class="hidden">
+    {% csrf_token %}
+    {# accion + comentario son inyectados por Alpine antes de submit #}
+    <input type="hidden" name="accion" id="bulk-accion" value="">
+    <input type="hidden" name="comentario" id="bulk-comentario" value="">
+</form>
+
 <!-- Breadcrumb -->
 <nav class="mb-4 text-sm" aria-label="Breadcrumb">
     <ol class="flex items-center gap-1.5 text-gray-500">
@@ -12,7 +22,25 @@
     </ol>
 </nav>
 
-<div class="max-w-6xl mx-auto">
+<div class="max-w-6xl mx-auto"
+     x-data="{
+        open: false,
+        accion: 'aprobar',
+        comentario: '',
+        selectAll: false,
+        get selectedCount() {
+            return document.querySelectorAll('input[name=solicitud_ids]:checked').length;
+        },
+        toggleAll(ev) {
+            document.querySelectorAll('input[name=solicitud_ids]')
+                .forEach(cb => { cb.checked = ev.target.checked; });
+        },
+        submitBulk() {
+            document.getElementById('bulk-accion').value = this.accion;
+            document.getElementById('bulk-comentario').value = this.comentario;
+            document.getElementById('bulk-form').submit();
+        }
+     }">
     <div class="mb-6">
         <h1 class="text-xl font-semibold text-gray-800">Dashboard de Justificaciones — Inspector</h1>
         <p class="text-sm text-gray-500 mt-1">
@@ -90,6 +118,75 @@
         </div>
     </form>
 
+    {# ---------------- Bulk toolbar ---------------- #}
+    <div class="bg-white rounded-xl shadow-md px-4 py-3 mb-4 flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+            Seleccioná filas con las casillas para habilitar las acciones masivas.
+        </p>
+        <button type="button"
+                @click="open = true"
+                :disabled="selectedCount === 0"
+                class="bg-primary text-white text-sm font-medium px-3 py-2 rounded-lg
+                       hover:bg-primary-dark transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed">
+            Acción masiva
+        </button>
+    </div>
+
+    {# ---------------- Bulk modal (Alpine) ---------------- #}
+    <div x-show="open"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+         @keydown.escape.window="open = false">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+             @click.away="open = false">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">
+                Confirmar acción masiva
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Vas a aplicar la acción a
+                <span class="font-medium text-gray-800" x-text="selectedCount"></span>
+                justificación(es) seleccionada(s).
+            </p>
+
+            <fieldset class="mb-4">
+                <legend class="text-xs font-medium text-gray-600 mb-2">Acción</legend>
+                <label class="flex items-center gap-2 text-sm text-gray-700 mb-1">
+                    <input type="radio" x-model="accion" value="aprobar"> Aprobar
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="radio" x-model="accion" value="rechazar"> Rechazar
+                </label>
+            </fieldset>
+
+            <div class="mb-4" x-show="accion === 'rechazar'">
+                <label class="block text-xs font-medium text-gray-600 mb-1">
+                    Comentario (obligatorio al rechazar)
+                </label>
+                <textarea x-model="comentario"
+                          :required="accion === 'rechazar'"
+                          rows="3"
+                          class="w-full text-sm rounded-lg border-gray-300
+                                 focus:ring-primary focus:border-primary"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="open = false"
+                        class="bg-gray-100 text-gray-700 text-sm font-medium px-3 py-2
+                               rounded-lg hover:bg-gray-200 transition-colors">
+                    Cancelar
+                </button>
+                <button type="button"
+                        @click="submitBulk()"
+                        class="bg-primary text-white text-sm font-medium px-3 py-2
+                               rounded-lg hover:bg-primary-dark transition-colors">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
     {# ---------------- Table or empty state ---------------- #}
     {% if solicitudes %}
     <div class="bg-white rounded-xl shadow-md overflow-hidden">
@@ -98,7 +195,8 @@
                 <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
                     <tr>
                         <th class="px-3 py-2 text-left">
-                            <input type="checkbox" disabled class="rounded border-gray-300" title="Acciones masivas — disponibles en T7">
+                            <input type="checkbox" x-model="selectAll" @change="toggleAll($event)"
+                                   class="rounded border-gray-300" title="Seleccionar todo">
                         </th>
                         <th class="px-3 py-2 text-left">Estudiante</th>
                         <th class="px-3 py-2 text-left">Tipo cert.</th>
@@ -113,7 +211,8 @@
                     {% for sol in solicitudes %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-3 py-2">
-                            <input type="checkbox" name="solicitud_ids" value="{{ sol.pk }}" disabled class="rounded border-gray-300">
+                            <input type="checkbox" name="solicitud_ids" value="{{ sol.pk }}"
+                                   form="bulk-form" class="rounded border-gray-300">
                         </td>
                         <td class="px-3 py-2">
                             <p class="font-medium text-gray-800">{{ sol.estudiante.get_full_name }}</p>

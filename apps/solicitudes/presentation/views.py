@@ -7,7 +7,6 @@ Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
@@ -705,24 +704,50 @@ class InspectorResolverJustificacionView(_InspectorRequiredMixin, View):
         return redirect("solicitudes:inspector_justificacion_detalle", pk=pk)
 
 
-class _PlaceholderInspectorView(_InspectorRequiredMixin, View):
-    """Temporary stub for T7 bulk route registered ahead of time.
+class InspectorBulkActionView(_InspectorRequiredMixin, View):
+    """HU21 — T7: POST handler to approve/reject several justifications.
 
-    T4 registered all four URL names from the HU21 design so the dashboard
-    template can reverse them. T5 replaced the detalle stub with
-    ``InspectorJustificacionDetalleView``; T6 replaced the resolver stub
-    with ``InspectorResolverJustificacionView``. The bulk endpoint still
-    returns 501 until its real view lands in T7.
+    Delegates to :meth:`InspectorResolucionAppService.procesar_bulk_resolucion`
+    (T3). Always redirects back to the dashboard (Post/Redirect/Get pattern).
+    Errors surface via the messages framework — they never raise.
+
+    Behavior:
+
+    * ``solicitud_ids`` missing or empty → message error, no writes.
+    * Non-numeric ids are silently dropped before reaching the service.
+    * ``accion="aprobar"`` → bulk approve. Already-resolved rows counted
+      in ``omitidas``. Non-JUSTIFICACION ids and non-existent ids are
+      silently filtered out by the service.
+    * ``accion="rechazar"`` → bulk reject. Requires non-empty
+      ``comentario`` (after stripping). Empty comentario raises
+      ``ValueError`` in the service BEFORE the loop runs, so ZERO rows
+      get touched (all-or-nothing semantics).
+    * Any other ``accion`` (or missing) → the service per-row try/except
+      counts the row as omitida without writing.
+    * Success message: ``"Procesadas: N. Omitidas (ya resueltas): M."``.
     """
 
-    def get(self, request, *args, **kwargs):
-        return HttpResponse(
-            "Pendiente de implementación (T5/T6/T7)",
-            status=501,
-        )
+    http_method_names = ["post"]
 
-    def post(self, request, *args, **kwargs):
-        return HttpResponse(
-            "Pendiente de implementación (T5/T6/T7)",
-            status=501,
+    def post(self, request):
+        ids = [int(x) for x in request.POST.getlist("solicitud_ids") if x.isdigit()]
+        accion = request.POST.get("accion", "")
+        comentario = request.POST.get("comentario", "").strip()
+
+        if not ids:
+            messages.error(request, "Seleccioná al menos una justificación.")
+            return redirect("solicitudes:inspector_justificaciones_dashboard")
+
+        service = InspectorResolucionAppService()
+        try:
+            resultado = service.procesar_bulk_resolucion(ids, request.user, accion, comentario)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("solicitudes:inspector_justificaciones_dashboard")
+
+        msg = (
+            f"Procesadas: {resultado.procesadas}. "
+            f"Omitidas (ya resueltas): {resultado.omitidas}."
         )
+        messages.success(request, msg)
+        return redirect("solicitudes:inspector_justificaciones_dashboard")

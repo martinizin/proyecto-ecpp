@@ -11,6 +11,7 @@ from apps.solicitudes.presentation.views import (
     CrearJustificacionConCertificadoView,
     CrearJustificacionView,
     CrearRecalificacionView,
+    InspectorBulkActionView,
     InspectorJustificacionDetalleView,
     InspectorJustificacionesDashboardView,
     InspectorResolverJustificacionView,
@@ -20,7 +21,6 @@ from apps.solicitudes.presentation.views import (
     PendientesSecretariaView,
     ResolverSolicitudView,
     SeleccionarInasistenciaView,
-    _PlaceholderInspectorView,
 )
 
 app_name = "solicitudes"
@@ -85,7 +85,7 @@ urlpatterns = [
     ),
     path(
         "inspector/justificaciones/bulk/",
-        _PlaceholderInspectorView.as_view(),
+        InspectorBulkActionView.as_view(),
         name="inspector_justificaciones_bulk",
     ),
     path(
