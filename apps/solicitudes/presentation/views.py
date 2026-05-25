@@ -16,6 +16,7 @@ from django.views.generic import DetailView, ListView
 from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.solicitudes.application.services import (
+    InspectorResolucionAppService,
     JustificacionCertificadoAppService,
     SolicitudAppService,
 )
@@ -652,13 +653,66 @@ class InspectorJustificacionDetalleView(_InspectorRequiredMixin, DetailView):
         return ctx
 
 
+class InspectorResolverJustificacionView(_InspectorRequiredMixin, View):
+    """HU21 — T6: POST handler to approve or reject a single justification.
+
+    Delegates to :class:`InspectorResolucionAppService` (T3). Always
+    redirects back to the detail view (Post/Redirect/Get pattern). Errors
+    are surfaced through the messages framework — they never raise.
+
+    Behavior:
+
+    * ``accion="aprobar"`` → ``aprobar_justificacion``. Idempotent on
+      already-resolved rows (the app service returns the solicitud
+      unchanged).
+    * ``accion="rechazar"`` → ``rechazar_justificacion``. Requires a
+      non-empty ``comentario`` (after stripping whitespace); empty
+      comentario raises ``ValueError`` in the service and we surface it
+      as a message error without writing anything.
+    * Any other ``accion`` (or missing) → message error, no writes.
+    * Downstream errors from ``SolicitudAppService.resolver_solicitud``
+      are re-raised by the wrapper as ``RuntimeError`` and surfaced as
+      message errors.
+
+    The queryset is pinned to ``TipoSolicitud.JUSTIFICACION``, so any
+    other ``tipo`` (or a non-existent pk) yields a 404.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        solicitud = get_object_or_404(
+            Solicitud,
+            pk=pk,
+            tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+        )
+        accion = request.POST.get("accion", "")
+        comentario = request.POST.get("comentario", "").strip()
+        service = InspectorResolucionAppService()
+        try:
+            if accion == "aprobar":
+                service.aprobar_justificacion(solicitud, request.user, comentario)
+                messages.success(request, "Justificación aprobada.")
+            elif accion == "rechazar":
+                service.rechazar_justificacion(solicitud, request.user, comentario)
+                messages.success(request, "Justificación rechazada.")
+            else:
+                messages.error(request, "Acción inválida.")
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+        return redirect("solicitudes:inspector_justificacion_detalle", pk=pk)
+
+
 class _PlaceholderInspectorView(_InspectorRequiredMixin, View):
-    """Temporary stub for T6/T7 routes registered ahead of time.
+    """Temporary stub for T7 bulk route registered ahead of time.
 
     T4 registered all four URL names from the HU21 design so the dashboard
     template can reverse them. T5 replaced the detalle stub with
-    ``InspectorJustificacionDetalleView``; the resolver/bulk endpoints
-    still return 501 until their real views land in T6/T7.
+    ``InspectorJustificacionDetalleView``; T6 replaced the resolver stub
+    with ``InspectorResolverJustificacionView``. The bulk endpoint still
+    returns 501 until its real view lands in T7.
     """
 
     def get(self, request, *args, **kwargs):

@@ -13,6 +13,7 @@ from apps.solicitudes.presentation.views import (
     CrearRecalificacionView,
     InspectorJustificacionDetalleView,
     InspectorJustificacionesDashboardView,
+    InspectorResolverJustificacionView,
     MisSolicitudesView,
     PendientesDocenteView,
     PendientesJustificacionView,
@@ -94,7 +95,7 @@ urlpatterns = [
     ),
     path(
         "inspector/justificaciones/<int:pk>/resolver/",
-        _PlaceholderInspectorView.as_view(),
+        InspectorResolverJustificacionView.as_view(),
         name="inspector_justificacion_resolver",
     ),
     # --- Resolver (docente / secretaría / inspector) ---
