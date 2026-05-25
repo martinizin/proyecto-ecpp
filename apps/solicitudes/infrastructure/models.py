@@ -3,6 +3,8 @@ import os
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
+from apps.solicitudes.domain.value_objects import TipoCertificado
+
 
 def solicitud_upload_path(instance, filename):
     """Upload to solicitudes/YYYY/MM/filename."""
@@ -135,3 +137,101 @@ class HistorialSolicitud(models.Model):
             f"{self.estado_anterior} → {self.estado_nuevo} "
             f"({self.cambiado_por})"
         )
+
+
+# --------------------------------------------------------------------------- #
+# HU20 — Certificados de justificación
+# --------------------------------------------------------------------------- #
+
+
+class CertificadoJustificacion(models.Model):
+    """Categorized certificate metadata attached to a justification Solicitud.
+
+    One certificate per Solicitud (OneToOne). The ``tipo`` discriminator
+    selects which of the type-specific fields are meaningful; per-type
+    required-field enforcement is handled by
+    ``CertificadoValidationService`` in the domain layer.
+    """
+
+    # Re-exported so ``CertificadoJustificacion.TipoCertificado`` keeps
+    # working for callers that already use it; the canonical definition
+    # lives in ``apps.solicitudes.domain.value_objects``.
+    TipoCertificado = TipoCertificado
+
+    solicitud = models.OneToOneField(
+        "solicitudes.Solicitud",
+        on_delete=models.CASCADE,
+        related_name="certificado",
+    )
+    tipo = models.CharField(max_length=15, choices=TipoCertificado.choices)
+    institucion_emisora = models.CharField(max_length=200, blank=True)
+    fecha_certificado = models.DateField()
+    numero_documento = models.CharField(max_length=100, blank=True)
+
+    # Médico-specific
+    nombre_medico = models.CharField(max_length=200, blank=True)
+    dias_reposo = models.PositiveIntegerField(null=True, blank=True)
+
+    # Laboral-specific
+    cargo = models.CharField(max_length=200, blank=True)
+
+    # Calamidad-specific
+    descripcion_evento = models.TextField(blank=True)
+    relacion_familiar = models.CharField(max_length=100, blank=True)
+
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Certificado de Justificación"
+        verbose_name_plural = "Certificados de Justificación"
+        indexes = [
+            models.Index(fields=["tipo"]),
+            models.Index(fields=["fecha_certificado"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} — {self.solicitud}"
+
+
+class ArchivoSolicitud(models.Model):
+    """Individual attachment file for a Solicitud (HU20 multi-file uploads).
+
+    A Solicitud may have up to ``CertificadoValidationService.MAX_ARCHIVOS``
+    rows. The DB enforces the 5 MB size cap via a CheckConstraint; extension
+    validation lives in the domain layer because filename inspection is
+    Python-side only.
+    """
+
+    solicitud = models.ForeignKey(
+        "solicitudes.Solicitud",
+        on_delete=models.CASCADE,
+        related_name="archivos",
+    )
+    archivo = models.FileField(
+        upload_to="solicitudes/%Y/%m/",
+        validators=[
+            FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"]),
+        ],
+    )
+    nombre_original = models.CharField(max_length=255)
+    tipo_mime = models.CharField(max_length=100, blank=True)
+    tamanio_bytes = models.PositiveIntegerField()
+    subido_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Archivo de Solicitud"
+        verbose_name_plural = "Archivos de Solicitud"
+        ordering = ["subido_en"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(tamanio_bytes__lte=5 * 1024 * 1024),
+                name="archivo_max_5mb",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["solicitud"]),
+        ]
+
+    def __str__(self):
+        return self.nombre_original

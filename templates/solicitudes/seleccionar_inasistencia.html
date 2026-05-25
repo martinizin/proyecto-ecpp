@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Justificar Inasistencia{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'solicitudes:mis_solicitudes' %}" class="hover:text-primary transition-colors">Mis Solicitudes</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Justificación</li>
+    </ol>
+</nav>
+
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">Seleccionar Inasistencia</h1>
+            <p class="text-sm text-gray-500 mt-1">Elija la inasistencia que desea justificar. Luego adjuntará el certificado correspondiente.</p>
+        </div>
+
+        {% if inasistencias %}
+        <ul class="divide-y divide-gray-100">
+            {% for asis in inasistencias %}
+            <li>
+                <a href="{% url 'solicitudes:crear_justificacion_certificado' asis.pk %}"
+                   class="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group">
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-gray-800">{{ asis.fecha|date:"d/m/Y" }}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-medium">Ausente</span>
+                        </div>
+                        <p class="text-sm text-gray-600 truncate">
+                            {{ asis.paralelo.asignatura.nombre }}
+                            <span class="text-gray-400">({{ asis.paralelo.asignatura.codigo }})</span>
+                        </p>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-300 group-hover:text-primary transition-colors flex-shrink-0"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        {% else %}
+        <!-- Estado vacío -->
+        <div class="px-6 py-12 text-center">
+            <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No tiene inasistencias por justificar</p>
+            <p class="text-gray-400 text-xs mt-1">Solo puede justificar inasistencias registradas como ausente en el período activo.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
