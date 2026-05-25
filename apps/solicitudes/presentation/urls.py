@@ -7,6 +7,7 @@ Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
 from django.urls import path
 
 from apps.solicitudes.presentation.views import (
+    CrearJustificacionConCertificadoView,
     CrearJustificacionView,
     CrearRecalificacionView,
     MisSolicitudesView,
@@ -29,6 +30,11 @@ urlpatterns = [
         "justificacion/nueva/",
         CrearJustificacionView.as_view(),
         name="crear_justificacion",
+    ),
+    path(
+        "justificacion/<int:asistencia_id>/certificado/",
+        CrearJustificacionConCertificadoView.as_view(),
+        name="crear_justificacion_certificado",
     ),
     path(
         "mis-solicitudes/",

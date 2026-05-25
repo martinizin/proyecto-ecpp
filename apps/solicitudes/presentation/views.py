@@ -5,11 +5,23 @@ Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
 """
 
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
-from apps.solicitudes.application.services import SolicitudAppService
+from apps.asistencia.infrastructure.models import Asistencia
+from apps.solicitudes.application.services import (
+    JustificacionCertificadoAppService,
+    SolicitudAppService,
+)
+from apps.solicitudes.domain.exceptions import (
+    ArchivoInvalidoError,
+    CamposObligatoriosFaltantesError,
+    FechaCertificadoInvalidaError,
+    MaximoArchivosExcedidoError,
+)
 from apps.solicitudes.infrastructure.models import Solicitud
+from apps.solicitudes.presentation.forms import JustificacionCertificadoForm
 from apps.usuarios.presentation.permissions import (
     MultiRolRequeridoMixin,
     RolRequeridoMixin,
@@ -236,3 +248,119 @@ class ResolverSolicitudView(MultiRolRequeridoMixin, View):
 
         messages.error(request, resultado["error"])
         return redirect("solicitudes:resolver_solicitud", pk=pk)
+
+
+# --------------------------------------------------------------------------- #
+# HU20 — Justificación con certificado categorizado
+# --------------------------------------------------------------------------- #
+
+
+class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """HU20 — Estudiante owner submits a categorized certificate justification.
+
+    Access control layered three ways:
+
+    * ``LoginRequiredMixin`` → anonymous users get 302 to LOGIN_URL.
+    * ``UserPassesTestMixin.test_func`` → authenticated non-estudiantes
+      and estudiantes who do not own the ``Asistencia`` get 403
+      (raise_exception=True so the default 302-to-login dance is skipped
+      for already-authenticated users).
+    """
+
+    raise_exception = True  # only affects authenticated users; anonymous still hit LoginRequired
+    template_name = "solicitudes/justificacion_certificado.html"
+
+    def handle_no_permission(self):
+        """Anonymous → redirect to login (302). Authenticated → 403.
+
+        ``raise_exception=True`` alone would 403 anonymous users too, which
+        breaks the standard Django auth flow. We split by ``is_authenticated``.
+        """
+        if not self.request.user.is_authenticated:
+            # Delegate to LoginRequiredMixin's redirect-to-login behavior.
+            self.raise_exception = False
+            return super().handle_no_permission()
+        return super().handle_no_permission()
+
+    # ------------------------------------------------------------------ #
+    # Access control
+    # ------------------------------------------------------------------ #
+    def test_func(self) -> bool:
+        user = self.request.user
+        if not user.is_authenticated:
+            # LoginRequiredMixin handles redirect; we still must return
+            # False here so dispatch flows correctly.
+            return False
+        if user.rol != "estudiante":
+            return False
+        asistencia_id = self.kwargs.get("asistencia_id")
+        return Asistencia.objects.filter(id=asistencia_id, estudiante=user).exists()
+
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+    def _get_asistencia(self, asistencia_id):
+        return get_object_or_404(
+            Asistencia.objects.select_related("paralelo__asignatura"),
+            pk=asistencia_id,
+            estudiante=self.request.user,
+        )
+
+    def _render(self, request, asistencia, form):
+        return render(
+            request,
+            self.template_name,
+            {"form": form, "asistencia": asistencia},
+        )
+
+    # ------------------------------------------------------------------ #
+    # HTTP verbs
+    # ------------------------------------------------------------------ #
+    def get(self, request, asistencia_id):
+        asistencia = self._get_asistencia(asistencia_id)
+        form = JustificacionCertificadoForm()
+        return self._render(request, asistencia, form)
+
+    def post(self, request, asistencia_id):
+        asistencia = self._get_asistencia(asistencia_id)
+        form = JustificacionCertificadoForm(data=request.POST, files=request.FILES)
+        if not form.is_valid():
+            return self._render(request, asistencia, form)
+
+        service = JustificacionCertificadoAppService()
+        try:
+            service.crear_justificacion_con_certificado(
+                asistencia=asistencia,
+                estudiante=request.user,
+                tipo_certificado=form.cleaned_data["tipo_certificado"],
+                datos_certificado=form.datos_certificado(),
+                archivos=form.cleaned_data["archivos"],
+                motivo=form.cleaned_data["motivo"],
+            )
+        except MaximoArchivosExcedidoError as exc:
+            messages.error(
+                request,
+                f"Máximo 5 archivos permitidos (recibiste {exc.cantidad}).",
+            )
+            return self._render(request, asistencia, form)
+        except ArchivoInvalidoError as exc:
+            messages.error(
+                request,
+                f"Archivo {exc.nombre}: {', '.join(exc.errores)}.",
+            )
+            return self._render(request, asistencia, form)
+        except CamposObligatoriosFaltantesError as exc:
+            for campo in exc.campos:
+                form.add_error(campo, "Este campo es obligatorio para el tipo seleccionado.")
+            messages.error(
+                request,
+                f"Faltan campos obligatorios: {', '.join(exc.campos)}.",
+            )
+            return self._render(request, asistencia, form)
+        except FechaCertificadoInvalidaError:
+            form.add_error("fecha_certificado", "La fecha no puede ser futura.")
+            messages.error(request, "La fecha del certificado no puede ser futura.")
+            return self._render(request, asistencia, form)
+
+        messages.success(request, "Solicitud de justificación enviada correctamente.")
+        return redirect("solicitudes:mis_solicitudes")
