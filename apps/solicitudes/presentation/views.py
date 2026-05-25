@@ -72,7 +72,19 @@ class CrearRecalificacionView(RolRequeridoMixin, View):
 
 
 class CrearJustificacionView(RolRequeridoMixin, View):
-    """Form to create an absence justification request. Only estudiante."""
+    """Form to create an absence justification request. Only estudiante.
+
+    .. deprecated:: Sprint 4 (HU20)
+        Superseded by :class:`SeleccionarInasistenciaView` +
+        :class:`CrearJustificacionConCertificadoView`, which implement the
+        categorized-certificate flow (médico / laboral / calamidad) with
+        per-type required fields and multi-file uploads.
+
+        This view remains routed at ``/justificacion/nueva/`` for backward
+        compatibility but is no longer linked from the student UI
+        (dashboard / sidebar / mis-solicitudes). Slated for removal once
+        HU18 historical solicitudes are migrated or archived.
+    """
 
     rol_requerido = "estudiante"
     template_name = "solicitudes/crear_justificacion.html"
@@ -253,6 +265,46 @@ class ResolverSolicitudView(MultiRolRequeridoMixin, View):
 # --------------------------------------------------------------------------- #
 # HU20 — Justificación con certificado categorizado
 # --------------------------------------------------------------------------- #
+
+
+class SeleccionarInasistenciaView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """HU20 — Landing page that lists the estudiante's justifiable absences.
+
+    Acts as the entry point from dashboard / sidebar / mis-solicitudes
+    into the certificate-based justification form. Each absence card
+    links to ``solicitudes:crear_justificacion_certificado`` for that
+    specific ``Asistencia``.
+
+    Access control matches HU20's form view:
+
+    * Anonymous → 302 to LOGIN_URL.
+    * Authenticated non-estudiante → 403 (raise_exception).
+    """
+
+    raise_exception = True
+    template_name = "solicitudes/seleccionar_inasistencia.html"
+
+    def handle_no_permission(self):
+        """Anonymous → redirect to login. Authenticated non-estudiante → 403."""
+        if not self.request.user.is_authenticated:
+            self.raise_exception = False
+            return super().handle_no_permission()
+        return super().handle_no_permission()
+
+    def test_func(self) -> bool:
+        user = self.request.user
+        if not user.is_authenticated:
+            return False
+        return user.rol == "estudiante"
+
+    def get(self, request):
+        service = SolicitudAppService()
+        inasistencias = service.obtener_inasistencias_justificables(request.user)
+        return render(
+            request,
+            self.template_name,
+            {"inasistencias": inasistencias},
+        )
 
 
 class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMixin, View):

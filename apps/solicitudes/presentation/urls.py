@@ -15,6 +15,7 @@ from apps.solicitudes.presentation.views import (
     PendientesJustificacionView,
     PendientesSecretariaView,
     ResolverSolicitudView,
+    SeleccionarInasistenciaView,
 )
 
 app_name = "solicitudes"
@@ -26,10 +27,18 @@ urlpatterns = [
         CrearRecalificacionView.as_view(),
         name="crear_recalificacion",
     ),
+    # DEPRECATED Sprint 4 (HU20): kept alive for backward compatibility but
+    # no longer linked from the student UI. New entry point is
+    # ``solicitudes:seleccionar_inasistencia`` below.
     path(
         "justificacion/nueva/",
         CrearJustificacionView.as_view(),
         name="crear_justificacion",
+    ),
+    path(
+        "justificacion/",
+        SeleccionarInasistenciaView.as_view(),
+        name="seleccionar_inasistencia",
     ),
     path(
         "justificacion/<int:asistencia_id>/certificado/",
