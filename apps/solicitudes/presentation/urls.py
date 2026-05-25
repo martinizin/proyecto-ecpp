@@ -11,6 +11,7 @@ from apps.solicitudes.presentation.views import (
     CrearJustificacionConCertificadoView,
     CrearJustificacionView,
     CrearRecalificacionView,
+    InspectorJustificacionDetalleView,
     InspectorJustificacionesDashboardView,
     MisSolicitudesView,
     PendientesDocenteView,
@@ -88,7 +89,7 @@ urlpatterns = [
     ),
     path(
         "inspector/justificaciones/<int:pk>/",
-        _PlaceholderInspectorView.as_view(),
+        InspectorJustificacionDetalleView.as_view(),
         name="inspector_justificacion_detalle",
     ),
     path(

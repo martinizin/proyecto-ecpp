@@ -11,7 +11,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
-from django.views.generic import ListView
+from django.views.generic import DetailView, ListView
 
 from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.infrastructure.models import Asistencia
@@ -25,7 +25,10 @@ from apps.solicitudes.domain.exceptions import (
     FechaCertificadoInvalidaError,
     MaximoArchivosExcedidoError,
 )
-from apps.solicitudes.domain.services import clasificar_urgencia
+from apps.solicitudes.domain.services import (
+    clasificar_urgencia,
+    dias_habiles_transcurridos,
+)
 from apps.solicitudes.domain.value_objects import TipoCertificado
 from apps.solicitudes.infrastructure.models import (
     ConfiguracionJustificacion,
@@ -599,12 +602,63 @@ class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
         return ctx
 
 
-class _PlaceholderInspectorView(_InspectorRequiredMixin, View):
-    """Temporary stub for T5/T6/T7 routes registered ahead of time.
+class InspectorJustificacionDetalleView(_InspectorRequiredMixin, DetailView):
+    """HU21 — T5: Detail view for a single justification request.
 
-    T4 registers all four URL names from the HU21 design so the dashboard
-    template can reverse them today. The detalle/resolver/bulk endpoints
-    return 501 until their real views land in T5/T6/T7.
+    Renders solicitud metadata, the certificado block (when present),
+    historial entries, and inline previews of evidence — both the legacy
+    ``Solicitud.archivo_adjunto`` (HU18) and the new ``ArchivoSolicitud``
+    rows (HU20) — in a unified preview area.
+
+    The queryset is pinned to ``TipoSolicitud.JUSTIFICACION``, so
+    ``DetailView``'s default ``get_object`` will raise ``Http404`` for any
+    other ``tipo`` value. This is intentional — see spec
+    ``inspector-resolucion-justificacion`` R1.
+
+    The resolution form is rendered as a skeleton here; the POST handler
+    arrives in T6 (the URL still points at ``_PlaceholderInspectorView``
+    until then). When the solicitud is already resolved (APROBADA or
+    RECHAZADA), the form is hidden in favor of an informational message.
+    """
+
+    template_name = "solicitudes/inspector/detalle.html"
+    context_object_name = "solicitud"
+    queryset = (
+        Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+        .select_related("estudiante", "asistencia", "certificado", "resuelto_por")
+        .prefetch_related("archivos", "historial")
+    )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        solicitud = ctx["solicitud"]
+
+        deadline_dias = ConfiguracionJustificacion.get_deadline_dias()
+        alerta_dias = ConfiguracionJustificacion.get_alerta_dias()
+        today = timezone.localdate()
+        fecha_creacion_date = solicitud.fecha_creacion.date()
+
+        solicitud.urgencia = clasificar_urgencia(
+            fecha_creacion_date, deadline_dias, alerta_dias, today
+        )
+        solicitud.dias_transcurridos = dias_habiles_transcurridos(fecha_creacion_date, today)
+
+        ctx["deadline_dias"] = deadline_dias
+        ctx["alerta_dias"] = alerta_dias
+        ctx["solicitud_resuelta"] = solicitud.estado in (
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        )
+        return ctx
+
+
+class _PlaceholderInspectorView(_InspectorRequiredMixin, View):
+    """Temporary stub for T6/T7 routes registered ahead of time.
+
+    T4 registered all four URL names from the HU21 design so the dashboard
+    template can reverse them. T5 replaced the detalle stub with
+    ``InspectorJustificacionDetalleView``; the resolver/bulk endpoints
+    still return 501 until their real views land in T6/T7.
     """
 
     def get(self, request, *args, **kwargs):
