@@ -228,7 +228,11 @@
                         </td>
                         <td class="px-3 py-2 text-gray-700">{{ sol.fecha_creacion|date:"d/m/Y H:i" }}</td>
                         <td class="px-3 py-2">
-                            {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=sol.urgencia %}
+                            {% if sol.urgencia %}
+                                {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=sol.urgencia %}
+                            {% else %}
+                                <span class="text-gray-300">—</span>
+                            {% endif %}
                         </td>
                         <td class="px-3 py-2 text-gray-700">{{ sol.get_estado_display }}</td>
                         <td class="px-3 py-2 text-right">

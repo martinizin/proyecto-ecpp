@@ -31,11 +31,15 @@
             </h1>
             <p class="text-sm text-gray-500 mt-1">
                 Creada el {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}
-                · {{ solicitud.dias_transcurridos }} día{{ solicitud.dias_transcurridos|pluralize:"s" }} hábil{{ solicitud.dias_transcurridos|pluralize:"es" }} transcurrido{{ solicitud.dias_transcurridos|pluralize:"s" }}
+                {% if solicitud.urgencia %}
+                    · {{ solicitud.dias_transcurridos }} día{{ solicitud.dias_transcurridos|pluralize:"s" }} hábil{{ solicitud.dias_transcurridos|pluralize:"es" }} transcurrido{{ solicitud.dias_transcurridos|pluralize:"s" }}
+                {% endif %}
             </p>
         </div>
         <div>
-            {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=solicitud.urgencia dias_transcurridos=solicitud.dias_transcurridos deadline_dias=deadline_dias %}
+            {% if solicitud.urgencia %}
+                {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=solicitud.urgencia dias_transcurridos=solicitud.dias_transcurridos deadline_dias=deadline_dias %}
+            {% endif %}
         </div>
     </div>
 

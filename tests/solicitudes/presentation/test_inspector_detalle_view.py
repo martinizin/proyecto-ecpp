@@ -424,3 +424,61 @@ class TestCertificadoBlock:
         resp = client.get(_url(sol.pk))
         assert resp.status_code == 200
         assert b"Hospital Eugenio Espejo" in resp.content
+
+
+# -------------------------------------------------------------------- #
+# Post-archive fix — urgencia condicional al estado en el header del detalle
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestUrgenciaHeaderSegunEstado:
+    """El badge de urgencia en el header del detalle solo aparece si la
+    solicitud sigue PENDIENTE / EN_REVISION. Para resueltas, ni el badge
+    ni la línea de 'N días hábiles transcurridos' deben renderizarse.
+    """
+
+    def _login_inspector(self, client):
+        inspector = InspectorFactory()
+        inspector.save()
+        client.force_login(inspector)
+
+    def test_detalle_pendiente_muestra_badge_urgencia(self, client):
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        sol = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.PENDIENTE,
+            fecha_creacion=timezone.now() - datetime.timedelta(days=30),
+        )
+        self._login_inspector(client)
+
+        resp = client.get(_url(sol.pk))
+        assert resp.status_code == 200
+        # Pendiente vieja -> 'Vencido' debe aparecer en el header.
+        assert b"Vencido" in resp.content
+        assert resp.context["solicitud"].urgencia == "vencido"
+
+    @pytest.mark.parametrize(
+        "estado",
+        [
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        ],
+    )
+    def test_detalle_resuelta_no_muestra_badge_urgencia(self, client, estado):
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        sol = _make_justificacion(
+            estado=estado,
+            fecha_creacion=timezone.now() - datetime.timedelta(days=30),
+        )
+        self._login_inspector(client)
+
+        resp = client.get(_url(sol.pk))
+        assert resp.status_code == 200
+        body = resp.content
+        # Ninguna de las 3 etiquetas del partial _urgency_badge.html.
+        assert b"Vencido" not in body
+        assert b"Por vencer" not in body
+        assert b"Al d\xc3\xada" not in body
+        assert resp.context["solicitud"].urgencia is None

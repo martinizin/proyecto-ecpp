@@ -529,14 +529,30 @@ class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
 
         # Precompute urgencia per row in the current page (perf-correct
         # location per design: not inside the template).
+        #
+        # Bugfix post-archive: urgencia aplica SOLO a solicitudes en estado
+        # PENDIENTE o EN_REVISION. Una vez resuelta (APROBADA / RECHAZADA),
+        # el inspector ya cumplió su SLA y el badge ("Vencido", "Por vencer",
+        # "Al día") deja de tener sentido semántico.
+        pending_states = (
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        )
         page_solicitudes = ctx.get("solicitudes") or []
         for sol in page_solicitudes:
-            sol.urgencia = clasificar_urgencia(
-                sol.fecha_creacion.date(),
-                deadline_dias,
-                alerta_dias,
-                today,
-            )
+            if sol.estado in pending_states:
+                sol.urgencia = clasificar_urgencia(
+                    sol.fecha_creacion.date(),
+                    deadline_dias,
+                    alerta_dias,
+                    today,
+                )
+                sol.dias_transcurridos = dias_habiles_transcurridos(
+                    sol.fecha_creacion.date(), today
+                )
+            else:
+                sol.urgencia = None
+                sol.dias_transcurridos = None
 
         # Stats panel — 4 cheap COUNTs over the JUSTIFICACION universe.
         base = Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
@@ -638,10 +654,21 @@ class InspectorJustificacionDetalleView(_InspectorRequiredMixin, DetailView):
         today = timezone.localdate()
         fecha_creacion_date = solicitud.fecha_creacion.date()
 
-        solicitud.urgencia = clasificar_urgencia(
-            fecha_creacion_date, deadline_dias, alerta_dias, today
+        # Bugfix post-archive: urgencia / dias_transcurridos solo si la
+        # solicitud sigue PENDIENTE o EN_REVISION. Para resueltas el badge
+        # del header y la línea "N días hábiles transcurridos" se omiten.
+        pending_states = (
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
         )
-        solicitud.dias_transcurridos = dias_habiles_transcurridos(fecha_creacion_date, today)
+        if solicitud.estado in pending_states:
+            solicitud.urgencia = clasificar_urgencia(
+                fecha_creacion_date, deadline_dias, alerta_dias, today
+            )
+            solicitud.dias_transcurridos = dias_habiles_transcurridos(fecha_creacion_date, today)
+        else:
+            solicitud.urgencia = None
+            solicitud.dias_transcurridos = None
 
         ctx["deadline_dias"] = deadline_dias
         ctx["alerta_dias"] = alerta_dias

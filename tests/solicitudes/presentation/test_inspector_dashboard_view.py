@@ -459,3 +459,112 @@ class TestNumQueries:
         with django_assert_max_num_queries(11):
             resp = client.get(URL)
             assert resp.status_code == 200
+
+
+# -------------------------------------------------------------------- #
+# Post-archive fix — urgencia condicional al estado de la solicitud
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestUrgenciaSegunEstado:
+    """Urgencia (badge + atributo) aplica SOLO a PENDIENTE / EN_REVISION.
+
+    Las solicitudes ya resueltas (APROBADA / RECHAZADA) NO deben mostrar
+    badge de urgencia: el inspector ya cumplió su SLA al resolverlas.
+    """
+
+    def _login_inspector(self, client):
+        inspector = InspectorFactory()
+        inspector.save()
+        client.force_login(inspector)
+
+    def test_solicitud_pendiente_tiene_urgencia(self, client):
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        sol = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.PENDIENTE,
+            fecha_creacion=timezone.now(),
+        )
+        self._login_inspector(client)
+
+        resp = client.get(URL)
+        assert resp.status_code == 200
+        ctx_urgencias = {s.pk: s.urgencia for s in resp.context["solicitudes"]}
+        assert ctx_urgencias[sol.pk] in {"normal", "alerta", "vencido"}
+
+    def test_solicitud_en_revision_tiene_urgencia(self, client):
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        sol = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.EN_REVISION,
+            fecha_creacion=timezone.now(),
+        )
+        self._login_inspector(client)
+
+        resp = client.get(URL)
+        assert resp.status_code == 200
+        ctx_urgencias = {s.pk: s.urgencia for s in resp.context["solicitudes"]}
+        assert ctx_urgencias[sol.pk] in {"normal", "alerta", "vencido"}
+
+    @pytest.mark.parametrize(
+        "estado",
+        [
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        ],
+    )
+    def test_solicitud_resuelta_no_tiene_urgencia(self, client, estado):
+        """Aún con fecha_creacion vieja (que produciría 'vencido' si estuviera
+        el bug), una solicitud APROBADA/RECHAZADA debe tener urgencia=None
+        y su fila NO debe contener las etiquetas del badge.
+        """
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        sol = _make_justificacion(
+            estado=estado,
+            fecha_creacion=timezone.now() - datetime.timedelta(days=30),
+        )
+        self._login_inspector(client)
+
+        resp = client.get(URL)
+        assert resp.status_code == 200
+        ctx_urgencias = {s.pk: s.urgencia for s in resp.context["solicitudes"]}
+        assert ctx_urgencias[sol.pk] is None
+        # El HTML no debe contener ninguna de las 3 etiquetas del partial.
+        body = resp.content
+        assert b"Vencido" not in body
+        assert b"Por vencer" not in body
+        assert b"Al d\xc3\xada" not in body  # "Al día" en utf-8
+
+    def test_dashboard_mezcla_estados_solo_pendientes_muestran_badge(self, client):
+        """1 PENDIENTE vieja (vencida) + 1 APROBADA vieja + 1 RECHAZADA vieja.
+        El HTML solo debe mostrar 'Vencido' UNA vez (de la pendiente), no 3.
+        """
+        ConfiguracionJustificacion.objects.filter(pk=1).delete()
+        ConfiguracionJustificacion.get_singleton()
+        old = timezone.now() - datetime.timedelta(days=30)
+        sol_pend = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.PENDIENTE,
+            fecha_creacion=old,
+        )
+        sol_apr = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.APROBADA,
+            fecha_creacion=old,
+        )
+        sol_rech = _make_justificacion(
+            estado=Solicitud.EstadoSolicitud.RECHAZADA,
+            fecha_creacion=old,
+        )
+        self._login_inspector(client)
+
+        resp = client.get(URL)
+        assert resp.status_code == 200
+        body = resp.content
+        # 'Vencido' aparece exactamente UNA vez (la pendiente).
+        assert body.count(b"Vencido") == 1
+
+        ctx_urgencias = {s.pk: s.urgencia for s in resp.context["solicitudes"]}
+        assert ctx_urgencias[sol_pend.pk] == "vencido"
+        assert ctx_urgencias[sol_apr.pk] is None
+        assert ctx_urgencias[sol_rech.pk] is None
