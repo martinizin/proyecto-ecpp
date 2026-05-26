@@ -15,4 +15,6 @@ CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = "DENY"
+# X_FRAME_OPTIONS inherits SAMEORIGIN from base.py — required for HU21
+# inspector preview of evidence files. Do NOT override back to DENY without
+# first refactoring the preview to use a separate origin or signed URLs.
