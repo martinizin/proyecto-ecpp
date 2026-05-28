@@ -3,6 +3,13 @@ Domain-specific exceptions for the Academico bounded context.
 Pure Python — NO Django imports allowed in this layer.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Avoid runtime circular import: services.py already imports from exceptions.py.
+    # Conflicto is only needed for type annotations here.
+    from apps.academico.domain.services import Conflicto
+
 
 class AcademicoError(Exception):
     """Base exception for Academico domain errors."""
@@ -101,3 +108,49 @@ class MaxAsignaturasExcedidasError(AcademicoError):
             f"La licencia {tipo_licencia_codigo} permite máximo {limite} asignaturas "
             f"por periodo (se intenta llegar a {actual})."
         )
+
+
+# ============================================================
+# Excepciones de conflicto de horario — HU21 QA V5
+# ============================================================
+# Estas excepciones llevan la lista de `Conflicto` detectados para que la
+# capa de presentación pueda renderizar la tabla de conflictos (Tailwind
+# partial) y para que `exception_mapping.to_drf` serialice el payload.
+
+
+class ConflictoHorarioDocenteError(AcademicoError):
+    """V5 — El docente ya tiene horario asignado que se solapa con el nuevo bloque."""
+
+    def __init__(self, conflictos: "list[Conflicto]"):
+        self.conflictos = conflictos
+        count = len(conflictos)
+        first = conflictos[0] if conflictos else None
+        if first:
+            msg = (
+                f"El docente tiene {count} conflicto(s) de horario. "
+                f"Primero: {first.paralelo_nombre} "
+                f"({first.asignatura_codigo}) {first.dia_semana_label} "
+                f"{first.hora_inicio:%H:%M}-{first.hora_fin:%H:%M}"
+            )
+        else:
+            msg = "Conflicto de horario del docente"
+        super().__init__(msg)
+
+
+class ConflictoHorarioEstudianteError(AcademicoError):
+    """V5 — El estudiante ya tiene matrícula activa con horario que se solapa."""
+
+    def __init__(self, conflictos: "list[Conflicto]"):
+        self.conflictos = conflictos
+        count = len(conflictos)
+        first = conflictos[0] if conflictos else None
+        if first:
+            msg = (
+                f"El estudiante tiene {count} conflicto(s) de horario. "
+                f"Primero: {first.paralelo_nombre} "
+                f"({first.asignatura_codigo}) {first.dia_semana_label} "
+                f"{first.hora_inicio:%H:%M}-{first.hora_fin:%H:%M}"
+            )
+        else:
+            msg = "Conflicto de horario del estudiante"
+        super().__init__(msg)
