@@ -191,6 +191,52 @@ class TestRenderEvidenciasDual:
         # Legacy attachment URL appears somewhere in the page.
         assert sol.archivo_adjunto.url.encode() in resp.content
 
+    def test_renderiza_archivo_adjunto_legacy_pdf_como_iframe(self, client):
+        """Regresion: legacy PDF debe seguir renderizando <iframe>, no <img>."""
+        sol = _make_justificacion(
+            archivo_adjunto=SimpleUploadedFile(
+                "legacy.pdf",
+                b"%PDF-1.4 fake content",
+                content_type="application/pdf",
+            ),
+        )
+        inspector = InspectorFactory()
+        inspector.save()
+        client.force_login(inspector)
+
+        resp = client.get(_url(sol.pk))
+        assert resp.status_code == 200
+        body = resp.content
+        legacy_url = sol.archivo_adjunto.url.encode()
+        # Must render iframe pointing to the legacy file.
+        assert b"<iframe" in body
+        assert legacy_url in body
+
+    def test_renderiza_archivo_adjunto_legacy_imagen_como_img(self, client):
+        """Bug QA: una imagen subida como archivo_adjunto legacy debe
+        previsualizarse con <img>, no caer al fallback 'Descargar'.
+        """
+        sol = _make_justificacion(
+            archivo_adjunto=SimpleUploadedFile(
+                "cfg_general.png",
+                b"\x89PNG\r\n\x1a\n fake png",
+                content_type="image/png",
+            ),
+        )
+        inspector = InspectorFactory()
+        inspector.save()
+        client.force_login(inspector)
+
+        resp = client.get(_url(sol.pk))
+        assert resp.status_code == 200
+        body = resp.content
+        legacy_url = sol.archivo_adjunto.url.encode()
+        # Image preview rendered, NOT the download-only fallback.
+        assert b"<img" in body
+        assert legacy_url in body
+        # Defensive: do NOT show the descargar fallback for this case.
+        assert b"Descargar " + sol.archivo_adjunto.name.encode() not in body
+
     def test_renderiza_archivos_nuevos_pdf_como_iframe(self, client):
         sol = _make_justificacion()
         archivo = ArchivoSolicitud.objects.create(
