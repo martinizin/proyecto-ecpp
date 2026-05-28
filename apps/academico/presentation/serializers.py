@@ -8,7 +8,8 @@ Refs: AC-PER-06, AC-CAT-07
 from django.conf import settings
 from rest_framework import serializers
 
-from apps.academico.domain.services import AsignaturaService
+from apps.academico.domain.exceptions import AcademicoError
+from apps.academico.domain.services import AsignaturaService, ParaleloService
 from apps.academico.infrastructure.models import (
     Asignatura,
     AsignaturaLicencia,
@@ -218,6 +219,11 @@ class ParaleloSerializer(serializers.ModelSerializer):
         ]
 
     def validate_capacidad_maxima(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("La capacidad máxima debe ser mayor a 0.")
+        try:
+            ParaleloService().validar_capacidad(
+                capacidad=value,
+                maximo=settings.PARALELO_CAPACIDAD_MAXIMA,
+            )
+        except AcademicoError as e:
+            raise to_drf(e, field="capacidad_maxima")
         return value

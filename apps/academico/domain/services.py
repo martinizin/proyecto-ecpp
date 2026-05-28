@@ -10,6 +10,7 @@ from typing import Optional
 
 from .exceptions import (
     AsignaturaCodigoDuplicadoError,
+    CapacidadParaleloInvalidaError,
     CupoExcedidoError,
     DocenteInvalidoError,
     EstadoMatriculaInvalidoError,
@@ -126,6 +127,20 @@ class ParaleloService:
         """Validate that the assigned user has the docente role."""
         if docente_rol != "docente":
             raise DocenteInvalidoError("El usuario asignado debe tener el rol 'docente'.")
+
+    def validar_capacidad(self, capacidad: int, maximo: int) -> None:
+        """
+        Validate that capacidad is within [1, maximo].
+
+        Args:
+            capacidad: Maximum students for the paralelo.
+            maximo: Upper bound allowed (injected from settings).
+
+        Raises:
+            CapacidadParaleloInvalidaError: If capacidad < 1 or capacidad > maximo.
+        """
+        if capacidad < 1 or capacidad > maximo:
+            raise CapacidadParaleloInvalidaError(capacidad=capacidad, maximo=maximo)
 
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the associated period is active."""

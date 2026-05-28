@@ -6,9 +6,13 @@ Period, subject, and parallel CRUD forms.
 import datetime
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
+from apps.academico.domain.exceptions import AcademicoError
+from apps.academico.domain.services import ParaleloService
 from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
+from apps.academico.presentation.exception_mapping import to_django
 from apps.core.validators import sanitize_text, validate_codigo
 
 Usuario = get_user_model()
@@ -153,10 +157,15 @@ class ParaleloForm(forms.ModelForm):
 
     def clean_capacidad_maxima(self):
         value = self.cleaned_data.get("capacidad_maxima")
-        if value is not None and value < 1:
-            raise forms.ValidationError("La capacidad mínima es 1.")
-        if value is not None and value > 100:
-            raise forms.ValidationError("La capacidad máxima no puede superar 100.")
+        if value is None:
+            return value
+        try:
+            ParaleloService().validar_capacidad(
+                capacidad=value,
+                maximo=settings.PARALELO_CAPACIDAD_MAXIMA,
+            )
+        except AcademicoError as e:
+            raise to_django(e)
         return value
 
 
@@ -214,7 +223,7 @@ class ParaleloLoteForm(forms.Form):
     )
     capacidad_maxima = forms.IntegerField(
         min_value=1,
-        max_value=100,
+        max_value=settings.PARALELO_CAPACIDAD_MAXIMA,
         initial=30,
         widget=forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         label="Capacidad máxima",

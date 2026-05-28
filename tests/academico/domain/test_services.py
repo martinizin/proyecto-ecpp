@@ -6,8 +6,11 @@ Tests validate pure-Python domain rules (no Django imports, no DB).
 
 import pytest
 
-from apps.academico.domain.exceptions import HorasLectivasInvalidasError
-from apps.academico.domain.services import AsignaturaService
+from apps.academico.domain.exceptions import (
+    CapacidadParaleloInvalidaError,
+    HorasLectivasInvalidasError,
+)
+from apps.academico.domain.services import AsignaturaService, ParaleloService
 
 
 class TestAsignaturaServiceValidarHorasLectivas:
@@ -53,3 +56,38 @@ class TestAsignaturaServiceValidarHorasLectivas:
 
         assert exc_info.value.horas == -3
         assert exc_info.value.maximo == 60
+
+
+class TestParaleloServiceValidarCapacidad:
+    """Test validar_capacidad boundary scenarios per design §5 V3."""
+
+    def test_v3_1_capacidad_1_es_valida(self):
+        """V3#1: capacidad=1, maximo=50 → passes (minimum valid)."""
+        service = ParaleloService()
+        # Should not raise
+        service.validar_capacidad(capacidad=1, maximo=50)
+
+    def test_v3_2_capacidad_0_levanta_excepcion(self):
+        """V3#2: capacidad=0, maximo=50 → raises CapacidadParaleloInvalidaError."""
+        service = ParaleloService()
+        with pytest.raises(CapacidadParaleloInvalidaError) as exc_info:
+            service.validar_capacidad(capacidad=0, maximo=50)
+
+        assert exc_info.value.capacidad == 0
+        assert exc_info.value.maximo == 50
+
+    def test_v3_3_capacidad_50_es_valida(self):
+        """V3#3: capacidad=50, maximo=50 → passes (maximum valid)."""
+        service = ParaleloService()
+        # Should not raise
+        service.validar_capacidad(capacidad=50, maximo=50)
+
+    def test_v3_4_capacidad_51_levanta_excepcion(self):
+        """V3#4: capacidad=51, maximo=50 → raises, message contains 'entre 1 y 50'."""
+        service = ParaleloService()
+        with pytest.raises(CapacidadParaleloInvalidaError) as exc_info:
+            service.validar_capacidad(capacidad=51, maximo=50)
+
+        assert exc_info.value.capacidad == 51
+        assert exc_info.value.maximo == 50
+        assert "entre 1 y 50" in str(exc_info.value)
