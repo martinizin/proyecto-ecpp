@@ -66,20 +66,71 @@ class TestTipoCertificadoField:
 
 
 class TestMotivoField:
-    def test_motivo_required(self):
+    def test_motivo_opcional_post_qa(self):
+        """Post-QA: motivo is no longer required."""
         form = _bound(
             data={
                 "tipo_certificado": "medico",
                 "fecha_certificado": _yesterday().isoformat(),
-                "institucion_emisora": "Hospital MSP",
-                "numero_documento": "M-1",
-                "nombre_medico": "Dra X",
                 "dias_reposo": 2,
             },
             files={"archivos": [_pdf()]},
         )
-        assert not form.is_valid()
-        assert "motivo" in form.errors
+        assert form.is_valid(), form.errors
+        assert "motivo" not in form.errors
+
+
+# -------------------------------------------------------------------- #
+# QA simplification: 3 fields removed from the form (numero_documento,
+# nombre_medico/medico_tratante, institucion_emisora). Motivo opcional.
+# -------------------------------------------------------------------- #
+
+
+class TestJustificacionFormCamposEliminados:
+    """Post-QA: the form must NOT declare numero_documento, nombre_medico
+    nor institucion_emisora as input fields."""
+
+    def test_form_no_incluye_numero_documento(self):
+        form = JustificacionCertificadoForm()
+        assert "numero_documento" not in form.fields
+
+    def test_form_no_incluye_medico_tratante(self):
+        # The form field for "Médico tratante" is named ``nombre_medico``.
+        form = JustificacionCertificadoForm()
+        assert "nombre_medico" not in form.fields
+
+    def test_form_no_incluye_institucion_emisora(self):
+        form = JustificacionCertificadoForm()
+        assert "institucion_emisora" not in form.fields
+
+
+class TestMotivoOpcional:
+    def _base_medico(self):
+        return {
+            "tipo_certificado": "medico",
+            "fecha_certificado": _yesterday().isoformat(),
+            "dias_reposo": 2,
+        }
+
+    def test_form_valido_sin_motivo(self):
+        data = self._base_medico()
+        # motivo key absent on purpose.
+        form = _bound(data=data, files={"archivos": [_pdf()]})
+        assert form.is_valid(), form.errors
+
+    def test_form_valido_con_motivo_vacio(self):
+        data = self._base_medico()
+        data["motivo"] = ""
+        form = _bound(data=data, files={"archivos": [_pdf()]})
+        assert form.is_valid(), form.errors
+
+    def test_form_valido_con_motivo_whitespace(self):
+        data = self._base_medico()
+        data["motivo"] = "   "
+        form = _bound(data=data, files={"archivos": [_pdf()]})
+        # required=False does not reject whitespace; the cleaned value is the
+        # raw string (or stripped — Django strips by default).
+        assert form.is_valid(), form.errors
 
 
 # -------------------------------------------------------------------- #
@@ -92,7 +143,6 @@ class TestArchivosField:
         return {
             "tipo_certificado": "laboral",
             "motivo": "ok",
-            "institucion_emisora": "Empresa SA",
             "fecha_certificado": _yesterday().isoformat(),
             "cargo": "Analista",
         }
@@ -142,10 +192,7 @@ class TestCleanPorTipoMedico:
         data = {
             "tipo_certificado": "medico",
             "motivo": "ok",
-            "institucion_emisora": "Hospital MSP",
             "fecha_certificado": _yesterday().isoformat(),
-            "numero_documento": "MED-1",
-            "nombre_medico": "Dra. Pérez",
             "dias_reposo": 3,
         }
         data.update(overrides)
@@ -155,12 +202,12 @@ class TestCleanPorTipoMedico:
         form = _bound(data=self._data(), files={"archivos": [_pdf()]})
         assert form.is_valid(), form.errors
 
-    def test_medico_sin_institucion_emisora_invalido(self):
+    def test_medico_sin_dias_reposo_invalido(self):
         data = self._data()
-        data["institucion_emisora"] = ""
+        data["dias_reposo"] = ""
         form = _bound(data=data, files={"archivos": [_pdf()]})
         assert not form.is_valid()
-        assert "institucion_emisora" in form.errors
+        assert "dias_reposo" in form.errors
 
     def test_medico_sin_fecha_certificado_invalido(self):
         data = self._data()
@@ -175,7 +222,6 @@ class TestCleanPorTipoLaboral:
         data = {
             "tipo_certificado": "laboral",
             "motivo": "ok",
-            "institucion_emisora": "Empresa SA",
             "fecha_certificado": _yesterday().isoformat(),
             "cargo": "Analista",
         }
@@ -186,12 +232,12 @@ class TestCleanPorTipoLaboral:
         form = _bound(data=self._data(), files={"archivos": [_pdf()]})
         assert form.is_valid(), form.errors
 
-    def test_laboral_sin_institucion_emisora_invalido(self):
+    def test_laboral_sin_cargo_invalido(self):
         data = self._data()
-        data["institucion_emisora"] = ""
+        data["cargo"] = ""
         form = _bound(data=data, files={"archivos": [_pdf()]})
         assert not form.is_valid()
-        assert "institucion_emisora" in form.errors
+        assert "cargo" in form.errors
 
     def test_laboral_sin_fecha_certificado_invalido(self):
         data = self._data()
@@ -236,10 +282,7 @@ class TestDatosCertificadoHelper:
             data={
                 "tipo_certificado": "medico",
                 "motivo": "ok",
-                "institucion_emisora": "Hospital MSP",
                 "fecha_certificado": _yesterday().isoformat(),
-                "numero_documento": "MED-1",
-                "nombre_medico": "Dra. Pérez",
                 "dias_reposo": 3,
                 # noise — should NOT leak into output
                 "cargo": "Analista",
@@ -249,20 +292,21 @@ class TestDatosCertificadoHelper:
         )
         assert form.is_valid(), form.errors
         datos = form.datos_certificado()
-        assert datos["institucion_emisora"] == "Hospital MSP"
         assert datos["fecha_certificado"] == _yesterday()
-        assert datos["nombre_medico"] == "Dra. Pérez"
         assert datos["dias_reposo"] == 3
         # Fields belonging to other tipos must NOT be present
         assert "cargo" not in datos
         assert "descripcion_evento" not in datos
+        # Post-QA removed fields must NOT appear in the medico payload
+        assert "institucion_emisora" not in datos
+        assert "nombre_medico" not in datos
+        assert "numero_documento" not in datos
 
     def test_datos_certificado_laboral(self):
         form = _bound(
             data={
                 "tipo_certificado": "laboral",
                 "motivo": "ok",
-                "institucion_emisora": "Empresa SA",
                 "fecha_certificado": _yesterday().isoformat(),
                 "cargo": "Analista",
             },
@@ -272,3 +316,4 @@ class TestDatosCertificadoHelper:
         datos = form.datos_certificado()
         assert datos["cargo"] == "Analista"
         assert "nombre_medico" not in datos
+        assert "institucion_emisora" not in datos

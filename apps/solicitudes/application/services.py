@@ -126,9 +126,8 @@ class SolicitudAppService:
         if error_archivo:
             return {"ok": False, "error": error_archivo}
 
-        # Validate descripcion
-        if not descripcion or not descripcion.strip():
-            return {"ok": False, "error": "Debe indicar el motivo de la solicitud."}
+        # NOTE: descripcion (motivo) is OPTIONAL after the QA simplification.
+        # An empty/whitespace value is legally valid; it is persisted as "".
 
         # Calculate numero_solicitud
         solicitudes_previas = Solicitud.objects.filter(
@@ -143,7 +142,7 @@ class SolicitudAppService:
             tipo=Solicitud.TipoSolicitud.RECTIFICACION,
             estudiante=estudiante,
             calificacion=calificacion,
-            descripcion=descripcion.strip(),
+            descripcion=(descripcion or "").strip(),
             archivo_adjunto=archivo,
             numero_solicitud=numero,
             requiere_secretaria=requiere_secretaria,
@@ -214,9 +213,8 @@ class SolicitudAppService:
         if error_archivo:
             return {"ok": False, "error": error_archivo}
 
-        # Validate descripcion
-        if not descripcion or not descripcion.strip():
-            return {"ok": False, "error": "Debe indicar el motivo de la justificación."}
+        # NOTE: descripcion (motivo) is OPTIONAL after the QA simplification.
+        # An empty/whitespace value is legally valid; it is persisted as "".
 
         # Check for duplicate pending request
         solicitud_existente = Solicitud.objects.filter(
@@ -247,7 +245,7 @@ class SolicitudAppService:
             tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
             estudiante=estudiante,
             asistencia=asistencia,
-            descripcion=descripcion.strip(),
+            descripcion=(descripcion or "").strip(),
             archivo_adjunto=archivo,
             numero_solicitud=numero,
         )

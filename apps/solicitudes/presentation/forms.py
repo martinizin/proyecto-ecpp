@@ -60,8 +60,9 @@ class JustificacionCertificadoForm(forms.Form):
 
     Fields are declared in three groups:
 
-    1. Always-required: ``tipo_certificado``, ``motivo``, ``archivos``.
-    2. Per-tipo metadata: every per-tipo field is declared as ``required=False``
+    1. Always-required: ``tipo_certificado``, ``archivos``.
+    2. Optional metadata: ``motivo`` is a free-text field accepted blank.
+    3. Per-tipo metadata: every per-tipo field is declared as ``required=False``
        at the field level — the conditional ``clean()`` enforces the
        per-tipo required set defined in
        :attr:`CertificadoValidationService.CAMPOS_OBLIGATORIOS`.
@@ -75,17 +76,14 @@ class JustificacionCertificadoForm(forms.Form):
         required=True,
     )
     motivo = forms.CharField(
-        widget=forms.Textarea(attrs={"rows": 4}),
-        required=True,
+        widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Opcional"}),
+        required=False,
         max_length=2000,
     )
     archivos = MultipleFileField(required=True)
 
     # ── medico
-    institucion_emisora = forms.CharField(max_length=200, required=False)
     fecha_certificado = forms.DateField(required=False)
-    numero_documento = forms.CharField(max_length=100, required=False)
-    nombre_medico = forms.CharField(max_length=200, required=False)
     dias_reposo = forms.IntegerField(min_value=1, required=False)
     # ── laboral
     cargo = forms.CharField(max_length=200, required=False)

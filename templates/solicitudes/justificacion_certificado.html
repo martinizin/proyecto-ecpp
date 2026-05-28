@@ -83,97 +83,83 @@
                 <span x-show="!tipo">Seleccioná un tipo de certificado para ver las indicaciones.</span>
             </div>
 
-            <!-- ── Motivo ─────────────────────────────────────────── -->
+            <!-- ── Motivo (opcional) ──────────────────────────────── -->
             <div class="flex flex-col gap-1.5">
                 <label for="id_motivo" class="text-sm font-medium text-gray-700">
-                    Motivo <span class="text-red-500">*</span>
+                    Motivo <span class="text-gray-400 font-normal">(opcional)</span>
                 </label>
-                <textarea name="motivo" id="id_motivo" rows="3" required
+                <textarea name="motivo" id="id_motivo" rows="3" placeholder="Opcional"
                           class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y">{{ form.motivo.value|default:'' }}</textarea>
                 {% if form.motivo.errors %}<p class="text-xs text-red-600">{{ form.motivo.errors.0 }}</p>{% endif %}
             </div>
 
-            <!-- ── Campos por tipo: MEDICO ───────────────────────── -->
-            <div x-show="tipo === 'medico'" class="space-y-4" data-testid="fields-medico">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">Institución emisora <span class="text-red-500">*</span></label>
-                    <input type="text" name="institucion_emisora" value="{{ form.institucion_emisora.value|default:'' }}"
-                           class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                    {% if form.institucion_emisora.errors %}<p class="text-xs text-red-600">{{ form.institucion_emisora.errors.0 }}</p>{% endif %}
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
-                        <input type="date" name="fecha_certificado"
-                               value="{{ form.fecha_certificado.value|default:'' }}"
-                               :max="todayISO"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                        {% if form.fecha_certificado.errors %}<p class="text-xs text-red-600">{{ form.fecha_certificado.errors.0 }}</p>{% endif %}
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Días de reposo <span class="text-red-500">*</span></label>
-                        <input type="number" name="dias_reposo" min="1" value="{{ form.dias_reposo.value|default:'' }}"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                        {% if form.dias_reposo.errors %}<p class="text-xs text-red-600">{{ form.dias_reposo.errors.0 }}</p>{% endif %}
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">N° de documento <span class="text-red-500">*</span></label>
-                        <input type="text" name="numero_documento" value="{{ form.numero_documento.value|default:'' }}"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                        {% if form.numero_documento.errors %}<p class="text-xs text-red-600">{{ form.numero_documento.errors.0 }}</p>{% endif %}
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Médico tratante <span class="text-red-500">*</span></label>
-                        <input type="text" name="nombre_medico" value="{{ form.nombre_medico.value|default:'' }}"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                        {% if form.nombre_medico.errors %}<p class="text-xs text-red-600">{{ form.nombre_medico.errors.0 }}</p>{% endif %}
+            <!-- ── Campos por tipo: MEDICO ─────────────────────────
+                 Usamos <template x-if> (NO <div x-show>) para que los inputs
+                 ocultos NO existan en el DOM. Con x-show los 3 bloques
+                 renderizan sus inputs duplicados name="fecha_certificado" y
+                 Django toma el ultimo valor (vacio) al hacer POST.
+            -->
+            <template x-if="tipo === 'medico'">
+                <div class="space-y-4" data-testid="fields-medico">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
+                            <input type="date" name="fecha_certificado"
+                                   value="{{ form.fecha_certificado.value|default:'' }}"
+                                   :max="todayISO"
+                                   class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                            {% if form.fecha_certificado.errors %}<p class="text-xs text-red-600">{{ form.fecha_certificado.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Días de reposo <span class="text-red-500">*</span></label>
+                            <input type="number" name="dias_reposo" min="1" value="{{ form.dias_reposo.value|default:'' }}"
+                                   class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                            {% if form.dias_reposo.errors %}<p class="text-xs text-red-600">{{ form.dias_reposo.errors.0 }}</p>{% endif %}
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
 
             <!-- ── Campos por tipo: LABORAL ─────────────────────── -->
-            <div x-show="tipo === 'laboral'" class="space-y-4" data-testid="fields-laboral">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">Institución emisora <span class="text-red-500">*</span></label>
-                    <input type="text" name="institucion_emisora" value="{{ form.institucion_emisora.value|default:'' }}"
-                           class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
-                        <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"
-                               :max="todayISO" class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Cargo <span class="text-red-500">*</span></label>
-                        <input type="text" name="cargo" value="{{ form.cargo.value|default:'' }}"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+            <template x-if="tipo === 'laboral'">
+                <div class="space-y-4" data-testid="fields-laboral">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
+                            <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"
+                                   :max="todayISO" class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Cargo <span class="text-red-500">*</span></label>
+                            <input type="text" name="cargo" value="{{ form.cargo.value|default:'' }}"
+                                   class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
 
             <!-- ── Campos por tipo: CALAMIDAD ───────────────────── -->
-            <div x-show="tipo === 'calamidad'" class="space-y-4" data-testid="fields-calamidad">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">Descripción del evento <span class="text-red-500">*</span></label>
-                    <textarea name="descripcion_evento" rows="3"
-                              class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm resize-y">{{ form.descripcion_evento.value|default:'' }}</textarea>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
+            <template x-if="tipo === 'calamidad'">
+                <div class="space-y-4" data-testid="fields-calamidad">
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
-                        <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"
-                               :max="todayISO" class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                        <label class="text-sm font-medium text-gray-700">Descripción del evento <span class="text-red-500">*</span></label>
+                        <textarea name="descripcion_evento" rows="3"
+                                  class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm resize-y">{{ form.descripcion_evento.value|default:'' }}</textarea>
                     </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">Relación familiar <span class="text-red-500">*</span></label>
-                        <input type="text" name="relacion_familiar" value="{{ form.relacion_familiar.value|default:'' }}"
-                               class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
+                            <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"
+                                   :max="todayISO" class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-gray-700">Relación familiar <span class="text-red-500">*</span></label>
+                            <input type="text" name="relacion_familiar" value="{{ form.relacion_familiar.value|default:'' }}"
+                                   class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
 
             <!-- ── Archivos (multi) ──────────────────────────────── -->
             <div class="flex flex-col gap-1.5">

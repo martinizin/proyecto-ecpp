@@ -400,7 +400,7 @@ class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMix
                 tipo_certificado=form.cleaned_data["tipo_certificado"],
                 datos_certificado=form.datos_certificado(),
                 archivos=form.cleaned_data["archivos"],
-                motivo=form.cleaned_data["motivo"],
+                motivo=form.cleaned_data.get("motivo", ""),
             )
         except MaximoArchivosExcedidoError as exc:
             messages.error(

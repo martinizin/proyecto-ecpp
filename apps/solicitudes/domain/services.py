@@ -95,14 +95,10 @@ class CertificadoValidationService:
 
     CAMPOS_OBLIGATORIOS: dict[str, list[str]] = {
         "medico": [
-            "institucion_emisora",
             "fecha_certificado",
-            "numero_documento",
-            "nombre_medico",
             "dias_reposo",
         ],
         "laboral": [
-            "institucion_emisora",
             "fecha_certificado",
             "cargo",
         ],

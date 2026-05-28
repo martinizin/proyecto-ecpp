@@ -19,10 +19,7 @@ from apps.solicitudes.domain.services import CertificadoValidationService as S
 class TestValidarCamposObligatorios:
     def test_medico_complete(self):
         datos = {
-            "institucion_emisora": "MSP",
             "fecha_certificado": "2026-05-01",
-            "numero_documento": "MSP-001",
-            "nombre_medico": "Dr. House",
             "dias_reposo": 3,
         }
         assert S.validar_campos_obligatorios("medico", datos) == []
@@ -30,19 +27,13 @@ class TestValidarCamposObligatorios:
     @pytest.mark.parametrize(
         "missing",
         [
-            "institucion_emisora",
             "fecha_certificado",
-            "numero_documento",
-            "nombre_medico",
             "dias_reposo",
         ],
     )
     def test_medico_missing_each_field(self, missing):
         datos = {
-            "institucion_emisora": "MSP",
             "fecha_certificado": "2026-05-01",
-            "numero_documento": "MSP-001",
-            "nombre_medico": "Dr. House",
             "dias_reposo": 3,
         }
         datos.pop(missing)
@@ -51,14 +42,13 @@ class TestValidarCamposObligatorios:
 
     def test_laboral_complete(self):
         datos = {
-            "institucion_emisora": "ACME",
             "fecha_certificado": "2026-05-01",
             "cargo": "Auditor",
         }
         assert S.validar_campos_obligatorios("laboral", datos) == []
 
     def test_laboral_missing_cargo(self):
-        datos = {"institucion_emisora": "ACME", "fecha_certificado": "2026-05-01"}
+        datos = {"fecha_certificado": "2026-05-01"}
         assert S.validar_campos_obligatorios("laboral", datos) == ["cargo"]
 
     def test_calamidad_complete(self):
@@ -76,15 +66,13 @@ class TestValidarCamposObligatorios:
 
     def test_blank_string_is_missing(self):
         datos = {
-            "institucion_emisora": "   ",
             "fecha_certificado": "2026-05-01",
-            "cargo": "Auditor",
+            "cargo": "   ",
         }
-        assert S.validar_campos_obligatorios("laboral", datos) == ["institucion_emisora"]
+        assert S.validar_campos_obligatorios("laboral", datos) == ["cargo"]
 
     def test_none_value_is_missing(self):
         datos = {
-            "institucion_emisora": "ACME",
             "fecha_certificado": None,
             "cargo": "Auditor",
         }
@@ -171,3 +159,80 @@ class TestConstants:
     def test_no_validar_plazo_method(self):
         """Stakeholder override: NO deadline rule."""
         assert not hasattr(S, "validar_plazo_justificacion")
+
+
+# --------------------------------------------------------------------------- #
+# QA simplification: stakeholders removed several required fields from the
+# justification form. The domain map must reflect the new business rule.
+# --------------------------------------------------------------------------- #
+class TestCamposObligatoriosSimplificados:
+    """Post-QA: medico requires only fecha_certificado + dias_reposo;
+    laboral only fecha_certificado + cargo. Removed institucion_emisora,
+    nombre_medico and numero_documento as obligatory fields."""
+
+    def test_medico_solo_requiere_fecha_y_dias_reposo(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        assert S.validar_campos_obligatorios("medico", datos) == []
+
+    def test_medico_no_requiere_institucion_emisora(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "numero_documento": "MED-001",
+            "nombre_medico": "Dra. Pérez",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "institucion_emisora" not in faltantes
+
+    def test_medico_no_requiere_nombre_medico(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "nombre_medico" not in faltantes
+
+    def test_medico_no_requiere_numero_documento(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "numero_documento" not in faltantes
+
+    def test_medico_sin_fecha_certificado_si_es_faltante(self):
+        datos = {"dias_reposo": 3}
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "fecha_certificado" in faltantes
+
+    def test_medico_sin_dias_reposo_si_es_faltante(self):
+        datos = {"fecha_certificado": "2026-05-01"}
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "dias_reposo" in faltantes
+
+    def test_laboral_solo_requiere_fecha_y_cargo(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "cargo": "Analista",
+        }
+        assert S.validar_campos_obligatorios("laboral", datos) == []
+
+    def test_laboral_no_requiere_institucion_emisora(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "cargo": "Analista",
+        }
+        faltantes = S.validar_campos_obligatorios("laboral", datos)
+        assert "institucion_emisora" not in faltantes
+
+    def test_calamidad_mantiene_campos_actuales(self):
+        """Calamidad is not affected by this QA round — keep its current required set."""
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "descripcion_evento": "Fallecimiento",
+            "relacion_familiar": "padre",
+        }
+        assert S.validar_campos_obligatorios("calamidad", datos) == []

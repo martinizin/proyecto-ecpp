@@ -63,10 +63,7 @@ def _post_data_medico():
     return {
         "tipo_certificado": "medico",
         "motivo": "Estuve enfermo, adjunto certificado.",
-        "institucion_emisora": "Hospital MSP",
         "fecha_certificado": _yesterday_str(),
-        "numero_documento": "MED-001",
-        "nombre_medico": "Dra. Pérez",
         "dias_reposo": 3,
     }
 
@@ -75,7 +72,6 @@ def _post_data_laboral():
     return {
         "tipo_certificado": "laboral",
         "motivo": "Reunión laboral.",
-        "institucion_emisora": "Empresa SA",
         "fecha_certificado": _yesterday_str(),
         "cargo": "Analista",
     }
@@ -177,7 +173,7 @@ class TestPostHappy:
         assert solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION
         cert = CertificadoJustificacion.objects.get(solicitud=solicitud)
         assert cert.tipo == "medico"
-        assert cert.nombre_medico == "Dra. Pérez"
+        assert cert.dias_reposo == 3
         assert ArchivoSolicitud.objects.filter(solicitud=solicitud).count() == 2
         # Notification side-effect
         assert (
@@ -255,12 +251,12 @@ class TestPostInvalido:
         estudiante, asistencia = estudiante_with_asistencia
         client.force_login(estudiante)
         data = _post_data_medico()
-        data["nombre_medico"] = ""
+        data["dias_reposo"] = ""
         data["archivos"] = [_pdf("a.pdf")]
         resp = client.post(_url(asistencia.id), data=data)
         assert resp.status_code == 200
         assert Solicitud.objects.count() == 0
-        assert "nombre_medico" in resp.context["form"].errors
+        assert "dias_reposo" in resp.context["form"].errors
 
     def test_post_maximo_archivos_excedido_via_form(self, client, estudiante_with_asistencia):
         """Form-level enforcement of MAX_ARCHIVOS=5."""
@@ -293,3 +289,208 @@ class TestPostInvalido:
         assert Solicitud.objects.count() == 0
         msgs = [m.message for m in resp.context["messages"]]
         assert any("a.pdf" in m for m in msgs)
+
+
+# -------------------------------------------------------------------- #
+# QA simplification: template must not render the removed inputs and the
+# motivo label/textarea must no longer be marked as required.
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestTemplateFormCamposEliminados:
+    """End-to-end render check: the GET response of the create-justificacion
+    page must not contain inputs for the 3 removed fields, and ``motivo``
+    must no longer be marked as required in the template."""
+
+    def test_template_no_renderiza_input_numero_documento(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b'name="numero_documento"' not in resp.content
+
+    def test_template_no_renderiza_input_medico_tratante(self, client, estudiante_with_asistencia):
+        # The form field is ``nombre_medico`` (label was "Médico tratante").
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b'name="nombre_medico"' not in resp.content
+
+    def test_template_no_renderiza_input_institucion_emisora(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b'name="institucion_emisora"' not in resp.content
+
+    def test_template_motivo_textarea_no_marca_required(self, client, estudiante_with_asistencia):
+        """The textarea for motivo must NOT carry the HTML ``required`` attr."""
+        import re
+
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        # Find the opening tag of <textarea ... name="motivo" ...> and assert it
+        # does not contain the ``required`` attribute.
+        match = re.search(rb"<textarea[^>]*\bname=\"motivo\"[^>]*>", resp.content)
+        assert match is not None, "motivo textarea must still be rendered"
+        assert b"required" not in match.group(0)
+
+
+# -------------------------------------------------------------------- #
+# Regression: bug visible en QA. Con <div x-show> Alpine ocultaba
+# visualmente los bloques per-tipo pero los inputs seguian VIVOS en el
+# render tree del navegador y se posteaban duplicados (3 inputs
+# name="fecha_certificado", uno por bloque). Django tomaba el ultimo
+# valor (vacio del bloque calamidad) y rebotaba con "campo obligatorio"
+# aun con la fecha llena en pantalla.
+#
+# El fix migra los 3 bloques per-tipo a <template x-if>. Los hijos de
+# <template> viven en template.content (DocumentFragment inerte): el
+# HTML los contiene pero el browser NO los postea hasta que Alpine
+# los clona al evaluar la condicion en runtime. Por eso este test NO
+# puede asertar "el input no esta en el HTML" — esta, pero inerte.
+# Asertamos en cambio la PRESENCIA del marker estructural correcto.
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestPostNoPisaCamposPorInputsDuplicados:
+    """Anti-regression del bug x-show vs x-if (bloques per-tipo)."""
+
+    def test_bloque_medico_usa_template_x_if_no_div_x_show(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        # Marker post-fix: bloque medico envuelto en <template x-if>
+        assert b"<template x-if=\"tipo === 'medico'\">" in resp.content, (
+            "El bloque MEDICO debe estar envuelto en <template x-if> para que "
+            "sus inputs no se posteen cuando el tipo activo es otro."
+        )
+        # Anti-regression: el wrapper de fields (data-testid='fields-medico')
+        # NO debe usar x-show (eso es el bug viejo).
+        assert (
+            b'x-show="tipo === \'medico\'" class="space-y-4" data-testid="fields-medico"'
+            not in resp.content
+        ), (
+            "El wrapper de fields-medico no debe usar x-show: deja los inputs "
+            "en el render tree y se postean duplicados con los otros bloques."
+        )
+
+    def test_bloque_laboral_usa_template_x_if_no_div_x_show(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"<template x-if=\"tipo === 'laboral'\">" in resp.content
+        assert (
+            b'x-show="tipo === \'laboral\'" class="space-y-4" data-testid="fields-laboral"'
+            not in resp.content
+        )
+
+    def test_bloque_calamidad_usa_template_x_if_no_div_x_show(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"<template x-if=\"tipo === 'calamidad'\">" in resp.content
+        assert (
+            b'x-show="tipo === \'calamidad\'" class="space-y-4" data-testid="fields-calamidad"'
+            not in resp.content
+        )
+
+    def test_inputs_per_tipo_estan_dentro_de_template_x_if(
+        self, client, estudiante_with_asistencia
+    ):
+        """Sanidad estructural: el input fecha_certificado debe aparecer
+        SOLO dentro de bloques <template x-if=...>...</template>. Si
+        aparece fuera (suelto en el DOM), el bug volveria a manifestarse."""
+        import re
+
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+
+        html = resp.content.decode("utf-8")
+        # Strip todo el contenido entre <template ...> y </template>
+        sin_templates = re.sub(r"<template\b[^>]*>.*?</template>", "", html, flags=re.DOTALL)
+        # Despues del strip, NO debe quedar ningun input/textarea per-tipo
+        # suelto. Si quedara, el bloque escapo al <template x-if>.
+        assert 'name="fecha_certificado"' not in sin_templates, (
+            "name='fecha_certificado' aparece FUERA de <template x-if>: el bug "
+            "x-show / input-duplicado volvio a la vida."
+        )
+        assert 'name="dias_reposo"' not in sin_templates
+        assert 'name="cargo"' not in sin_templates
+        assert 'name="relacion_familiar"' not in sin_templates
+        assert 'name="descripcion_evento"' not in sin_templates
+
+    def test_post_medico_solo_con_sus_campos_es_valido(self, client, estudiante_with_asistencia):
+        """Contrato HTTP post-fix: solo los campos del bloque visible se postean."""
+        estudiante, asistencia = estudiante_with_asistencia
+        InspectorFactory().save()
+        client.force_login(estudiante)
+        resp = client.post(
+            _url(asistencia.id),
+            data={
+                "tipo_certificado": "medico",
+                "fecha_certificado": _yesterday_str(),
+                "dias_reposo": 2,
+                "archivos": [_pdf("a.pdf")],
+            },
+        )
+        assert resp.status_code in (200, 302)
+        if resp.status_code == 200:
+            assert b"Este campo es obligatorio" not in resp.content
+
+    def test_post_laboral_solo_con_sus_campos_es_valido(self, client, estudiante_with_asistencia):
+        estudiante, asistencia = estudiante_with_asistencia
+        InspectorFactory().save()
+        client.force_login(estudiante)
+        resp = client.post(
+            _url(asistencia.id),
+            data={
+                "tipo_certificado": "laboral",
+                "fecha_certificado": _yesterday_str(),
+                "cargo": "Analista",
+                "archivos": [_pdf("a.pdf")],
+            },
+        )
+        assert resp.status_code in (200, 302)
+        if resp.status_code == 200:
+            assert b"Este campo es obligatorio" not in resp.content
+
+    def test_post_calamidad_solo_con_sus_campos_es_valido(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        InspectorFactory().save()
+        client.force_login(estudiante)
+        resp = client.post(
+            _url(asistencia.id),
+            data={
+                "tipo_certificado": "calamidad",
+                "fecha_certificado": _yesterday_str(),
+                "descripcion_evento": "Fallecimiento familiar.",
+                "relacion_familiar": "padre",
+                "archivos": [_pdf("a.pdf")],
+            },
+        )
+        assert resp.status_code in (200, 302)
+        if resp.status_code == 200:
+            assert b"Este campo es obligatorio" not in resp.content
