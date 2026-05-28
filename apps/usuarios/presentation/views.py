@@ -204,11 +204,11 @@ class CambiarContrasenaView(View):
     template_name = "usuarios/cambiar_contrasena.html"
 
     def get(self, request):
-        form = CambiarContrasenaForm()
+        form = CambiarContrasenaForm(user=request.user)
         return render(request, self.template_name, {"form": form})
 
     def post(self, request):
-        form = CambiarContrasenaForm(request.POST)
+        form = CambiarContrasenaForm(request.POST, user=request.user)
         if not form.is_valid():
             return render(request, self.template_name, {"form": form})
 

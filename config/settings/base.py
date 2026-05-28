@@ -120,6 +120,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "apps.usuarios.infrastructure.password_validators.SymbolValidator",
     },
+    {
+        "NAME": "apps.usuarios.infrastructure.password_validators.UserAttributeContainmentValidator",
+    },
 ]
 
 # Session security
