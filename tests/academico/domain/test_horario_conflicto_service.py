@@ -579,9 +579,7 @@ class TestQueryBudget:
                 periodo_id=periodo.pk,
                 bloques_propuestos=propuestos,
             )
-        assert len(ctx) <= 2, (
-            f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"
-        )
+        assert len(ctx) <= 2, f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"
 
     def test_detectar_conflicto_estudiante_under_query_budget(self):
         """1 estudiante ACTIVA en 3 paralelos con bloques → ≤ 2 queries (design §3.2)."""
@@ -612,6 +610,4 @@ class TestQueryBudget:
                 periodo_id=periodo.pk,
                 bloques_propuestos=propuestos,
             )
-        assert len(ctx) <= 2, (
-            f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"
-        )
+        assert len(ctx) <= 2, f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"

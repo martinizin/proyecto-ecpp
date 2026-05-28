@@ -96,11 +96,11 @@ class AsignaturaService:
     def validar_horas_lectivas(self, horas: int, maximo: int = 60) -> None:
         """
         Validate that horas_lectivas is within [1, maximo].
-        
+
         Args:
             horas: Number of teaching hours.
             maximo: Maximum allowed hours (default: 60 per settings).
-        
+
         Raises:
             HorasLectivasInvalidasError: If horas < 1 or horas > maximo.
         """
@@ -333,8 +333,12 @@ class Conflicto:
 
 
 def _overlap(
-    b_dia: str, b_inicio: time, b_fin: time,
-    p_dia: str, p_inicio: time, p_fin: time,
+    b_dia: str,
+    b_inicio: time,
+    b_fin: time,
+    p_dia: str,
+    p_inicio: time,
+    p_fin: time,
 ) -> bool:
     """Half-open overlap check (design §2.3).
 
@@ -376,13 +380,10 @@ class HorarioConflictoService:
 
         from apps.academico.infrastructure.models import BloqueHorario
 
-        qs = (
-            BloqueHorario.objects.filter(
-                paralelo__docente_id=docente_id,
-                paralelo__periodo_id=periodo_id,
-            )
-            .select_related("paralelo__asignatura")
-        )
+        qs = BloqueHorario.objects.filter(
+            paralelo__docente_id=docente_id,
+            paralelo__periodo_id=periodo_id,
+        ).select_related("paralelo__asignatura")
         if paralelo_id_excluir is not None:
             qs = qs.exclude(paralelo_id=paralelo_id_excluir)
 
@@ -390,8 +391,12 @@ class HorarioConflictoService:
         for bloque in qs:
             for dia, hi, hf in bloques_propuestos:
                 if _overlap(
-                    bloque.dia_semana, bloque.hora_inicio, bloque.hora_fin,
-                    dia, hi, hf,
+                    bloque.dia_semana,
+                    bloque.hora_inicio,
+                    bloque.hora_fin,
+                    dia,
+                    hi,
+                    hf,
                 ):
                     conflictos.append(
                         Conflicto(
@@ -447,8 +452,12 @@ class HorarioConflictoService:
         for bloque in qs:
             for dia, hi, hf in bloques_propuestos:
                 if _overlap(
-                    bloque.dia_semana, bloque.hora_inicio, bloque.hora_fin,
-                    dia, hi, hf,
+                    bloque.dia_semana,
+                    bloque.hora_inicio,
+                    bloque.hora_fin,
+                    dia,
+                    hi,
+                    hf,
                 ):
                     conflictos.append(
                         Conflicto(

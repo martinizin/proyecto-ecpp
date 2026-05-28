@@ -69,9 +69,7 @@ class HorasLectivasInvalidasError(AcademicoError):
     def __init__(self, horas: int, maximo: int):
         self.horas = horas
         self.maximo = maximo
-        super().__init__(
-            f"Las horas lectivas deben estar entre 1 y {maximo} (recibido: {horas})."
-        )
+        super().__init__(f"Las horas lectivas deben estar entre 1 y {maximo} (recibido: {horas}).")
 
 
 class CapacidadParaleloInvalidaError(AcademicoError):
