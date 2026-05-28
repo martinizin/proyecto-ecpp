@@ -2,6 +2,7 @@
 URL patterns for the Solicitudes bounded context.
 
 Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
+Sprint 4 — HU21: Dashboard del inspector + acciones de resolución.
 """
 
 from django.urls import path
@@ -10,6 +11,10 @@ from apps.solicitudes.presentation.views import (
     CrearJustificacionConCertificadoView,
     CrearJustificacionView,
     CrearRecalificacionView,
+    InspectorBulkActionView,
+    InspectorJustificacionDetalleView,
+    InspectorJustificacionesDashboardView,
+    InspectorResolverJustificacionView,
     MisSolicitudesView,
     PendientesDocenteView,
     PendientesJustificacionView,
@@ -63,10 +68,35 @@ urlpatterns = [
         name="pendientes_secretaria",
     ),
     # --- Inspector ---
+    # DEPRECATED Sprint 4 (HU21): kept alive (HU18-style) until T8 swaps
+    # all UI entry points to the new dashboard below.
     path(
         "justificaciones/",
         PendientesJustificacionView.as_view(),
         name="pendientes_justificacion",
+    ),
+    # HU21 — Inspector justifications surface.
+    # ORDER MATTERS: ``bulk/`` MUST come BEFORE ``<int:pk>/`` so the static
+    # segment is matched before the integer converter swallows it.
+    path(
+        "inspector/justificaciones/",
+        InspectorJustificacionesDashboardView.as_view(),
+        name="inspector_justificaciones_dashboard",
+    ),
+    path(
+        "inspector/justificaciones/bulk/",
+        InspectorBulkActionView.as_view(),
+        name="inspector_justificaciones_bulk",
+    ),
+    path(
+        "inspector/justificaciones/<int:pk>/",
+        InspectorJustificacionDetalleView.as_view(),
+        name="inspector_justificacion_detalle",
+    ),
+    path(
+        "inspector/justificaciones/<int:pk>/resolver/",
+        InspectorResolverJustificacionView.as_view(),
+        name="inspector_justificacion_resolver",
     ),
     # --- Resolver (docente / secretaría / inspector) ---
     path(

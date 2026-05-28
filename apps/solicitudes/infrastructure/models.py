@@ -235,3 +235,63 @@ class ArchivoSolicitud(models.Model):
 
     def __str__(self):
         return self.nombre_original
+
+
+# --------------------------------------------------------------------------- #
+# HU21 — Configuración global de justificaciones (singleton, pk=1)
+# --------------------------------------------------------------------------- #
+
+
+class ConfiguracionJustificacion(models.Model):
+    """Singleton configuration row for justification deadlines / alerts.
+
+    Always lives at ``pk=1``. ``save()`` normalizes pk to 1 so accidental
+    inserts with a different pk collapse onto the singleton. ``delete()``
+    is a no-op — the row must always exist (lazy created via
+    ``get_singleton``).
+    """
+
+    deadline_dias = models.PositiveIntegerField(
+        default=5,
+        help_text="Días hábiles para resolver una justificación.",
+    )
+    alerta_dias = models.PositiveIntegerField(
+        default=2,
+        help_text="Días antes del deadline para mostrar alerta amarilla.",
+    )
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración de Justificaciones"
+        verbose_name_plural = "Configuración de Justificaciones"
+
+    def save(self, *args, **kwargs):
+        # Singleton invariant: force pk=1 always.
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Singleton invariant: deletion is forbidden.
+        return
+
+    @classmethod
+    def get_singleton(cls):
+        """Return ``(obj, created)`` tuple for the singleton row (pk=1)."""
+        return cls.objects.get_or_create(
+            pk=1,
+            defaults={"deadline_dias": 5, "alerta_dias": 2},
+        )
+
+    @classmethod
+    def get_deadline_dias(cls) -> int:
+        return cls.get_singleton()[0].deadline_dias
+
+    @classmethod
+    def get_alerta_dias(cls) -> int:
+        return cls.get_singleton()[0].alerta_dias
+
+    def __str__(self):
+        return (
+            "Configuración de Justificaciones "
+            f"(deadline={self.deadline_dias}, alerta={self.alerta_dias})"
+        )

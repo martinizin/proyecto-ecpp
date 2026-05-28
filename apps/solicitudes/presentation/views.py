@@ -6,11 +6,16 @@ Sprint 3 — HU18/HU19: Solicitudes y flujo de aprobación.
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
+from django.views.generic import DetailView, ListView
 
+from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.solicitudes.application.services import (
+    InspectorResolucionAppService,
     JustificacionCertificadoAppService,
     SolicitudAppService,
 )
@@ -20,7 +25,15 @@ from apps.solicitudes.domain.exceptions import (
     FechaCertificadoInvalidaError,
     MaximoArchivosExcedidoError,
 )
-from apps.solicitudes.infrastructure.models import Solicitud
+from apps.solicitudes.domain.services import (
+    clasificar_urgencia,
+    dias_habiles_transcurridos,
+)
+from apps.solicitudes.domain.value_objects import TipoCertificado
+from apps.solicitudes.infrastructure.models import (
+    ConfiguracionJustificacion,
+    Solicitud,
+)
 from apps.solicitudes.presentation.forms import JustificacionCertificadoForm
 from apps.usuarios.presentation.permissions import (
     MultiRolRequeridoMixin,
@@ -387,7 +400,7 @@ class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMix
                 tipo_certificado=form.cleaned_data["tipo_certificado"],
                 datos_certificado=form.datos_certificado(),
                 archivos=form.cleaned_data["archivos"],
-                motivo=form.cleaned_data["motivo"],
+                motivo=form.cleaned_data.get("motivo", ""),
             )
         except MaximoArchivosExcedidoError as exc:
             messages.error(
@@ -416,3 +429,352 @@ class CrearJustificacionConCertificadoView(LoginRequiredMixin, UserPassesTestMix
 
         messages.success(request, "Solicitud de justificación enviada correctamente.")
         return redirect("solicitudes:mis_solicitudes")
+
+
+# --------------------------------------------------------------------------- #
+# HU21 — Inspector justifications dashboard + placeholders for T5/T6/T7
+# --------------------------------------------------------------------------- #
+
+
+class _InspectorRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """Shared access mixin for the inspector justifications surface (HU21).
+
+    Behavior:
+      * Anonymous → 302 to LOGIN_URL (via LoginRequiredMixin).
+      * Authenticated, ``rol != "inspector"`` → 403.
+
+    The 403 branch is achieved by toggling ``raise_exception`` ONLY when
+    the user is authenticated; anonymous users still take the default
+    redirect path. Reused by the dashboard view (T4) and the upcoming
+    detalle/resolver/bulk views (T5/T6/T7).
+    """
+
+    raise_exception = False
+
+    def test_func(self) -> bool:
+        user = self.request.user
+        return user.is_authenticated and user.rol == "inspector"
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            # Authenticated but wrong role → 403.
+            self.raise_exception = True
+        return super().handle_no_permission()
+
+
+class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
+    """HU21 — Institute-wide paginated dashboard of justification requests.
+
+    Lists every ``Solicitud(tipo=JUSTIFICACION)`` ordered by ``fecha_creacion``
+    desc, paginated 20/page. Supports GET filters: ``estado``,
+    ``tipo_certificado``, ``paralelo``, ``q`` (search over estudiante's
+    first_name / last_name / cedula, icontains).
+
+    Each row gets a precomputed ``urgencia`` attribute (``"normal"`` /
+    ``"alerta"`` / ``"vencido"``) so the template renders the badge
+    without recomputing the classifier per row.
+
+    Stats panel exposes 4 counters: pendientes (PENDIENTE+EN_REVISION
+    total), aprobadas_hoy, rechazadas_hoy, vencidas (PENDIENTE/EN_REVISION
+    past the deadline).
+    """
+
+    template_name = "solicitudes/inspector/dashboard.html"
+    context_object_name = "solicitudes"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = (
+            Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+            .select_related(
+                "estudiante",
+                "asistencia__paralelo__asignatura",
+                "certificado",
+                "resuelto_por",
+            )
+            .prefetch_related("archivos")
+        )
+        params = self.request.GET
+
+        estado = params.get("estado")
+        if estado:
+            qs = qs.filter(estado=estado)
+
+        tipo_cert = params.get("tipo_certificado")
+        if tipo_cert:
+            qs = qs.filter(certificado__tipo=tipo_cert)
+
+        paralelo = params.get("paralelo")
+        if paralelo:
+            qs = qs.filter(asistencia__paralelo_id=paralelo)
+
+        q = params.get("q")
+        if q:
+            qs = qs.filter(
+                Q(estudiante__first_name__icontains=q)
+                | Q(estudiante__last_name__icontains=q)
+                | Q(estudiante__cedula__icontains=q)
+            )
+
+        return qs.order_by("-fecha_creacion")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+
+        # Single config fetch — reuse both values to avoid a second round-trip.
+        config, _ = ConfiguracionJustificacion.get_singleton()
+        deadline_dias = config.deadline_dias
+        alerta_dias = config.alerta_dias
+        today = timezone.localdate()
+
+        # Precompute urgencia per row in the current page (perf-correct
+        # location per design: not inside the template).
+        #
+        # Bugfix post-archive: urgencia aplica SOLO a solicitudes en estado
+        # PENDIENTE o EN_REVISION. Una vez resuelta (APROBADA / RECHAZADA),
+        # el inspector ya cumplió su SLA y el badge ("Vencido", "Por vencer",
+        # "Al día") deja de tener sentido semántico.
+        pending_states = (
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        )
+        page_solicitudes = ctx.get("solicitudes") or []
+        for sol in page_solicitudes:
+            if sol.estado in pending_states:
+                sol.urgencia = clasificar_urgencia(
+                    sol.fecha_creacion.date(),
+                    deadline_dias,
+                    alerta_dias,
+                    today,
+                )
+                sol.dias_transcurridos = dias_habiles_transcurridos(
+                    sol.fecha_creacion.date(), today
+                )
+            else:
+                sol.urgencia = None
+                sol.dias_transcurridos = None
+
+        # Stats panel — 4 cheap COUNTs over the JUSTIFICACION universe.
+        base = Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+        pendiente_states = [
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        ]
+        pendientes_qs = base.filter(estado__in=pendiente_states)
+
+        # vencidas requires per-row classification — limited to PENDIENTE
+        # which is a bounded set in practice. Documented in design as
+        # acceptable for current scale.
+        vencidas = sum(
+            1
+            for s in pendientes_qs.only("fecha_creacion")
+            if clasificar_urgencia(s.fecha_creacion.date(), deadline_dias, alerta_dias, today)
+            == "vencido"
+        )
+
+        ctx["stats"] = {
+            "pendientes": pendientes_qs.count(),
+            "aprobadas_hoy": base.filter(
+                estado=Solicitud.EstadoSolicitud.APROBADA,
+                fecha_resolucion__date=today,
+            ).count(),
+            "rechazadas_hoy": base.filter(
+                estado=Solicitud.EstadoSolicitud.RECHAZADA,
+                fecha_resolucion__date=today,
+            ).count(),
+            "vencidas": vencidas,
+        }
+
+        ctx["deadline_dias"] = deadline_dias
+        ctx["alerta_dias"] = alerta_dias
+
+        # Filter dropdown data.
+        ctx["estados"] = Solicitud.EstadoSolicitud.choices
+        ctx["tipos_certificado"] = TipoCertificado.choices
+        ctx["paralelos"] = (
+            Paralelo.objects.filter(
+                asistencias__solicitudes_justificacion__tipo=(
+                    Solicitud.TipoSolicitud.JUSTIFICACION
+                )
+            )
+            .select_related("asignatura")
+            .distinct()
+            .order_by("asignatura__codigo", "nombre")
+        )
+
+        # Current filter values (for re-populating the form).
+        ctx["filtros"] = {
+            "estado": self.request.GET.get("estado", ""),
+            "tipo_certificado": self.request.GET.get("tipo_certificado", ""),
+            "paralelo": self.request.GET.get("paralelo", ""),
+            "q": self.request.GET.get("q", ""),
+        }
+
+        # Querystring for pagination links (drops ``page``).
+        qd = self.request.GET.copy()
+        qd.pop("page", None)
+        ctx["query_string"] = qd.urlencode()
+
+        return ctx
+
+
+class InspectorJustificacionDetalleView(_InspectorRequiredMixin, DetailView):
+    """HU21 — T5: Detail view for a single justification request.
+
+    Renders solicitud metadata, the certificado block (when present),
+    historial entries, and inline previews of evidence — both the legacy
+    ``Solicitud.archivo_adjunto`` (HU18) and the new ``ArchivoSolicitud``
+    rows (HU20) — in a unified preview area.
+
+    The queryset is pinned to ``TipoSolicitud.JUSTIFICACION``, so
+    ``DetailView``'s default ``get_object`` will raise ``Http404`` for any
+    other ``tipo`` value. This is intentional — see spec
+    ``inspector-resolucion-justificacion`` R1.
+
+    The resolution form is rendered as a skeleton here; the POST handler
+    arrives in T6 (the URL still points at ``_PlaceholderInspectorView``
+    until then). When the solicitud is already resolved (APROBADA or
+    RECHAZADA), the form is hidden in favor of an informational message.
+    """
+
+    template_name = "solicitudes/inspector/detalle.html"
+    context_object_name = "solicitud"
+    queryset = (
+        Solicitud.objects.filter(tipo=Solicitud.TipoSolicitud.JUSTIFICACION)
+        .select_related("estudiante", "asistencia", "certificado", "resuelto_por")
+        .prefetch_related("archivos", "historial")
+    )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        solicitud = ctx["solicitud"]
+
+        deadline_dias = ConfiguracionJustificacion.get_deadline_dias()
+        alerta_dias = ConfiguracionJustificacion.get_alerta_dias()
+        today = timezone.localdate()
+        fecha_creacion_date = solicitud.fecha_creacion.date()
+
+        # Bugfix post-archive: urgencia / dias_transcurridos solo si la
+        # solicitud sigue PENDIENTE o EN_REVISION. Para resueltas el badge
+        # del header y la línea "N días hábiles transcurridos" se omiten.
+        pending_states = (
+            Solicitud.EstadoSolicitud.PENDIENTE,
+            Solicitud.EstadoSolicitud.EN_REVISION,
+        )
+        if solicitud.estado in pending_states:
+            solicitud.urgencia = clasificar_urgencia(
+                fecha_creacion_date, deadline_dias, alerta_dias, today
+            )
+            solicitud.dias_transcurridos = dias_habiles_transcurridos(fecha_creacion_date, today)
+        else:
+            solicitud.urgencia = None
+            solicitud.dias_transcurridos = None
+
+        ctx["deadline_dias"] = deadline_dias
+        ctx["alerta_dias"] = alerta_dias
+        ctx["solicitud_resuelta"] = solicitud.estado in (
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        )
+        return ctx
+
+
+class InspectorResolverJustificacionView(_InspectorRequiredMixin, View):
+    """HU21 — T6: POST handler to approve or reject a single justification.
+
+    Delegates to :class:`InspectorResolucionAppService` (T3). Always
+    redirects back to the detail view (Post/Redirect/Get pattern). Errors
+    are surfaced through the messages framework — they never raise.
+
+    Behavior:
+
+    * ``accion="aprobar"`` → ``aprobar_justificacion``. Idempotent on
+      already-resolved rows (the app service returns the solicitud
+      unchanged).
+    * ``accion="rechazar"`` → ``rechazar_justificacion``. Requires a
+      non-empty ``comentario`` (after stripping whitespace); empty
+      comentario raises ``ValueError`` in the service and we surface it
+      as a message error without writing anything.
+    * Any other ``accion`` (or missing) → message error, no writes.
+    * Downstream errors from ``SolicitudAppService.resolver_solicitud``
+      are re-raised by the wrapper as ``RuntimeError`` and surfaced as
+      message errors.
+
+    The queryset is pinned to ``TipoSolicitud.JUSTIFICACION``, so any
+    other ``tipo`` (or a non-existent pk) yields a 404.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        solicitud = get_object_or_404(
+            Solicitud,
+            pk=pk,
+            tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+        )
+        accion = request.POST.get("accion", "")
+        comentario = request.POST.get("comentario", "").strip()
+        service = InspectorResolucionAppService()
+        try:
+            if accion == "aprobar":
+                service.aprobar_justificacion(solicitud, request.user, comentario)
+                messages.success(request, "Justificación aprobada.")
+            elif accion == "rechazar":
+                service.rechazar_justificacion(solicitud, request.user, comentario)
+                messages.success(request, "Justificación rechazada.")
+            else:
+                messages.error(request, "Acción inválida.")
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+        return redirect("solicitudes:inspector_justificacion_detalle", pk=pk)
+
+
+class InspectorBulkActionView(_InspectorRequiredMixin, View):
+    """HU21 — T7: POST handler to approve/reject several justifications.
+
+    Delegates to :meth:`InspectorResolucionAppService.procesar_bulk_resolucion`
+    (T3). Always redirects back to the dashboard (Post/Redirect/Get pattern).
+    Errors surface via the messages framework — they never raise.
+
+    Behavior:
+
+    * ``solicitud_ids`` missing or empty → message error, no writes.
+    * Non-numeric ids are silently dropped before reaching the service.
+    * ``accion="aprobar"`` → bulk approve. Already-resolved rows counted
+      in ``omitidas``. Non-JUSTIFICACION ids and non-existent ids are
+      silently filtered out by the service.
+    * ``accion="rechazar"`` → bulk reject. Requires non-empty
+      ``comentario`` (after stripping). Empty comentario raises
+      ``ValueError`` in the service BEFORE the loop runs, so ZERO rows
+      get touched (all-or-nothing semantics).
+    * Any other ``accion`` (or missing) → the service per-row try/except
+      counts the row as omitida without writing.
+    * Success message: ``"Procesadas: N. Omitidas (ya resueltas): M."``.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        ids = [int(x) for x in request.POST.getlist("solicitud_ids") if x.isdigit()]
+        accion = request.POST.get("accion", "")
+        comentario = request.POST.get("comentario", "").strip()
+
+        if not ids:
+            messages.error(request, "Seleccioná al menos una justificación.")
+            return redirect("solicitudes:inspector_justificaciones_dashboard")
+
+        service = InspectorResolucionAppService()
+        try:
+            resultado = service.procesar_bulk_resolucion(ids, request.user, accion, comentario)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("solicitudes:inspector_justificaciones_dashboard")
+
+        msg = (
+            f"Procesadas: {resultado.procesadas}. "
+            f"Omitidas (ya resueltas): {resultado.omitidas}."
+        )
+        messages.success(request, msg)
+        return redirect("solicitudes:inspector_justificaciones_dashboard")

@@ -17,6 +17,7 @@ from apps.calificaciones.infrastructure.models import (
     LogCalificacion,
 )
 from apps.notificaciones.infrastructure.models import Notificacion
+from apps.solicitudes.application.dtos import BulkResultadoDTO
 from apps.solicitudes.application.notifications import (
     notificar_nueva_justificacion,
 )
@@ -125,9 +126,8 @@ class SolicitudAppService:
         if error_archivo:
             return {"ok": False, "error": error_archivo}
 
-        # Validate descripcion
-        if not descripcion or not descripcion.strip():
-            return {"ok": False, "error": "Debe indicar el motivo de la solicitud."}
+        # NOTE: descripcion (motivo) is OPTIONAL after the QA simplification.
+        # An empty/whitespace value is legally valid; it is persisted as "".
 
         # Calculate numero_solicitud
         solicitudes_previas = Solicitud.objects.filter(
@@ -142,7 +142,7 @@ class SolicitudAppService:
             tipo=Solicitud.TipoSolicitud.RECTIFICACION,
             estudiante=estudiante,
             calificacion=calificacion,
-            descripcion=descripcion.strip(),
+            descripcion=(descripcion or "").strip(),
             archivo_adjunto=archivo,
             numero_solicitud=numero,
             requiere_secretaria=requiere_secretaria,
@@ -213,9 +213,8 @@ class SolicitudAppService:
         if error_archivo:
             return {"ok": False, "error": error_archivo}
 
-        # Validate descripcion
-        if not descripcion or not descripcion.strip():
-            return {"ok": False, "error": "Debe indicar el motivo de la justificación."}
+        # NOTE: descripcion (motivo) is OPTIONAL after the QA simplification.
+        # An empty/whitespace value is legally valid; it is persisted as "".
 
         # Check for duplicate pending request
         solicitud_existente = Solicitud.objects.filter(
@@ -246,7 +245,7 @@ class SolicitudAppService:
             tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
             estudiante=estudiante,
             asistencia=asistencia,
-            descripcion=descripcion.strip(),
+            descripcion=(descripcion or "").strip(),
             archivo_adjunto=archivo,
             numero_solicitud=numero,
         )
@@ -785,3 +784,128 @@ class JustificacionCertificadoAppService:
             notificar_nueva_justificacion(solicitud)
 
         return solicitud
+
+
+# --------------------------------------------------------------------------- #
+# HU21 - Resolucion de justificaciones por Inspector
+# --------------------------------------------------------------------------- #
+
+
+class InspectorResolucionAppService:
+    """Thin wrapper over :meth:`SolicitudAppService.resolver_solicitud` for
+    inspector-driven justification resolution (HU21).
+
+    Adds three behaviors on top of the existing single-resolve flow:
+
+    * **Idempotent skip**: a solicitud that is already APROBADA / RECHAZADA
+      is returned unchanged: no new HistorialSolicitud, no double
+      notification.
+    * **Comentario validation for rechazar** (singular and bulk). Empty or
+      whitespace-only comentario raises :class:`ValueError`. In the bulk
+      path the check is **all-or-nothing**: it runs BEFORE the loop, so
+      zero rows are touched if the comentario is invalid.
+    * **Bulk semantics**: :meth:`procesar_bulk_resolucion` iterates the
+      provided ids, applies the action per row inside its own
+      ``transaction.atomic()`` block, and reports outcome via
+      :class:`BulkResultadoDTO`. A failing row never aborts the batch.
+    """
+
+    def aprobar_justificacion(self, solicitud, inspector, comentario: str = ""):
+        """Approve a single justification.
+
+        Returns the (refreshed) :class:`Solicitud`. Idempotent on already
+        resolved rows: the row is returned unchanged.
+        """
+        if solicitud.estado in (
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        ):
+            return solicitud
+
+        resultado = SolicitudAppService.resolver_solicitud(
+            solicitud_id=solicitud.pk,
+            usuario=inspector,
+            accion="aprobar",
+            comentario=comentario or "",
+        )
+        if not resultado.get("ok"):
+            raise RuntimeError(resultado.get("error", "Error al aprobar"))
+        return resultado["solicitud"]
+
+    def rechazar_justificacion(self, solicitud, inspector, comentario: str):
+        """Reject a single justification.
+
+        Requires a non-empty ``comentario`` (after stripping whitespace).
+        Idempotent on already resolved rows.
+        """
+        if not comentario or not comentario.strip():
+            raise ValueError("El comentario es obligatorio al rechazar.")
+
+        if solicitud.estado in (
+            Solicitud.EstadoSolicitud.APROBADA,
+            Solicitud.EstadoSolicitud.RECHAZADA,
+        ):
+            return solicitud
+
+        resultado = SolicitudAppService.resolver_solicitud(
+            solicitud_id=solicitud.pk,
+            usuario=inspector,
+            accion="rechazar",
+            comentario=comentario,
+        )
+        if not resultado.get("ok"):
+            raise RuntimeError(resultado.get("error", "Error al rechazar"))
+        return resultado["solicitud"]
+
+    def procesar_bulk_resolucion(
+        self,
+        ids: list[int],
+        inspector,
+        accion: str,
+        comentario: str = "",
+    ) -> BulkResultadoDTO:
+        """Apply ``accion`` to every solicitud whose pk is in ``ids``.
+
+        All-or-nothing comentario validation for ``rechazar`` runs BEFORE
+        the loop. If it fails, ``ValueError`` is raised and zero rows
+        are touched.
+
+        Per-row :func:`~django.db.transaction.atomic` so a single row
+        failure does not abort the batch. Rows already in a terminal
+        state are silently skipped and counted in ``omitidas``.
+        """
+        if accion == "rechazar" and (not comentario or not comentario.strip()):
+            raise ValueError("El comentario es obligatorio al rechazar en bulk.")
+
+        resultado = BulkResultadoDTO()
+        if not ids:
+            return resultado
+
+        solicitudes = Solicitud.objects.filter(
+            pk__in=ids,
+            tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+        )
+
+        for solicitud in solicitudes:
+            if solicitud.estado in (
+                Solicitud.EstadoSolicitud.APROBADA,
+                Solicitud.EstadoSolicitud.RECHAZADA,
+            ):
+                resultado.omitidas_ids.append(solicitud.pk)
+                continue
+            try:
+                with transaction.atomic():
+                    if accion == "aprobar":
+                        self.aprobar_justificacion(solicitud, inspector, comentario)
+                    elif accion == "rechazar":
+                        self.rechazar_justificacion(solicitud, inspector, comentario)
+                    else:
+                        # Invalid action: count as omitida.
+                        raise ValueError(f"Accion invalida: {accion}")
+                resultado.procesadas += 1
+            except Exception:
+                # Per-row atomicity: failure here only impacts THIS row.
+                resultado.omitidas_ids.append(solicitud.pk)
+
+        resultado.omitidas = len(resultado.omitidas_ids)
+        return resultado

@@ -48,17 +48,13 @@ def _pdf(name="cert.pdf", size=1024):
 
 def _datos_medico():
     return {
-        "institucion_emisora": "Hospital MSP",
         "fecha_certificado": datetime.date.today() - datetime.timedelta(days=1),
-        "numero_documento": "MED-001",
-        "nombre_medico": "Dra. Pérez",
         "dias_reposo": 3,
     }
 
 
 def _datos_laboral():
     return {
-        "institucion_emisora": "Empresa XYZ S.A.",
         "fecha_certificado": datetime.date.today() - datetime.timedelta(days=2),
         "cargo": "Analista",
     }
@@ -115,7 +111,7 @@ class TestHappyPath:
         assert solicitud.tipo == Solicitud.TipoSolicitud.JUSTIFICACION
         cert = CertificadoJustificacion.objects.get(solicitud=solicitud)
         assert cert.tipo == TipoCertificado.MEDICO
-        assert cert.nombre_medico == "Dra. Pérez"
+        assert cert.dias_reposo == 3
         assert ArchivoSolicitud.objects.filter(solicitud=solicitud).count() == 2
 
     def test_happy_laboral(self, setup_estudiante_asistencia):
@@ -236,7 +232,6 @@ class TestRollbackPorExcepcion:
         InspectorFactory().save()
         service = JustificacionCertificadoAppService()
         datos = _datos_medico()
-        del datos["nombre_medico"]
         del datos["dias_reposo"]
         with pytest.raises(CamposObligatoriosFaltantesError) as exc:
             service.crear_justificacion_con_certificado(
@@ -247,7 +242,7 @@ class TestRollbackPorExcepcion:
                 archivos=[_pdf()],
                 motivo="ok",
             )
-        assert set(exc.value.campos) == {"nombre_medico", "dias_reposo"}
+        assert set(exc.value.campos) == {"dias_reposo"}
         self._assert_no_rows()
 
     def test_fecha_certificado_futura(self, setup_estudiante_asistencia):
@@ -266,3 +261,87 @@ class TestRollbackPorExcepcion:
                 motivo="ok",
             )
         self._assert_no_rows()
+
+
+# -------------------------------------------------------------------- #
+# QA simplification: motivo is now optional end-to-end.
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestMotivoOpcionalEnService:
+    """Post-QA: an empty motivo no longer aborts the AppService."""
+
+    def test_crear_justificacion_con_certificado_sin_motivo_es_valido(
+        self, setup_estudiante_asistencia
+    ):
+        estudiante, asistencia = setup_estudiante_asistencia
+        InspectorFactory().save()
+        service = JustificacionCertificadoAppService()
+        solicitud = service.crear_justificacion_con_certificado(
+            asistencia=asistencia,
+            estudiante=estudiante,
+            tipo_certificado=TipoCertificado.LABORAL,
+            datos_certificado=_datos_laboral(),
+            archivos=[_pdf()],
+            motivo="",
+        )
+        assert solicitud.pk is not None
+        assert solicitud.descripcion == ""
+
+    def test_crear_justificacion_con_certificado_motivo_none_es_valido(
+        self, setup_estudiante_asistencia
+    ):
+        estudiante, asistencia = setup_estudiante_asistencia
+        InspectorFactory().save()
+        service = JustificacionCertificadoAppService()
+        solicitud = service.crear_justificacion_con_certificado(
+            asistencia=asistencia,
+            estudiante=estudiante,
+            tipo_certificado=TipoCertificado.LABORAL,
+            datos_certificado=_datos_laboral(),
+            archivos=[_pdf()],
+            motivo=None,
+        )
+        assert solicitud.pk is not None
+        assert solicitud.descripcion == ""
+
+    def test_crear_justificacion_legacy_sin_motivo_es_valido(self, setup_estudiante_asistencia):
+        """The legacy single-file flow (SolicitudAppService.crear_justificacion)
+        must also accept an empty descripcion."""
+        from apps.solicitudes.application.services import SolicitudAppService
+
+        estudiante, asistencia = setup_estudiante_asistencia
+        result = SolicitudAppService.crear_justificacion(estudiante, asistencia.pk, "")
+        assert result["ok"] is True
+        assert result["solicitud"].descripcion == ""
+
+    def test_crear_recalificacion_sin_descripcion_es_valido(self):
+        """SolicitudAppService.crear_recalificacion accepts an empty motivo too."""
+        from apps.calificaciones.infrastructure.models import (
+            RegistroCalificacionParalelo,
+        )
+        from apps.solicitudes.application.services import SolicitudAppService
+        from tests.factories import (
+            CalificacionFactory,
+            EstudianteFactory,
+            EvaluacionFactory,
+            MatriculaFactory,
+            RegistroCalificacionParaleloFactory,
+        )
+
+        periodo = PeriodoFactory(activo=True)
+        paralelo = ParaleloFactory(periodo=periodo)
+        estudiante = EstudianteFactory()
+        estudiante.save()
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo)
+        RegistroCalificacionParaleloFactory(
+            paralelo=paralelo,
+            estado=RegistroCalificacionParalelo.Estado.VALIDADO,
+        )
+        evaluacion = EvaluacionFactory(paralelo=paralelo)
+        calificacion = CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante)
+
+        result = SolicitudAppService.crear_recalificacion(estudiante, calificacion.pk, "")
+        assert result["ok"] is True
+        assert result["solicitud"].descripcion == ""

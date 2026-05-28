@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Justificaciones — Inspector{% endblock %}
+
+{% block content %}
+<!-- Hidden bulk-form: checkboxes target this via form="bulk-form". -->
+<form id="bulk-form" method="post"
+      action="{% url 'solicitudes:inspector_justificaciones_bulk' %}"
+      class="hidden">
+    {% csrf_token %}
+    {# accion + comentario son inyectados por Alpine antes de submit #}
+    <input type="hidden" name="accion" id="bulk-accion" value="">
+    <input type="hidden" name="comentario" id="bulk-comentario" value="">
+</form>
+
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Justificaciones</li>
+    </ol>
+</nav>
+
+<div class="max-w-6xl mx-auto"
+     x-data="{
+        open: false,
+        accion: 'aprobar',
+        comentario: '',
+        selectAll: false,
+        get selectedCount() {
+            return document.querySelectorAll('input[name=solicitud_ids]:checked').length;
+        },
+        toggleAll(ev) {
+            document.querySelectorAll('input[name=solicitud_ids]')
+                .forEach(cb => { cb.checked = ev.target.checked; });
+        },
+        submitBulk() {
+            document.getElementById('bulk-accion').value = this.accion;
+            document.getElementById('bulk-comentario').value = this.comentario;
+            document.getElementById('bulk-form').submit();
+        }
+     }">
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-gray-800">Dashboard de Justificaciones — Inspector</h1>
+        <p class="text-sm text-gray-500 mt-1">
+            Gestión institucional de justificaciones de inasistencia.
+            Deadline: {{ deadline_dias }} días hábiles · Alerta: {{ alerta_dias }} días hábiles.
+        </p>
+    </div>
+
+    {# ---------------- Stats panel ---------------- #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div class="bg-white rounded-xl shadow-md px-4 py-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Pendientes</p>
+            <p class="text-2xl font-semibold text-gray-800 mt-1">{{ stats.pendientes }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md px-4 py-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Aprobadas hoy</p>
+            <p class="text-2xl font-semibold text-success mt-1">{{ stats.aprobadas_hoy }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md px-4 py-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Rechazadas hoy</p>
+            <p class="text-2xl font-semibold text-error mt-1">{{ stats.rechazadas_hoy }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md px-4 py-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Vencidas</p>
+            <p class="text-2xl font-semibold text-error mt-1">{{ stats.vencidas }}</p>
+        </div>
+    </div>
+
+    {# ---------------- Filter form ---------------- #}
+    <form method="get" class="bg-white rounded-xl shadow-md px-4 py-3 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+                <select name="estado" class="w-full text-sm rounded-lg border-gray-300 focus:ring-primary focus:border-primary">
+                    <option value="">Todos</option>
+                    {% for value, label in estados %}
+                    <option value="{{ value }}" {% if filtros.estado == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo certificado</label>
+                <select name="tipo_certificado" class="w-full text-sm rounded-lg border-gray-300 focus:ring-primary focus:border-primary">
+                    <option value="">Todos</option>
+                    {% for value, label in tipos_certificado %}
+                    <option value="{{ value }}" {% if filtros.tipo_certificado == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Paralelo</label>
+                <select name="paralelo" class="w-full text-sm rounded-lg border-gray-300 focus:ring-primary focus:border-primary">
+                    <option value="">Todos</option>
+                    {% for p in paralelos %}
+                    <option value="{{ p.id }}" {% if filtros.paralelo == p.id|stringformat:"s" %}selected{% endif %}>
+                        {{ p.asignatura.codigo }} — {{ p.nombre }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Buscar (nombre / cédula)</label>
+                <input type="text" name="q" value="{{ filtros.q }}" placeholder="..."
+                       class="w-full text-sm rounded-lg border-gray-300 focus:ring-primary focus:border-primary">
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="bg-primary text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-primary-dark transition-colors">
+                    Filtrar
+                </button>
+                <a href="{% url 'solicitudes:inspector_justificaciones_dashboard' %}"
+                   class="bg-gray-100 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                    Limpiar
+                </a>
+            </div>
+        </div>
+    </form>
+
+    {# ---------------- Bulk toolbar ---------------- #}
+    <div class="bg-white rounded-xl shadow-md px-4 py-3 mb-4 flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+            Seleccioná filas con las casillas para habilitar las acciones masivas.
+        </p>
+        <button type="button"
+                @click="open = true"
+                :disabled="selectedCount === 0"
+                class="bg-primary text-white text-sm font-medium px-3 py-2 rounded-lg
+                       hover:bg-primary-dark transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed">
+            Acción masiva
+        </button>
+    </div>
+
+    {# ---------------- Bulk modal (Alpine) ---------------- #}
+    <div x-show="open"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+         @keydown.escape.window="open = false">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+             @click.away="open = false">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">
+                Confirmar acción masiva
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Vas a aplicar la acción a
+                <span class="font-medium text-gray-800" x-text="selectedCount"></span>
+                justificación(es) seleccionada(s).
+            </p>
+
+            <fieldset class="mb-4">
+                <legend class="text-xs font-medium text-gray-600 mb-2">Acción</legend>
+                <label class="flex items-center gap-2 text-sm text-gray-700 mb-1">
+                    <input type="radio" x-model="accion" value="aprobar"> Aprobar
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="radio" x-model="accion" value="rechazar"> Rechazar
+                </label>
+            </fieldset>
+
+            <div class="mb-4" x-show="accion === 'rechazar'">
+                <label class="block text-xs font-medium text-gray-600 mb-1">
+                    Comentario (obligatorio al rechazar)
+                </label>
+                <textarea x-model="comentario"
+                          :required="accion === 'rechazar'"
+                          rows="3"
+                          class="w-full text-sm rounded-lg border-gray-300
+                                 focus:ring-primary focus:border-primary"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="open = false"
+                        class="bg-gray-100 text-gray-700 text-sm font-medium px-3 py-2
+                               rounded-lg hover:bg-gray-200 transition-colors">
+                    Cancelar
+                </button>
+                <button type="button"
+                        @click="submitBulk()"
+                        class="bg-primary text-white text-sm font-medium px-3 py-2
+                               rounded-lg hover:bg-primary-dark transition-colors">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ---------------- Table or empty state ---------------- #}
+    {% if solicitudes %}
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="px-3 py-2 text-left">
+                            <input type="checkbox" x-model="selectAll" @change="toggleAll($event)"
+                                   class="rounded border-gray-300" title="Seleccionar todo">
+                        </th>
+                        <th class="px-3 py-2 text-left">Estudiante</th>
+                        <th class="px-3 py-2 text-left">Tipo cert.</th>
+                        <th class="px-3 py-2 text-left">Paralelo</th>
+                        <th class="px-3 py-2 text-left">Fecha creación</th>
+                        <th class="px-3 py-2 text-left">Urgencia</th>
+                        <th class="px-3 py-2 text-left">Estado</th>
+                        <th class="px-3 py-2 text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for sol in solicitudes %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2">
+                            <input type="checkbox" name="solicitud_ids" value="{{ sol.pk }}"
+                                   form="bulk-form" class="rounded border-gray-300">
+                        </td>
+                        <td class="px-3 py-2">
+                            <p class="font-medium text-gray-800">{{ sol.estudiante.get_full_name }}</p>
+                            <p class="text-xs text-gray-500">{{ sol.estudiante.cedula }}</p>
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">
+                            {% if sol.certificado %}{{ sol.certificado.get_tipo_display }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">
+                            {% if sol.asistencia and sol.asistencia.paralelo %}
+                                {{ sol.asistencia.paralelo.asignatura.codigo }} — {{ sol.asistencia.paralelo.nombre }}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">{{ sol.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                        <td class="px-3 py-2">
+                            {% if sol.urgencia %}
+                                {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=sol.urgencia %}
+                            {% else %}
+                                <span class="text-gray-300">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">{{ sol.get_estado_display }}</td>
+                        <td class="px-3 py-2 text-right">
+                            <a href="{% url 'solicitudes:inspector_justificacion_detalle' sol.pk %}"
+                               class="text-primary font-medium hover:underline">Detalle →</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ---------------- Pagination (preserves filters) ---------------- #}
+    {% if is_paginated %}
+    <nav class="mt-4 flex items-center justify-between text-sm" aria-label="Paginación">
+        <p class="text-gray-500">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            · {{ page_obj.paginator.count }} resultado{{ page_obj.paginator.count|pluralize }}
+        </p>
+        <div class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}"
+               class="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50">‹ Anterior</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}"
+               class="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50">Siguiente ›</a>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="bg-white rounded-xl shadow-md px-6 py-12">
+        <div class="flex flex-col items-center gap-2">
+            <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <p class="text-gray-500 font-medium">No hay justificaciones que coincidan con los filtros.</p>
+            <p class="text-gray-400 text-xs">Probá limpiar los filtros o esperá a que entren nuevas solicitudes.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

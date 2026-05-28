@@ -3,6 +3,7 @@ from django.contrib import admin
 from apps.solicitudes.infrastructure.models import (
     ArchivoSolicitud,
     CertificadoJustificacion,
+    ConfiguracionJustificacion,
     Solicitud,
 )
 
@@ -39,3 +40,22 @@ class ArchivoSolicitudAdmin(admin.ModelAdmin):
     list_filter = ("subido_en",)
     search_fields = ("solicitud__estudiante__username", "nombre_original")
     readonly_fields = ("subido_en",)
+
+
+@admin.register(ConfiguracionJustificacion)
+class ConfiguracionJustificacionAdmin(admin.ModelAdmin):
+    """Singleton admin for ConfiguracionJustificacion (HU21).
+
+    Enforces the singleton invariant at the admin layer: cannot add a
+    second row, cannot delete the existing one. ``actualizado_en`` is
+    read-only since it is ``auto_now``.
+    """
+
+    list_display = ("pk", "deadline_dias", "alerta_dias", "actualizado_en")
+    readonly_fields = ("actualizado_en",)
+
+    def has_add_permission(self, request):
+        return not ConfiguracionJustificacion.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

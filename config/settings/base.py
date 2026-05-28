@@ -47,6 +47,11 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# Allow same-origin iframes so HU21 inspector dashboard can preview media
+# files (PDFs, images) via <iframe src="/media/..."> and <img src="/media/...">.
+# Cross-origin framing is still blocked, which is the real clickjacking vector.
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [

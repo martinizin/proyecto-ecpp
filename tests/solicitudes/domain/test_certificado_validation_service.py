@@ -19,10 +19,7 @@ from apps.solicitudes.domain.services import CertificadoValidationService as S
 class TestValidarCamposObligatorios:
     def test_medico_complete(self):
         datos = {
-            "institucion_emisora": "MSP",
             "fecha_certificado": "2026-05-01",
-            "numero_documento": "MSP-001",
-            "nombre_medico": "Dr. House",
             "dias_reposo": 3,
         }
         assert S.validar_campos_obligatorios("medico", datos) == []
@@ -30,19 +27,13 @@ class TestValidarCamposObligatorios:
     @pytest.mark.parametrize(
         "missing",
         [
-            "institucion_emisora",
             "fecha_certificado",
-            "numero_documento",
-            "nombre_medico",
             "dias_reposo",
         ],
     )
     def test_medico_missing_each_field(self, missing):
         datos = {
-            "institucion_emisora": "MSP",
             "fecha_certificado": "2026-05-01",
-            "numero_documento": "MSP-001",
-            "nombre_medico": "Dr. House",
             "dias_reposo": 3,
         }
         datos.pop(missing)
@@ -51,14 +42,13 @@ class TestValidarCamposObligatorios:
 
     def test_laboral_complete(self):
         datos = {
-            "institucion_emisora": "ACME",
             "fecha_certificado": "2026-05-01",
             "cargo": "Auditor",
         }
         assert S.validar_campos_obligatorios("laboral", datos) == []
 
     def test_laboral_missing_cargo(self):
-        datos = {"institucion_emisora": "ACME", "fecha_certificado": "2026-05-01"}
+        datos = {"fecha_certificado": "2026-05-01"}
         assert S.validar_campos_obligatorios("laboral", datos) == ["cargo"]
 
     def test_calamidad_complete(self):
@@ -76,15 +66,13 @@ class TestValidarCamposObligatorios:
 
     def test_blank_string_is_missing(self):
         datos = {
-            "institucion_emisora": "   ",
             "fecha_certificado": "2026-05-01",
-            "cargo": "Auditor",
+            "cargo": "   ",
         }
-        assert S.validar_campos_obligatorios("laboral", datos) == ["institucion_emisora"]
+        assert S.validar_campos_obligatorios("laboral", datos) == ["cargo"]
 
     def test_none_value_is_missing(self):
         datos = {
-            "institucion_emisora": "ACME",
             "fecha_certificado": None,
             "cargo": "Auditor",
         }
@@ -126,12 +114,16 @@ class TestValidarArchivo:
     def test_valid_extension_under_size(self, nombre):
         assert S.validar_archivo(nombre, 1024) == []
 
-    def test_boundary_exact_5mb(self):
-        assert S.validar_archivo("ok.pdf", S.MAX_TAMANIO) == []
+    def test_boundary_exact_5mb_singular_pasa(self):
+        # validar_archivo (singular) ya NO valida peso — 5MB exactos pasan trivial.
+        assert S.validar_archivo("ok.pdf", S.MAX_TAMANIO_TOTAL) == []
 
-    def test_oversize_one_byte_over(self):
-        result = S.validar_archivo("big.pdf", S.MAX_TAMANIO + 1)
-        assert "tamanio_excedido" in result
+    def test_oversize_archivo_individual_no_emite_tamanio_excedido(self):
+        # Post-QA: validar_archivo (singular) NO valida peso individual.
+        # El peso es responsabilidad del lote (validar_archivos). Un archivo
+        # de 50MB con extension valida pasa al validador singular.
+        result = S.validar_archivo("big.pdf", 50 * 1024 * 1024)
+        assert result == []
 
     @pytest.mark.parametrize("nombre", ["bad.docx", "evil.exe", "archive.zip"])
     def test_invalid_extension(self, nombre):
@@ -146,10 +138,61 @@ class TestValidarArchivo:
     def test_mixed_case_extension_accepted(self, nombre):
         assert S.validar_archivo(nombre, 1024) == []
 
-    def test_both_errors_reported(self):
-        result = S.validar_archivo("oops.docx", S.MAX_TAMANIO + 1)
+    def test_extension_invalida_aun_con_archivo_grande(self):
+        # Post-QA: extension sigue siendo la unica responsabilidad de validar_archivo.
+        result = S.validar_archivo("oops.docx", 50 * 1024 * 1024)
         assert "extension_invalida" in result
-        assert "tamanio_excedido" in result
+        # Y NO emite tamanio_excedido (esa preocupacion se movio al lote).
+        assert "tamanio_excedido" not in result
+
+
+# --------------------------------------------------------------------------- #
+# validar_archivos (lote) — post-QA aggregated count + total size validation
+# --------------------------------------------------------------------------- #
+class TestValidarLoteArchivos:
+    """validar_archivos: valida cantidad + peso total agregado.
+
+    Stakeholders QA: el limite es AND — <=5 archivos Y <=5MB peso total.
+    NO hay limite por archivo individual.
+    """
+
+    def test_lote_valido_5_archivos_sumando_exactamente_5mb_pasa(self):
+        archivos = [("a.pdf", 1024 * 1024)] * 5  # 5 * 1MB = 5MB exactos
+        assert S.validar_archivos(archivos) == []
+
+    def test_lote_rechaza_6_archivos(self):
+        archivos = [("a.pdf", 100)] * 6
+        errores = S.validar_archivos(archivos)
+        assert "max_archivos_excedido" in errores
+
+    def test_lote_rechaza_peso_total_mayor_a_5mb(self):
+        # 2 archivos de 3MB = 6MB total
+        archivos = [("a.pdf", 3 * 1024 * 1024), ("b.pdf", 3 * 1024 * 1024)]
+        errores = S.validar_archivos(archivos)
+        assert "tamanio_total_excedido" in errores
+
+    def test_lote_acepta_un_solo_archivo_de_5mb(self):
+        # Regression del caso usuario: 1 PDF de 5MB es valido.
+        archivos = [("certificado.pdf", 5 * 1024 * 1024)]
+        assert S.validar_archivos(archivos) == []
+
+    def test_lote_rechaza_peso_total_5mb_mas_uno(self):
+        # Borderline: un solo archivo de 5MB+1 bytes ya excede el total.
+        archivos = [("big.pdf", 5 * 1024 * 1024 + 1)]
+        errores = S.validar_archivos(archivos)
+        assert "tamanio_total_excedido" in errores
+
+    def test_lote_vacio_no_emite_errores(self):
+        # Lista vacia: el form valida 'al menos un archivo', no es responsabilidad
+        # del helper de lote. Devuelve [] para coherencia con otros helpers puros.
+        assert S.validar_archivos([]) == []
+
+    def test_lote_acumula_ambos_errores_si_corresponde(self):
+        # 6 archivos de 1MB c/u: cantidad excedida Y peso total excedido.
+        archivos = [("a.pdf", 1024 * 1024)] * 6
+        errores = S.validar_archivos(archivos)
+        assert "max_archivos_excedido" in errores
+        assert "tamanio_total_excedido" in errores
 
 
 # --------------------------------------------------------------------------- #
@@ -159,8 +202,8 @@ class TestConstants:
     def test_max_archivos_is_5(self):
         assert S.MAX_ARCHIVOS == 5
 
-    def test_max_tamanio_is_5mb(self):
-        assert S.MAX_TAMANIO == 5 * 1024 * 1024
+    def test_max_tamanio_total_is_5mb(self):
+        assert S.MAX_TAMANIO_TOTAL == 5 * 1024 * 1024
 
     def test_extensiones_validas(self):
         assert set(S.EXTENSIONES_VALIDAS) == {".pdf", ".jpg", ".jpeg", ".png"}
@@ -171,3 +214,80 @@ class TestConstants:
     def test_no_validar_plazo_method(self):
         """Stakeholder override: NO deadline rule."""
         assert not hasattr(S, "validar_plazo_justificacion")
+
+
+# --------------------------------------------------------------------------- #
+# QA simplification: stakeholders removed several required fields from the
+# justification form. The domain map must reflect the new business rule.
+# --------------------------------------------------------------------------- #
+class TestCamposObligatoriosSimplificados:
+    """Post-QA: medico requires only fecha_certificado + dias_reposo;
+    laboral only fecha_certificado + cargo. Removed institucion_emisora,
+    nombre_medico and numero_documento as obligatory fields."""
+
+    def test_medico_solo_requiere_fecha_y_dias_reposo(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        assert S.validar_campos_obligatorios("medico", datos) == []
+
+    def test_medico_no_requiere_institucion_emisora(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "numero_documento": "MED-001",
+            "nombre_medico": "Dra. Pérez",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "institucion_emisora" not in faltantes
+
+    def test_medico_no_requiere_nombre_medico(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "nombre_medico" not in faltantes
+
+    def test_medico_no_requiere_numero_documento(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "dias_reposo": 3,
+        }
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "numero_documento" not in faltantes
+
+    def test_medico_sin_fecha_certificado_si_es_faltante(self):
+        datos = {"dias_reposo": 3}
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "fecha_certificado" in faltantes
+
+    def test_medico_sin_dias_reposo_si_es_faltante(self):
+        datos = {"fecha_certificado": "2026-05-01"}
+        faltantes = S.validar_campos_obligatorios("medico", datos)
+        assert "dias_reposo" in faltantes
+
+    def test_laboral_solo_requiere_fecha_y_cargo(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "cargo": "Analista",
+        }
+        assert S.validar_campos_obligatorios("laboral", datos) == []
+
+    def test_laboral_no_requiere_institucion_emisora(self):
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "cargo": "Analista",
+        }
+        faltantes = S.validar_campos_obligatorios("laboral", datos)
+        assert "institucion_emisora" not in faltantes
+
+    def test_calamidad_mantiene_campos_actuales(self):
+        """Calamidad is not affected by this QA round — keep its current required set."""
+        datos = {
+            "fecha_certificado": "2026-05-01",
+            "descripcion_evento": "Fallecimiento",
+            "relacion_familiar": "padre",
+        }
+        assert S.validar_campos_obligatorios("calamidad", datos) == []

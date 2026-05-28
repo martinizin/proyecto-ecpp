@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Justificación #{{ solicitud.pk }} — Inspector{% endblock %}
+
+{% block content %}
+{# ──────────────── Breadcrumb / header ──────────────── #}
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li>
+            <a href="{% url 'solicitudes:inspector_justificaciones_dashboard' %}"
+               class="hover:text-primary transition-colors">Justificaciones</a>
+        </li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">
+            {% if solicitud.numero_solicitud %}#{{ solicitud.numero_solicitud }}{% else %}Justificación #{{ solicitud.pk }}{% endif %}
+        </li>
+    </ol>
+</nav>
+
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-xl font-semibold text-gray-800">
+                {% if solicitud.numero_solicitud %}
+                    Justificación #{{ solicitud.numero_solicitud }}
+                {% else %}
+                    Justificación #{{ solicitud.pk }}
+                {% endif %}
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Creada el {{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}
+                {% if solicitud.urgencia %}
+                    · {{ solicitud.dias_transcurridos }} día{{ solicitud.dias_transcurridos|pluralize:"s" }} hábil{{ solicitud.dias_transcurridos|pluralize:"es" }} transcurrido{{ solicitud.dias_transcurridos|pluralize:"s" }}
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            {% if solicitud.urgencia %}
+                {% include "solicitudes/inspector/_urgency_badge.html" with urgencia=solicitud.urgencia dias_transcurridos=solicitud.dias_transcurridos deadline_dias=deadline_dias %}
+            {% endif %}
+        </div>
+    </div>
+
+    {# ──────────────── Información de la solicitud ──────────────── #}
+    <section class="bg-white rounded-xl shadow-md px-5 py-4 mb-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Información de la solicitud</h2>
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Estudiante</dt>
+                <dd class="text-gray-800 font-medium">{{ solicitud.estudiante.get_full_name }}</dd>
+                <dd class="text-gray-500 text-xs">Cédula: {{ solicitud.estudiante.cedula }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Estado actual</dt>
+                <dd class="text-gray-800 font-medium">{{ solicitud.get_estado_display }}</dd>
+            </div>
+            {% if solicitud.asistencia %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Asistencia</dt>
+                <dd class="text-gray-800">
+                    {% if solicitud.asistencia.paralelo %}
+                        {{ solicitud.asistencia.paralelo.asignatura.codigo }} — {{ solicitud.asistencia.paralelo.nombre }}
+                        <br>
+                    {% endif %}
+                    Fecha: {{ solicitud.asistencia.fecha|date:"d/m/Y" }}
+                </dd>
+            </div>
+            {% endif %}
+            {% if solicitud.fecha_resolucion %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Resolución</dt>
+                <dd class="text-gray-800">
+                    {{ solicitud.fecha_resolucion|date:"d/m/Y H:i" }}
+                    {% if solicitud.resuelto_por %} · por {{ solicitud.resuelto_por.get_full_name }}{% endif %}
+                </dd>
+            </div>
+            {% endif %}
+        </dl>
+        {% if solicitud.descripcion %}
+        <div class="mt-3 text-sm">
+            <dt class="text-xs uppercase tracking-wide text-gray-500">Motivo</dt>
+            <dd class="text-gray-700 mt-1 whitespace-pre-line">{{ solicitud.descripcion }}</dd>
+        </div>
+        {% endif %}
+    </section>
+
+    {# ──────────────── Certificado (defensive) ──────────────── #}
+    {% if solicitud.certificado %}
+    <section class="bg-white rounded-xl shadow-md px-5 py-4 mb-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Certificado</h2>
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Tipo</dt>
+                <dd class="text-gray-800 font-medium">{{ solicitud.certificado.get_tipo_display }}</dd>
+            </div>
+            {% if solicitud.certificado.institucion_emisora %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Institución emisora</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.institucion_emisora }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.fecha_certificado %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Fecha del certificado</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.fecha_certificado|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.numero_documento %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">N° documento</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.numero_documento }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.nombre_medico %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Médico</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.nombre_medico }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.dias_reposo %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Días de reposo</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.dias_reposo }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.cargo %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Cargo</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.cargo }}</dd>
+            </div>
+            {% endif %}
+            {% if solicitud.certificado.relacion_familiar %}
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-gray-500">Relación familiar</dt>
+                <dd class="text-gray-800">{{ solicitud.certificado.relacion_familiar }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+        {% if solicitud.certificado.descripcion_evento %}
+        <div class="mt-3 text-sm">
+            <dt class="text-xs uppercase tracking-wide text-gray-500">Descripción del evento</dt>
+            <dd class="text-gray-700 mt-1 whitespace-pre-line">{{ solicitud.certificado.descripcion_evento }}</dd>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {# ──────────────── Evidencias (dual) ──────────────── #}
+    <section class="bg-white rounded-xl shadow-md px-5 py-4 mb-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Evidencias</h2>
+        {% if not solicitud.archivo_adjunto and not solicitud.archivos.all %}
+            <p class="text-sm text-gray-500">Sin evidencias adjuntas.</p>
+        {% else %}
+            {# Legacy attachment (HU18) #}
+            {% if solicitud.archivo_adjunto %}
+            {% with legacy_name=solicitud.archivo_adjunto.name|lower %}
+            <div class="mb-4">
+                <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Adjunto legacy</p>
+                {% if ".pdf" in legacy_name %}
+                    <iframe src="{{ solicitud.archivo_adjunto.url }}" width="100%" height="500"
+                            class="rounded-lg border border-gray-200"></iframe>
+                {% elif ".png" in legacy_name or ".jpg" in legacy_name or ".jpeg" in legacy_name or ".gif" in legacy_name or ".webp" in legacy_name %}
+                    <img src="{{ solicitud.archivo_adjunto.url }}" alt="{{ solicitud.archivo_adjunto.name }}"
+                         style="max-width: 100%; max-height: 500px;"
+                         class="rounded-lg border border-gray-200 object-contain">
+                {% else %}
+                    <a href="{{ solicitud.archivo_adjunto.url }}" class="text-primary hover:underline">
+                        Descargar {{ solicitud.archivo_adjunto.name }}
+                    </a>
+                {% endif %}
+            </div>
+            {% endwith %}
+            {% endif %}
+
+            {# New attachments (HU20) — MIME-aware preview #}
+            {% for archivo in solicitud.archivos.all %}
+            <div class="mb-4">
+                <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                    {{ archivo.nombre_original|default:"Archivo" }}
+                    <span class="text-gray-400">· {{ archivo.tipo_mime }}</span>
+                </p>
+                {% if "pdf" in archivo.tipo_mime %}
+                    <iframe src="{{ archivo.archivo.url }}" width="100%" height="500"
+                            class="rounded-lg border border-gray-200"></iframe>
+                {% elif "image" in archivo.tipo_mime %}
+                    <img src="{{ archivo.archivo.url }}" alt="{{ archivo.nombre_original }}"
+                         style="max-width: 100%; max-height: 500px;"
+                         class="rounded-lg border border-gray-200 object-contain">
+                {% else %}
+                    <a href="{{ archivo.archivo.url }}" class="text-primary hover:underline">
+                        Descargar {{ archivo.nombre_original|default:"archivo" }}
+                    </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+    </section>
+
+    {# ──────────────── Historial ──────────────── #}
+    <section class="bg-white rounded-xl shadow-md px-5 py-4 mb-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Historial</h2>
+        {% if solicitud.historial.all %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Fecha</th>
+                        <th class="px-3 py-2 text-left">Cambio</th>
+                        <th class="px-3 py-2 text-left">Usuario</th>
+                        <th class="px-3 py-2 text-left">Comentario</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                {% for h in solicitud.historial.all %}
+                    <tr>
+                        <td class="px-3 py-2 text-gray-700">{{ h.timestamp|date:"d/m/Y H:i" }}</td>
+                        <td class="px-3 py-2 text-gray-700">
+                            {{ h.get_estado_anterior_display }} → {{ h.get_estado_nuevo_display }}
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">
+                            {% if h.cambiado_por %}{{ h.cambiado_por.get_full_name }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-gray-700">{{ h.comentario|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">Sin historial registrado.</p>
+        {% endif %}
+    </section>
+
+    {# ──────────────── Formulario de resolución (skeleton — T6 conecta el POST) ──────────────── #}
+    <section class="bg-white rounded-xl shadow-md px-5 py-4 mb-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Resolución</h2>
+        {% if solicitud_resuelta %}
+            <div class="px-3 py-2 rounded-lg bg-gray-50 text-sm text-gray-600">
+                Esta solicitud ya fue resuelta ({{ solicitud.get_estado_display }}).
+            </div>
+        {% else %}
+            <form method="post"
+                  action="{% url 'solicitudes:inspector_justificacion_resolver' solicitud.pk %}"
+                  class="space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label for="comentario" class="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                        Comentario
+                    </label>
+                    <textarea id="comentario" name="comentario" rows="3"
+                              class="w-full text-sm rounded-lg border-gray-300 focus:ring-primary focus:border-primary"
+                              placeholder="Obligatorio si rechazás. Opcional al aprobar."></textarea>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="submit" name="accion" value="aprobar"
+                            class="bg-success text-white text-sm font-medium px-3 py-2 rounded-lg hover:opacity-90 transition-opacity">
+                        Aprobar
+                    </button>
+                    <button type="submit" name="accion" value="rechazar"
+                            class="bg-error text-white text-sm font-medium px-3 py-2 rounded-lg hover:opacity-90 transition-opacity">
+                        Rechazar
+                    </button>
+                    <a href="{% url 'solicitudes:inspector_justificaciones_dashboard' %}"
+                       class="ml-auto text-sm text-gray-500 hover:text-gray-700">Volver al dashboard</a>
+                </div>
+            </form>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

@@ -109,11 +109,12 @@ class TestCrearRecalificacion:
         assert result["solicitud"].requiere_secretaria is True
 
     def test_crear_recalificacion_sin_descripcion(self):
+        """Post-QA simplification: descripcion (motivo) is now optional."""
         estudiante, calificacion = self._setup()
         service = SolicitudAppService()
         result = service.crear_recalificacion(estudiante, calificacion.pk, "")
-        assert result["ok"] is False
-        assert "motivo" in result["error"].lower()
+        assert result["ok"] is True
+        assert result["solicitud"].descripcion == ""
 
     def test_crear_recalificacion_calificacion_invalida(self):
         estudiante = EstudianteFactory()

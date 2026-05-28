@@ -7,6 +7,8 @@ the exact same in-app + email side effects without duplicating logic.
 
 from __future__ import annotations
 
+from django.urls import reverse
+
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.shared.email_utils import enviar_email_html
 from apps.solicitudes.infrastructure.models import Solicitud
@@ -44,13 +46,17 @@ def notificar_nueva_justificacion(solicitud: Solicitud) -> None:
     )
 
     inspectores = Usuario.objects.filter(rol="inspector", is_active=True)
+    url_detalle = reverse(
+        "solicitudes:inspector_justificacion_detalle",
+        kwargs={"pk": solicitud.pk},
+    )
     for inspector in inspectores:
         Notificacion.objects.create(
             destinatario=inspector,
             tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
             titulo=titulo,
             mensaje=mensaje,
-            url="/solicitudes/justificaciones/",
+            url=url_detalle,
         )
         if inspector.email:
             try:
