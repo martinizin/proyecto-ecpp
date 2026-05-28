@@ -17,7 +17,8 @@ from rest_framework import serializers as drf_serializers
 
 from apps.academico.domain.exceptions import ConflictoHorarioDocenteError
 from apps.academico.domain.services import Conflicto
-from apps.academico.presentation.exception_mapping import to_drf
+from apps.academico.presentation.exception_mapping import to_django, to_drf
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 
 def _build_conflictos() -> list[Conflicto]:
@@ -109,3 +110,40 @@ class TestToDrfConflictosPayload:
         assert "detail" in payload
         assert "conflictos" in payload
         assert len(payload["conflictos"]) == 2
+
+
+class TestToDjangoKeepsConflictosAccessibleOnException:
+    """`to_django` debe permanecer puro (sólo string) — los `conflictos`
+    viajan por el contexto del render (design §5.2 + §6.2), NO por la
+    ValidationError. La vista lee `e.conflictos` directamente del except.
+    """
+
+    def test_to_django_returns_plain_validation_error_with_string_message(self):
+        conflictos = _build_conflictos()
+        exc = ConflictoHorarioDocenteError(conflictos)
+
+        result = to_django(exc)
+
+        assert isinstance(result, DjangoValidationError)
+        # Contrato: mensaje plano (igual a str(exc)) — sin payload estructurado embebido.
+        assert result.messages == [str(exc)]
+
+    def test_exception_conflictos_remain_readable_by_caller(self):
+        """El view hace `except ConflictoHorarioDocenteError as e:` y luego
+        usa `e.conflictos` para inyectar en el contexto del template.
+        Este test confirma que `to_django(exc)` NO consume ni muta `exc`."""
+        conflictos = _build_conflictos()
+        exc = ConflictoHorarioDocenteError(conflictos)
+
+        # Simula el flujo del view: llamar to_django y luego leer e.conflictos.
+        _ = to_django(exc)
+
+        assert hasattr(exc, "conflictos"), (
+            "ConflictoHorarioDocenteError debe exponer .conflictos para que la "
+            "vista lo pase como `conflictos_horario` al contexto del render."
+        )
+        assert exc.conflictos is conflictos
+        assert len(exc.conflictos) == 2
+        # Los DTOs siguen siendo Conflicto, no dicts (la serialización vive en to_drf).
+        assert exc.conflictos[0].paralelo_id == 12
+        assert exc.conflictos[1].dia_semana == "martes"
