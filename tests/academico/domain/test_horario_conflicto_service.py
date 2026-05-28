@@ -21,6 +21,8 @@ Cobertura per design §7 (R1-R5) + §7 boundary cases (B1-B6) + §8 + §3.3:
 from datetime import time
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.academico.domain.exceptions import (
     ConflictoHorarioDocenteError,
@@ -546,11 +548,12 @@ class TestQueryBudget:
       (select_related folds the joins, no extra round-trips for asignatura/paralelo).
     - +1 budget slack for transactional savepoints / pytest-django wrappers.
 
-    Uses pytest-django's `django_assert_num_queries` fixture (auto-available because
-    `DJANGO_SETTINGS_MODULE=config.settings.development` is configured in pyproject.toml).
+    Usa `CaptureQueriesContext` para validar el techo (`≤ 2`), no el conteo exacto:
+    cualquier implementación que ejecute MENOS queries (p.ej. 1 sola consulta con
+    JOIN via select_related) cumple el contrato. Lo que NO se acepta es excederlo.
     """
 
-    def test_detectar_conflicto_docente_under_query_budget(self, django_assert_num_queries):
+    def test_detectar_conflicto_docente_under_query_budget(self):
         """1 docente, 3 paralelos, 5 bloques each, 1 periodo → ≤ 2 queries (design §3.1)."""
         periodo = PeriodoFactory()
         docente = DocenteFactory()
@@ -570,14 +573,17 @@ class TestQueryBudget:
         # Bloque propuesto que NO solapa (no importa el resultado, importa el budget).
         propuestos = [_bloque_tuple("sabado", (8, 0), (10, 0))]
 
-        with django_assert_num_queries(2):
+        with CaptureQueriesContext(connection) as ctx:
             service.detectar_conflicto_docente(
                 docente_id=docente.pk,
                 periodo_id=periodo.pk,
                 bloques_propuestos=propuestos,
             )
+        assert len(ctx) <= 2, (
+            f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"
+        )
 
-    def test_detectar_conflicto_estudiante_under_query_budget(self, django_assert_num_queries):
+    def test_detectar_conflicto_estudiante_under_query_budget(self):
         """1 estudiante ACTIVA en 3 paralelos con bloques → ≤ 2 queries (design §3.2)."""
         periodo = PeriodoFactory()
         estudiante = EstudianteFactory()
@@ -600,9 +606,12 @@ class TestQueryBudget:
 
         propuestos = [_bloque_tuple("sabado", (8, 0), (10, 0))]
 
-        with django_assert_num_queries(2):
+        with CaptureQueriesContext(connection) as ctx:
             service.detectar_conflicto_estudiante(
                 estudiante_id=estudiante.pk,
                 periodo_id=periodo.pk,
                 bloques_propuestos=propuestos,
             )
+        assert len(ctx) <= 2, (
+            f"Query budget exceeded: {len(ctx)} queries (expected ≤ 2)"
+        )
