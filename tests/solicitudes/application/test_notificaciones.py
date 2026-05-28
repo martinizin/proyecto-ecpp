@@ -97,3 +97,19 @@ class TestNotificarNuevaJustificacion:
         notificar_nueva_justificacion(solicitud)
 
         assert Notificacion.objects.filter(destinatario=inspector).count() == 0
+
+    def test_url_apunta_al_detalle_inspector_hu21(self):
+        """La notificacion debe abrir el detalle nuevo HU21 de esa solicitud,
+        no el listado viejo HU18 (`/solicitudes/justificaciones/`).
+        """
+        inspector = InspectorFactory()
+        inspector.save()
+        solicitud = _build_solicitud_justificacion(self.actor)
+
+        notificar_nueva_justificacion(solicitud)
+
+        notif = Notificacion.objects.get(
+            destinatario=inspector,
+            tipo=Notificacion.Tipo.SOLICITUD_JUSTIFICACION,
+        )
+        assert notif.url == f"/solicitudes/inspector/justificaciones/{solicitud.pk}/"
