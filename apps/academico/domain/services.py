@@ -6,7 +6,7 @@ Services encapsulate domain rules that don't belong to a single entity.
 """
 
 from datetime import date
-from typing import Optional
+from typing import Iterable, Optional
 
 from .exceptions import (
     AsignaturaCodigoDuplicadoError,
@@ -18,6 +18,7 @@ from .exceptions import (
     HorasLectivasInvalidasError,
     MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
+    MaxAsignaturasExcedidasError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
     PeriodoInactivoError,
@@ -186,6 +187,40 @@ class ParaleloService:
         self.validar_docente(docente_rol)
         self.validar_periodo_activo(periodo_activo)
         self.validar_unicidad(combinacion_exists)
+
+    def validar_max_asignaturas_por_periodo(
+        self,
+        asignaturas_existentes_ids: Iterable[int],
+        asignaturas_nuevas_ids: Iterable[int],
+        limite: int,
+        tipo_licencia_codigo: str,
+    ) -> None:
+        """
+        Validate that the union of existing + new asignaturas for a (periodo, tipo_licencia)
+        does not exceed ``limite`` (tipo_licencia.num_asignaturas).
+
+        Pure function — no DB access. Adapters are responsible for building the
+        ``asignaturas_existentes_ids`` queryset, excluding ``self.instance.pk`` when
+        editing so the same asignatura is not double-counted.
+
+        Args:
+            asignaturas_existentes_ids: IDs of asignaturas already linked to the
+                (periodo, tipo_licencia) tuple (queryset / list of ints).
+            asignaturas_nuevas_ids: IDs of asignaturas about to be created (list of ints).
+            limite: Maximum unique asignaturas allowed (tipo_licencia.num_asignaturas).
+            tipo_licencia_codigo: Code (e.g. 'C', 'E', 'EC') for the error message.
+
+        Raises:
+            MaxAsignaturasExcedidasError: If union size > limite.
+        """
+        union = set(asignaturas_existentes_ids) | set(asignaturas_nuevas_ids)
+        actual = len(union)
+        if actual > limite:
+            raise MaxAsignaturasExcedidasError(
+                actual=actual,
+                limite=limite,
+                tipo_licencia_codigo=tipo_licencia_codigo,
+            )
 
 
 class MatriculaService:

@@ -237,3 +237,34 @@ class ParaleloSerializer(serializers.ModelSerializer):
         except AcademicoError as e:
             raise to_drf(e, field="capacidad_maxima")
         return value
+
+    def validate(self, attrs):
+        """V1 — Enforce max asignaturas únicas por (periodo, tipo_licencia) según licencia.
+
+        On update, the current instance's pk is excluded from the existentes
+        queryset so re-saving with the same asignatura at the limit is allowed.
+        """
+        periodo = attrs.get("periodo") or getattr(self.instance, "periodo", None)
+        tipo_licencia = attrs.get("tipo_licencia") or getattr(
+            self.instance, "tipo_licencia", None
+        )
+        asignatura = attrs.get("asignatura") or getattr(self.instance, "asignatura", None)
+        if periodo and tipo_licencia and asignatura:
+            exclude_pk = (
+                self.instance.pk if (self.instance and self.instance.pk) else 0
+            )
+            existentes_ids = list(
+                Paralelo.objects.filter(periodo=periodo, tipo_licencia=tipo_licencia)
+                .exclude(pk=exclude_pk)
+                .values_list("asignatura_id", flat=True)
+            )
+            try:
+                ParaleloService().validar_max_asignaturas_por_periodo(
+                    asignaturas_existentes_ids=existentes_ids,
+                    asignaturas_nuevas_ids=[asignatura.id],
+                    limite=tipo_licencia.num_asignaturas,
+                    tipo_licencia_codigo=tipo_licencia.codigo,
+                )
+            except AcademicoError as e:
+                raise to_drf(e, field="asignatura")
+        return attrs

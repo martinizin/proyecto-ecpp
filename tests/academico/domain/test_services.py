@@ -12,6 +12,7 @@ from apps.academico.domain.exceptions import (
     CapacidadParaleloInvalidaError,
     DuracionPeriodoInvalidaError,
     HorasLectivasInvalidasError,
+    MaxAsignaturasExcedidasError,
 )
 from apps.academico.domain.services import AsignaturaService, ParaleloService, PeriodoService
 
@@ -160,3 +161,72 @@ class TestPeriodoServiceValidarDuracion:
         assert exc_info.value.meses == 8
         assert exc_info.value.minimo == 4
         assert exc_info.value.maximo == 7
+
+
+class TestParaleloServiceValidarMaxAsignaturas:
+    """Test validar_max_asignaturas_por_periodo scenarios per design §5 V1.
+
+    Pure-Python: the service only computes set union and compares vs limite.
+    Adapters are responsible for building the existentes queryset.
+    """
+
+    def test_v1_1_union_bajo_limite_es_valido(self):
+        """V1#1: existentes=[1,2,3,4] + nuevas=[5] = 5, limite=5 → passes."""
+        service = ParaleloService()
+        # Should not raise
+        service.validar_max_asignaturas_por_periodo(
+            asignaturas_existentes_ids=[1, 2, 3, 4],
+            asignaturas_nuevas_ids=[5],
+            limite=5,
+            tipo_licencia_codigo="E",
+        )
+
+    def test_v1_2_union_excede_limite_levanta_excepcion(self):
+        """V1#2: existentes=[1..5] + nuevas=[6] = 6, limite=5 → raises."""
+        service = ParaleloService()
+        with pytest.raises(MaxAsignaturasExcedidasError) as exc_info:
+            service.validar_max_asignaturas_por_periodo(
+                asignaturas_existentes_ids=[1, 2, 3, 4, 5],
+                asignaturas_nuevas_ids=[6],
+                limite=5,
+                tipo_licencia_codigo="E",
+            )
+        assert exc_info.value.actual == 6
+        assert exc_info.value.limite == 5
+        assert exc_info.value.tipo_licencia_codigo == "E"
+        assert "licencia E permite máximo 5 asignaturas" in str(exc_info.value)
+
+    def test_v1_3_dedup_misma_asignatura_es_valido(self):
+        """V1#3: existentes=[1..5] + nuevas=[3] (ya presente) → union=5 → passes."""
+        service = ParaleloService()
+        # Should not raise — proof that edit-mode same asignatura at limit works
+        service.validar_max_asignaturas_por_periodo(
+            asignaturas_existentes_ids=[1, 2, 3, 4, 5],
+            asignaturas_nuevas_ids=[3],
+            limite=5,
+            tipo_licencia_codigo="E",
+        )
+
+    def test_v1_4_lote_que_cruza_el_limite_levanta_excepcion(self):
+        """V1#4: existentes=[1,2,3] + nuevas=[4,5,6] = 6, limite=5 → raises actual=6."""
+        service = ParaleloService()
+        with pytest.raises(MaxAsignaturasExcedidasError) as exc_info:
+            service.validar_max_asignaturas_por_periodo(
+                asignaturas_existentes_ids=[1, 2, 3],
+                asignaturas_nuevas_ids=[4, 5, 6],
+                limite=5,
+                tipo_licencia_codigo="E",
+            )
+        assert exc_info.value.actual == 6
+        assert exc_info.value.limite == 5
+
+    def test_v1_5_lote_que_completa_exacto_el_limite_es_valido(self):
+        """V1#5: existentes=[1,2,3] + nuevas=[4,5] = 5, limite=5 → passes."""
+        service = ParaleloService()
+        # Should not raise — exact-limit boundary
+        service.validar_max_asignaturas_por_periodo(
+            asignaturas_existentes_ids=[1, 2, 3],
+            asignaturas_nuevas_ids=[4, 5],
+            limite=5,
+            tipo_licencia_codigo="E",
+        )

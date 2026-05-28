@@ -178,6 +178,29 @@ class ParaleloForm(forms.ModelForm):
             raise to_django(e)
         return value
 
+    def clean(self):
+        cleaned_data = super().clean()
+        periodo = cleaned_data.get("periodo")
+        tipo_licencia = cleaned_data.get("tipo_licencia")
+        asignatura = cleaned_data.get("asignatura")
+        if periodo and tipo_licencia and asignatura:
+            exclude_pk = self.instance.pk if (self.instance and self.instance.pk) else 0
+            existentes_ids = list(
+                Paralelo.objects.filter(periodo=periodo, tipo_licencia=tipo_licencia)
+                .exclude(pk=exclude_pk)
+                .values_list("asignatura_id", flat=True)
+            )
+            try:
+                ParaleloService().validar_max_asignaturas_por_periodo(
+                    asignaturas_existentes_ids=existentes_ids,
+                    asignaturas_nuevas_ids=[asignatura.id],
+                    limite=tipo_licencia.num_asignaturas,
+                    tipo_licencia_codigo=tipo_licencia.codigo,
+                )
+            except AcademicoError as e:
+                self.add_error("asignatura", to_django(e))
+        return cleaned_data
+
 
 class ParaleloAsignaturaEditForm(forms.ModelForm):
     """Lightweight form to edit only docente of an existing paralelo."""
@@ -254,11 +277,20 @@ class ParaleloLoteForm(forms.Form):
     def clean_asignaturas(self):
         asignaturas = self.cleaned_data.get("asignaturas")
         tipo_licencia = self.cleaned_data.get("tipo_licencia")
-        if asignaturas and tipo_licencia:
-            max_asignaturas = tipo_licencia.num_asignaturas
-            if len(asignaturas) > max_asignaturas:
-                raise forms.ValidationError(
-                    f"La licencia {tipo_licencia.codigo} permite máximo "
-                    f"{max_asignaturas} asignaturas. Seleccionó {len(asignaturas)}."
+        periodo = self.cleaned_data.get("periodo")
+        if asignaturas and tipo_licencia and periodo:
+            existentes_ids = list(
+                Paralelo.objects.filter(
+                    periodo=periodo, tipo_licencia=tipo_licencia
+                ).values_list("asignatura_id", flat=True)
+            )
+            try:
+                ParaleloService().validar_max_asignaturas_por_periodo(
+                    asignaturas_existentes_ids=existentes_ids,
+                    asignaturas_nuevas_ids=[a.id for a in asignaturas],
+                    limite=tipo_licencia.num_asignaturas,
+                    tipo_licencia_codigo=tipo_licencia.codigo,
                 )
+            except AcademicoError as e:
+                raise to_django(e)
         return asignaturas
