@@ -10,10 +10,12 @@ Por lo tanto este archivo DEBE FALLAR en collection/import — comportamiento
 esperado en RED estricta. Una vez que las tareas 1.3, 1.4, 1.5 y 1.6 implementen
 las clases, los tests pasarán a fase GREEN.
 
-Cobertura per design §7 (R1-R5) + §7 boundary cases (B1-B6) + §8:
+Cobertura per design §7 (R1-R5) + §7 boundary cases (B1-B6) + §8 + §3.3:
 - TestOverlapBoundaries: B1-B6 (matriz half-open).
 - TestDetectarConflictoDocente: R1.1 a R1.4 + empty input.
 - TestDetectarConflictoEstudiante: R2.1, R2.2, R5.1 + edit-excluir.
+- TestConflictoExceptionsExposeConflictos: contrato §2.4 (Task 1.1).
+- TestQueryBudget: `assertNumQueries(2)` para docente y estudiante (Task 1.2, design §3.3).
 """
 
 from datetime import time
@@ -528,3 +530,79 @@ class TestConflictoExceptionsExposeConflictos:
         assert hasattr(exc, "conflictos")
         assert exc.conflictos == [c]
         assert "estudiante" in str(exc).lower()
+
+
+# ---------------------------------------------------------------------------
+# Query budget (design §3.3) — N+1 prevention via select_related
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestQueryBudget:
+    """Both `detectar_conflicto_*` MUST execute ≤ 2 queries per call (design §3.3).
+
+    Budget rationale (design §3.1, §3.2):
+    - 1 query for `BloqueHorario.filter(...).select_related("paralelo__asignatura")`
+      (select_related folds the joins, no extra round-trips for asignatura/paralelo).
+    - +1 budget slack for transactional savepoints / pytest-django wrappers.
+
+    Uses pytest-django's `django_assert_num_queries` fixture (auto-available because
+    `DJANGO_SETTINGS_MODULE=config.settings.development` is configured in pyproject.toml).
+    """
+
+    def test_detectar_conflicto_docente_under_query_budget(self, django_assert_num_queries):
+        """1 docente, 3 paralelos, 5 bloques each, 1 periodo → ≤ 2 queries (design §3.1)."""
+        periodo = PeriodoFactory()
+        docente = DocenteFactory()
+        # 3 paralelos, cada uno con 5 bloques en distintos días → fixture realista.
+        dias = ["lunes", "martes", "miercoles", "jueves", "viernes"]
+        for _ in range(3):
+            paralelo = ParaleloFactory(docente=docente, periodo=periodo)
+            for dia in dias:
+                BloqueHorarioFactory(
+                    paralelo=paralelo,
+                    dia_semana=dia,
+                    hora_inicio=time(8, 0),
+                    hora_fin=time(10, 0),
+                )
+        service = HorarioConflictoService()
+
+        # Bloque propuesto que NO solapa (no importa el resultado, importa el budget).
+        propuestos = [_bloque_tuple("sabado", (8, 0), (10, 0))]
+
+        with django_assert_num_queries(2):
+            service.detectar_conflicto_docente(
+                docente_id=docente.pk,
+                periodo_id=periodo.pk,
+                bloques_propuestos=propuestos,
+            )
+
+    def test_detectar_conflicto_estudiante_under_query_budget(self, django_assert_num_queries):
+        """1 estudiante ACTIVA en 3 paralelos con bloques → ≤ 2 queries (design §3.2)."""
+        periodo = PeriodoFactory()
+        estudiante = EstudianteFactory()
+        dias = ["lunes", "martes", "miercoles", "jueves", "viernes"]
+        for _ in range(3):
+            paralelo = ParaleloFactory(periodo=periodo)
+            for dia in dias:
+                BloqueHorarioFactory(
+                    paralelo=paralelo,
+                    dia_semana=dia,
+                    hora_inicio=time(8, 0),
+                    hora_fin=time(10, 0),
+                )
+            MatriculaFactory(
+                estudiante=estudiante,
+                paralelo=paralelo,
+                estado=Matricula.Estado.ACTIVA,
+            )
+        service = HorarioConflictoService()
+
+        propuestos = [_bloque_tuple("sabado", (8, 0), (10, 0))]
+
+        with django_assert_num_queries(2):
+            service.detectar_conflicto_estudiante(
+                estudiante_id=estudiante.pk,
+                periodo_id=periodo.pk,
+                bloques_propuestos=propuestos,
+            )
