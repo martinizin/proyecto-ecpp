@@ -4,13 +4,16 @@ Unit tests for domain services in the Academico bounded context.
 Tests validate pure-Python domain rules (no Django imports, no DB).
 """
 
+from datetime import date
+
 import pytest
 
 from apps.academico.domain.exceptions import (
     CapacidadParaleloInvalidaError,
+    DuracionPeriodoInvalidaError,
     HorasLectivasInvalidasError,
 )
-from apps.academico.domain.services import AsignaturaService, ParaleloService
+from apps.academico.domain.services import AsignaturaService, ParaleloService, PeriodoService
 
 
 class TestAsignaturaServiceValidarHorasLectivas:
@@ -91,3 +94,69 @@ class TestParaleloServiceValidarCapacidad:
         assert exc_info.value.capacidad == 51
         assert exc_info.value.maximo == 50
         assert "entre 1 y 50" in str(exc_info.value)
+
+
+class TestPeriodoServiceValidarDuracion:
+    """Test validar_duracion boundary scenarios per design §5 V4 (lenient months)."""
+
+    def test_v4_1_exacto_4_meses_es_valido(self):
+        """V4#1: 2026-01-01 → 2026-05-01 (delta years=0 months=4 days=0) → total=4 → VALID."""
+        service = PeriodoService()
+        # Should not raise
+        service.validar_duracion(
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 5, 1),
+            minimo=4,
+            maximo=7,
+        )
+
+    def test_v4_2_lenient_bump_a_4_meses_es_valido(self):
+        """V4#2: 2026-01-01 → 2026-04-29 (3 months + 28 days) → lenient bump → total=4 → VALID."""
+        service = PeriodoService()
+        # Should not raise
+        service.validar_duracion(
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 4, 29),
+            minimo=4,
+            maximo=7,
+        )
+
+    def test_v4_3_exacto_3_meses_levanta_excepcion(self):
+        """V4#3: 2026-01-01 → 2026-04-01 (3 months, 0 days) → total=3 → INVALID."""
+        service = PeriodoService()
+        with pytest.raises(DuracionPeriodoInvalidaError) as exc_info:
+            service.validar_duracion(
+                fecha_inicio=date(2026, 1, 1),
+                fecha_fin=date(2026, 4, 1),
+                minimo=4,
+                maximo=7,
+            )
+        assert exc_info.value.meses == 3
+        assert exc_info.value.minimo == 4
+        assert exc_info.value.maximo == 7
+        assert "entre 4 y 7 meses" in str(exc_info.value)
+
+    def test_v4_4_exacto_7_meses_es_valido(self):
+        """V4#4: 2026-01-01 → 2026-08-01 (7 months, 0 days) → total=7 → VALID."""
+        service = PeriodoService()
+        # Should not raise
+        service.validar_duracion(
+            fecha_inicio=date(2026, 1, 1),
+            fecha_fin=date(2026, 8, 1),
+            minimo=4,
+            maximo=7,
+        )
+
+    def test_v4_5_lenient_bump_a_8_meses_levanta_excepcion(self):
+        """V4#5: 2026-01-01 → 2026-08-02 (7 months + 1 day) → lenient bump → total=8 → INVALID."""
+        service = PeriodoService()
+        with pytest.raises(DuracionPeriodoInvalidaError) as exc_info:
+            service.validar_duracion(
+                fecha_inicio=date(2026, 1, 1),
+                fecha_fin=date(2026, 8, 2),
+                minimo=4,
+                maximo=7,
+            )
+        assert exc_info.value.meses == 8
+        assert exc_info.value.minimo == 4
+        assert exc_info.value.maximo == 7

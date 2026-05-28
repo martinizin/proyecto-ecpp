@@ -13,6 +13,7 @@ from .exceptions import (
     CapacidadParaleloInvalidaError,
     CupoExcedidoError,
     DocenteInvalidoError,
+    DuracionPeriodoInvalidaError,
     EstadoMatriculaInvalidoError,
     HorasLectivasInvalidasError,
     MatriculaAsignaturaDuplicadaError,
@@ -34,6 +35,21 @@ class PeriodoService:
         """Validate that fecha_inicio < fecha_fin."""
         if fecha_inicio >= fecha_fin:
             raise PeriodoSolapadoError("La fecha de inicio debe ser anterior a la fecha de fin.")
+
+    def validar_duracion(
+        self,
+        fecha_inicio: date,
+        fecha_fin: date,
+        minimo: int,
+        maximo: int,
+    ) -> None:
+        """Validate periodo duration in [minimo, maximo] months (lenient: any trailing days bump up)."""
+        from dateutil.relativedelta import relativedelta
+
+        delta = relativedelta(fecha_fin, fecha_inicio)
+        meses = delta.years * 12 + delta.months + (1 if delta.days > 0 else 0)
+        if meses < minimo or meses > maximo:
+            raise DuracionPeriodoInvalidaError(meses=meses, minimo=minimo, maximo=maximo)
 
     def verificar_activacion(
         self,

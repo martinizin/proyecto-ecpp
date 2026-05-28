@@ -9,7 +9,7 @@ from django.conf import settings
 from rest_framework import serializers
 
 from apps.academico.domain.exceptions import AcademicoError
-from apps.academico.domain.services import AsignaturaService, ParaleloService
+from apps.academico.domain.services import AsignaturaService, ParaleloService, PeriodoService
 from apps.academico.infrastructure.models import (
     Asignatura,
     AsignaturaLicencia,
@@ -84,6 +84,16 @@ class PeriodoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"fecha_fin": "La fecha de fin debe ser posterior a la fecha de inicio."}
             )
+        if fecha_inicio and fecha_fin:
+            try:
+                PeriodoService().validar_duracion(
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin,
+                    minimo=settings.PERIODO_DURACION_MIN_MESES,
+                    maximo=settings.PERIODO_DURACION_MAX_MESES,
+                )
+            except AcademicoError as e:
+                raise to_drf(e, field="fecha_fin")
         return attrs
 
 

@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from apps.academico.domain.exceptions import AcademicoError
-from apps.academico.domain.services import ParaleloService
+from apps.academico.domain.services import ParaleloService, PeriodoService
 from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
 from apps.academico.presentation.exception_mapping import to_django
 from apps.core.validators import sanitize_text, validate_codigo
@@ -68,6 +68,16 @@ class PeriodoForm(forms.ModelForm):
                     field_name,
                     f"La fecha debe estar entre {min_date} y {max_date}.",
                 )
+        if fecha_inicio and fecha_fin and fecha_inicio < fecha_fin:
+            try:
+                PeriodoService().validar_duracion(
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin,
+                    minimo=settings.PERIODO_DURACION_MIN_MESES,
+                    maximo=settings.PERIODO_DURACION_MAX_MESES,
+                )
+            except AcademicoError as e:
+                self.add_error("fecha_fin", to_django(e))
         return cleaned_data
 
 
