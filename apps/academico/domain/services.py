@@ -5,7 +5,8 @@ Pure Python — NO Django imports allowed in this layer.
 Services encapsulate domain rules that don't belong to a single entity.
 """
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, time
 from typing import Iterable, Optional
 
 from .exceptions import (
@@ -299,3 +300,31 @@ class MatriculaService:
                 f"No se puede cambiar el estado de '{estado_actual}' "
                 f"a '{nuevo_estado}' con el rol '{rol}'."
             )
+
+
+# ---------------------------------------------------------------------------
+# HU21 V5 — Conflictos de horario (design §2.1)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Conflicto:
+    """
+    DTO inmutable que representa un conflicto de horario detectado.
+
+    Producido por `HorarioConflictoService` y consumido por la capa de
+    presentación (template `conflicto_horario_error.html`) y por
+    `exception_mapping.to_drf` (serializado a JSON vía `asdict()` +
+    `isoformat()` sobre los `time`).
+
+    Campos alineados 1:1 con design §2.1 (orden posicional estable).
+    """
+
+    paralelo_id: int
+    paralelo_nombre: str
+    asignatura_codigo: str
+    asignatura_nombre: str
+    dia_semana: str
+    dia_semana_label: str
+    hora_inicio: time
+    hora_fin: time
