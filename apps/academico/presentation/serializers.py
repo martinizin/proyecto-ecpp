@@ -5,8 +5,10 @@ Provides read/write representations of academic models for the REST API.
 Refs: AC-PER-06, AC-CAT-07
 """
 
+from django.conf import settings
 from rest_framework import serializers
 
+from apps.academico.domain.services import AsignaturaService
 from apps.academico.infrastructure.models import (
     Asignatura,
     AsignaturaLicencia,
@@ -14,6 +16,7 @@ from apps.academico.infrastructure.models import (
     Periodo,
     TipoLicencia,
 )
+from apps.academico.presentation.exception_mapping import to_drf
 
 
 class TipoLicenciaSerializer(serializers.ModelSerializer):
@@ -123,10 +126,19 @@ class AsignaturaSerializer(serializers.ModelSerializer):
     def validate_licencias(self, value):
         if not value:
             raise serializers.ValidationError("Debe asignar al menos un tipo de licencia.")
+        
+        service = AsignaturaService()
         for entry in value:
             horas = entry.get("horas_lectivas", 0)
-            if horas <= 0:
-                raise serializers.ValidationError("Las horas lectivas deben ser mayores a 0.")
+            try:
+                service.validar_horas_lectivas(
+                    horas=horas,
+                    maximo=settings.HORAS_LECTIVAS_MAX
+                )
+            except Exception as e:
+                # Translate domain exception to DRF error routed to 'licencias' field
+                raise to_drf(e, field="licencias")
+        
         return value
 
     def create(self, validated_data):

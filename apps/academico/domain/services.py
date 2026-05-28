@@ -13,6 +13,7 @@ from .exceptions import (
     CupoExcedidoError,
     DocenteInvalidoError,
     EstadoMatriculaInvalidoError,
+    HorasLectivasInvalidasError,
     MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
     ParaleloDuplicadoError,
@@ -70,6 +71,20 @@ class AsignaturaService:
     Domain rules for subjects.
     Validates codigo uniqueness, horas_lectivas per licencia > 0, at least one tipo_licencia.
     """
+
+    def validar_horas_lectivas(self, horas: int, maximo: int = 60) -> None:
+        """
+        Validate that horas_lectivas is within [1, maximo].
+        
+        Args:
+            horas: Number of teaching hours.
+            maximo: Maximum allowed hours (default: 60 per settings).
+        
+        Raises:
+            HorasLectivasInvalidasError: If horas < 1 or horas > maximo.
+        """
+        if horas < 1 or horas > maximo:
+            raise HorasLectivasInvalidasError(horas=horas, maximo=maximo)
 
     def validar_datos(
         self,

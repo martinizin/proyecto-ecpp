@@ -7,6 +7,7 @@ All write operations restricted to Inspector role via MultiRolRequeridoMixin.
 from collections import OrderedDict
 from datetime import time
 
+from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +23,7 @@ from apps.academico.domain.exceptions import (
     AcademicoError,
     PeriodoActivoExistenteError,
 )
+from apps.academico.domain.services import AsignaturaService
 from apps.academico.infrastructure.models import (
     Asignatura,
     BloqueHorario,
@@ -295,6 +297,22 @@ class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
                 {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
             )
 
+        # V2: Validate horas_lectivas bounds per licencia
+        service_domain = AsignaturaService()
+        for entrada in licencias:
+            try:
+                service_domain.validar_horas_lectivas(
+                    horas=entrada["horas_lectivas"],
+                    maximo=settings.HORAS_LECTIVAS_MAX
+                )
+            except AcademicoError as e:
+                messages.error(request, str(e))
+                return render(
+                    request,
+                    self.template_name,
+                    {"form": form, "editing": False, "tipos_licencia_data": tipos_licencia_data},
+                )
+
         service = AsignaturaAppService()
         try:
             service.crear(
@@ -359,6 +377,27 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
                     "tipos_licencia_data": tipos_licencia_data,
                 },
             )
+
+        # V2: Validate horas_lectivas bounds per licencia
+        service_domain = AsignaturaService()
+        for entrada in licencias:
+            try:
+                service_domain.validar_horas_lectivas(
+                    horas=entrada["horas_lectivas"],
+                    maximo=settings.HORAS_LECTIVAS_MAX
+                )
+            except AcademicoError as e:
+                messages.error(request, str(e))
+                return render(
+                    request,
+                    self.template_name,
+                    {
+                        "form": form,
+                        "editing": True,
+                        "asignatura": asignatura,
+                        "tipos_licencia_data": tipos_licencia_data,
+                    },
+                )
 
         service = AsignaturaAppService()
         try:
