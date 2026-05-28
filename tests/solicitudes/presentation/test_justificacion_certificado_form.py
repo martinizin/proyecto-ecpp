@@ -173,11 +173,73 @@ class TestArchivosField:
         assert not form.is_valid()
         assert "archivos" in form.errors
 
-    def test_archivos_rechaza_tamanio_mayor_a_5mb(self):
+    def test_archivos_rechaza_peso_total_mayor_a_5mb(self):
+        # Post-QA: limite agregado de 5MB. Un solo archivo de 5MB+1 ya excede.
         big = SimpleUploadedFile(
             "big.pdf", b"x" * (5 * 1024 * 1024 + 1), content_type="application/pdf"
         )
         form = _bound(data=self._base_data(), files={"archivos": [big]})
+        assert not form.is_valid()
+        assert "archivos" in form.errors
+
+
+# -------------------------------------------------------------------- #
+# Post-QA: limite AGREGADO — <=5 archivos AND <=5MB peso total.
+# NO hay limite por archivo individual.
+# -------------------------------------------------------------------- #
+
+
+class TestArchivosLimiteAgregado:
+    def _base_data(self):
+        return {
+            "tipo_certificado": "laboral",
+            "motivo": "ok",
+            "fecha_certificado": _yesterday().isoformat(),
+            "cargo": "Analista",
+        }
+
+    def test_form_acepta_un_solo_archivo_de_exactamente_5mb(self):
+        """Regression del caso del usuario: 1 PDF de 5MB es valido."""
+        archivo_5mb = _pdf("certificado.pdf", size=5 * 1024 * 1024)
+        form = _bound(data=self._base_data(), files={"archivos": [archivo_5mb]})
+        assert form.is_valid(), form.errors
+
+    def test_form_acepta_5_archivos_de_1mb_cada_uno(self):
+        files = [_pdf(f"a{i}.pdf", size=1024 * 1024) for i in range(5)]
+        form = _bound(data=self._base_data(), files={"archivos": files})
+        assert form.is_valid(), form.errors
+
+    def test_form_rechaza_2_archivos_de_3mb_cada_uno(self):
+        # 2 * 3MB = 6MB > 5MB total. Mensaje debe mencionar peso total.
+        files = [_pdf(f"a{i}.pdf", size=3 * 1024 * 1024) for i in range(2)]
+        form = _bound(data=self._base_data(), files={"archivos": files})
+        assert not form.is_valid()
+        assert "archivos" in form.errors
+        msg = " ".join(form.errors["archivos"])
+        # El mensaje debe mencionar 'total' o 'peso total' y los MB subidos (6.00).
+        assert "total" in msg.lower()
+        assert "6.00 MB" in msg or "6 MB" in msg or "6.00" in msg
+
+    def test_form_rechaza_6_archivos_pequenios(self):
+        files = [_pdf(f"a{i}.pdf", size=100) for i in range(6)]
+        form = _bound(data=self._base_data(), files={"archivos": files})
+        assert not form.is_valid()
+        assert "archivos" in form.errors
+        msg = " ".join(form.errors["archivos"])
+        assert "5" in msg  # menciona el limite
+
+    def test_form_mensaje_peso_total_incluye_los_mb_subidos(self):
+        # 3 archivos de 2MB = 6MB total. Mensaje UX-friendly debe incluir el monto.
+        files = [_pdf(f"a{i}.pdf", size=2 * 1024 * 1024) for i in range(3)]
+        form = _bound(data=self._base_data(), files={"archivos": files})
+        assert not form.is_valid()
+        msg = " ".join(form.errors["archivos"])
+        assert "6.00 MB" in msg or "6 MB" in msg
+
+    def test_form_rechaza_extension_invalida_sin_importar_lote(self):
+        # La validacion de extension sigue por archivo individual.
+        bad = SimpleUploadedFile("virus.exe", b"x", content_type="application/octet-stream")
+        form = _bound(data=self._base_data(), files={"archivos": [bad]})
         assert not form.is_valid()
         assert "archivos" in form.errors
 

@@ -92,28 +92,37 @@ class JustificacionCertificadoForm(forms.Form):
     relacion_familiar = forms.CharField(max_length=100, required=False)
 
     # ------------------------------------------------------------------ #
-    # archivos validation (count / size / extension)
+    # archivos validation (count / total size / extension)
     # ------------------------------------------------------------------ #
     def clean_archivos(self):
         archivos = self.cleaned_data.get("archivos") or []
         if not archivos:
             raise forms.ValidationError("Debe adjuntar al menos un archivo.")
-        if len(archivos) > CertificadoValidationService.MAX_ARCHIVOS:
-            raise forms.ValidationError(
-                f"Máximo {CertificadoValidationService.MAX_ARCHIVOS} archivos permitidos "
-                f"(recibiste {len(archivos)})."
-            )
+
+        # 1) per-file: extension only (peso ya NO se valida por archivo).
         for f in archivos:
             errores = CertificadoValidationService.validar_archivo(f.name, f.size)
-            if errores:
-                if "extension_invalida" in errores:
-                    raise forms.ValidationError(
-                        f"Archivo {f.name}: extensión no permitida. " f"Solo PDF, JPG, JPEG o PNG."
-                    )
-                if "tamanio_excedido" in errores:
-                    raise forms.ValidationError(
-                        f"Archivo {f.name}: supera el tamaño máximo de 5 MB."
-                    )
+            if "extension_invalida" in errores:
+                raise forms.ValidationError(
+                    f"Archivo {f.name}: extensión no permitida. Solo PDF, JPG, JPEG o PNG."
+                )
+
+        # 2) batch: max files AND max total size (post-QA aggregated rule).
+        lote = [(f.name, f.size) for f in archivos]
+        errores_lote = CertificadoValidationService.validar_archivos(lote)
+        if "max_archivos_excedido" in errores_lote:
+            raise forms.ValidationError(
+                f"Máximo {CertificadoValidationService.MAX_ARCHIVOS} archivos permitidos "
+                f"(seleccionaste {len(archivos)})."
+            )
+        if "tamanio_total_excedido" in errores_lote:
+            total_bytes = sum(f.size for f in archivos)
+            total_mb = total_bytes / (1024 * 1024)
+            max_mb = CertificadoValidationService.MAX_TAMANIO_TOTAL / (1024 * 1024)
+            raise forms.ValidationError(
+                f"El peso total de los archivos ({total_mb:.2f} MB) supera el "
+                f"límite de {max_mb:.0f} MB. Quitá algunos archivos."
+            )
         return archivos
 
     # ------------------------------------------------------------------ #

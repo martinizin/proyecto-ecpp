@@ -114,12 +114,16 @@ class TestValidarArchivo:
     def test_valid_extension_under_size(self, nombre):
         assert S.validar_archivo(nombre, 1024) == []
 
-    def test_boundary_exact_5mb(self):
-        assert S.validar_archivo("ok.pdf", S.MAX_TAMANIO) == []
+    def test_boundary_exact_5mb_singular_pasa(self):
+        # validar_archivo (singular) ya NO valida peso — 5MB exactos pasan trivial.
+        assert S.validar_archivo("ok.pdf", S.MAX_TAMANIO_TOTAL) == []
 
-    def test_oversize_one_byte_over(self):
-        result = S.validar_archivo("big.pdf", S.MAX_TAMANIO + 1)
-        assert "tamanio_excedido" in result
+    def test_oversize_archivo_individual_no_emite_tamanio_excedido(self):
+        # Post-QA: validar_archivo (singular) NO valida peso individual.
+        # El peso es responsabilidad del lote (validar_archivos). Un archivo
+        # de 50MB con extension valida pasa al validador singular.
+        result = S.validar_archivo("big.pdf", 50 * 1024 * 1024)
+        assert result == []
 
     @pytest.mark.parametrize("nombre", ["bad.docx", "evil.exe", "archive.zip"])
     def test_invalid_extension(self, nombre):
@@ -134,10 +138,61 @@ class TestValidarArchivo:
     def test_mixed_case_extension_accepted(self, nombre):
         assert S.validar_archivo(nombre, 1024) == []
 
-    def test_both_errors_reported(self):
-        result = S.validar_archivo("oops.docx", S.MAX_TAMANIO + 1)
+    def test_extension_invalida_aun_con_archivo_grande(self):
+        # Post-QA: extension sigue siendo la unica responsabilidad de validar_archivo.
+        result = S.validar_archivo("oops.docx", 50 * 1024 * 1024)
         assert "extension_invalida" in result
-        assert "tamanio_excedido" in result
+        # Y NO emite tamanio_excedido (esa preocupacion se movio al lote).
+        assert "tamanio_excedido" not in result
+
+
+# --------------------------------------------------------------------------- #
+# validar_archivos (lote) — post-QA aggregated count + total size validation
+# --------------------------------------------------------------------------- #
+class TestValidarLoteArchivos:
+    """validar_archivos: valida cantidad + peso total agregado.
+
+    Stakeholders QA: el limite es AND — <=5 archivos Y <=5MB peso total.
+    NO hay limite por archivo individual.
+    """
+
+    def test_lote_valido_5_archivos_sumando_exactamente_5mb_pasa(self):
+        archivos = [("a.pdf", 1024 * 1024)] * 5  # 5 * 1MB = 5MB exactos
+        assert S.validar_archivos(archivos) == []
+
+    def test_lote_rechaza_6_archivos(self):
+        archivos = [("a.pdf", 100)] * 6
+        errores = S.validar_archivos(archivos)
+        assert "max_archivos_excedido" in errores
+
+    def test_lote_rechaza_peso_total_mayor_a_5mb(self):
+        # 2 archivos de 3MB = 6MB total
+        archivos = [("a.pdf", 3 * 1024 * 1024), ("b.pdf", 3 * 1024 * 1024)]
+        errores = S.validar_archivos(archivos)
+        assert "tamanio_total_excedido" in errores
+
+    def test_lote_acepta_un_solo_archivo_de_5mb(self):
+        # Regression del caso usuario: 1 PDF de 5MB es valido.
+        archivos = [("certificado.pdf", 5 * 1024 * 1024)]
+        assert S.validar_archivos(archivos) == []
+
+    def test_lote_rechaza_peso_total_5mb_mas_uno(self):
+        # Borderline: un solo archivo de 5MB+1 bytes ya excede el total.
+        archivos = [("big.pdf", 5 * 1024 * 1024 + 1)]
+        errores = S.validar_archivos(archivos)
+        assert "tamanio_total_excedido" in errores
+
+    def test_lote_vacio_no_emite_errores(self):
+        # Lista vacia: el form valida 'al menos un archivo', no es responsabilidad
+        # del helper de lote. Devuelve [] para coherencia con otros helpers puros.
+        assert S.validar_archivos([]) == []
+
+    def test_lote_acumula_ambos_errores_si_corresponde(self):
+        # 6 archivos de 1MB c/u: cantidad excedida Y peso total excedido.
+        archivos = [("a.pdf", 1024 * 1024)] * 6
+        errores = S.validar_archivos(archivos)
+        assert "max_archivos_excedido" in errores
+        assert "tamanio_total_excedido" in errores
 
 
 # --------------------------------------------------------------------------- #
@@ -147,8 +202,8 @@ class TestConstants:
     def test_max_archivos_is_5(self):
         assert S.MAX_ARCHIVOS == 5
 
-    def test_max_tamanio_is_5mb(self):
-        assert S.MAX_TAMANIO == 5 * 1024 * 1024
+    def test_max_tamanio_total_is_5mb(self):
+        assert S.MAX_TAMANIO_TOTAL == 5 * 1024 * 1024
 
     def test_extensiones_validas(self):
         assert set(S.EXTENSIONES_VALIDAS) == {".pdf", ".jpg", ".jpeg", ".png"}

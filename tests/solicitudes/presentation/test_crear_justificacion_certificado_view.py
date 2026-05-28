@@ -494,3 +494,62 @@ class TestPostNoPisaCamposPorInputsDuplicados:
         assert resp.status_code in (200, 302)
         if resp.status_code == 200:
             assert b"Este campo es obligatorio" not in resp.content
+
+
+# -------------------------------------------------------------------- #
+# Post-QA: limite agregado + UX preview removible con boton X
+# -------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+class TestTemplateMensajesYUXLoteArchivos:
+    """El template debe comunicar la nueva regla (peso total 5MB) y permitir
+    remover archivos individualmente con un boton X accesible."""
+
+    def test_template_label_archivos_dice_peso_total(self, client, estudiante_with_asistencia):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"peso total" in resp.content
+        assert b"5 MB" in resp.content
+
+    def test_template_no_dice_5mb_cada_uno(self, client, estudiante_with_asistencia):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"cada uno" not in resp.content
+
+    def test_template_renderiza_metodo_removeFile_en_alpine(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"removeFile" in resp.content
+
+    def test_template_boton_remove_tiene_aria_label_accesible(
+        self, client, estudiante_with_asistencia
+    ):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"aria-label" in resp.content
+        assert b"Quitar" in resp.content
+
+    def test_template_incluye_validateBatch_en_alpine(self, client, estudiante_with_asistencia):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"validateBatch" in resp.content
+
+    def test_template_incluye_estado_batchError(self, client, estudiante_with_asistencia):
+        estudiante, asistencia = estudiante_with_asistencia
+        client.force_login(estudiante)
+        resp = client.get(_url(asistencia.id))
+        assert resp.status_code == 200
+        assert b"batchError" in resp.content

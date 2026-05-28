@@ -90,7 +90,9 @@ class CertificadoValidationService:
     """
 
     MAX_ARCHIVOS: int = 5
-    MAX_TAMANIO: int = 5 * 1024 * 1024  # 5 MB
+    # Post-QA: el limite de 5MB es AGREGADO (suma de pesos del lote), no por
+    # archivo individual. Renombrado para reflejar la semantica.
+    MAX_TAMANIO_TOTAL: int = 5 * 1024 * 1024  # 5 MB total agregado
     EXTENSIONES_VALIDAS: list[str] = [".pdf", ".jpg", ".jpeg", ".png"]
 
     CAMPOS_OBLIGATORIOS: dict[str, list[str]] = {
@@ -155,18 +157,43 @@ class CertificadoValidationService:
     def validar_archivo(cls, nombre: str, tamanio: int) -> list[str]:
         """Return a list of error codes for the given file metadata.
 
+        Post-QA (stakeholder): este validador SOLO chequea la extension.
+        El peso del archivo individual ya NO se valida aqui — el limite
+        de 5MB es agregado a nivel lote (ver :meth:`validar_archivos`).
+
         Error codes:
           * ``"extension_invalida"`` — extension not in
             :attr:`EXTENSIONES_VALIDAS` (case-insensitive) or absent.
-          * ``"tamanio_excedido"`` — size strictly greater than
-            :attr:`MAX_TAMANIO`.
 
-        Empty result means the file is valid.
+        Empty result means the file has a valid extension. The ``tamanio``
+        parameter is kept for backward-compatible call sites but is ignored.
         """
+        del tamanio  # ignored — total size is validated at batch level
         errores: list[str] = []
         _, ext = os.path.splitext(nombre or "")
         if ext.lower() not in cls.EXTENSIONES_VALIDAS:
             errores.append("extension_invalida")
-        if tamanio > cls.MAX_TAMANIO:
-            errores.append("tamanio_excedido")
+        return errores
+
+    @classmethod
+    def validar_archivos(cls, archivos: list[tuple[str, int]]) -> list[str]:
+        """Validate an aggregated batch of attachments.
+
+        Post-QA stakeholder rule: el limite es AND — la solicitud entera
+        rebota si supera CUALQUIERA de:
+          * ``len(archivos) > MAX_ARCHIVOS``    -> ``"max_archivos_excedido"``
+          * ``sum(sizes)  > MAX_TAMANIO_TOTAL`` -> ``"tamanio_total_excedido"``
+
+        Empty list returns ``[]``: la presencia de al menos un archivo es
+        responsabilidad del form/app layer, no de este helper puro.
+
+        :param archivos: list of ``(nombre, tamanio_en_bytes)`` tuples.
+        :return: list of error codes (possibly empty).
+        """
+        errores: list[str] = []
+        if len(archivos) > cls.MAX_ARCHIVOS:
+            errores.append("max_archivos_excedido")
+        total = sum(t for _, t in archivos)
+        if total > cls.MAX_TAMANIO_TOTAL:
+            errores.append("tamanio_total_excedido")
         return errores

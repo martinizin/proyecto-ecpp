@@ -165,7 +165,7 @@
             <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-medium text-gray-700">
                     Archivos adjuntos <span class="text-red-500">*</span>
-                    <span class="text-gray-400 font-normal">(máximo 5, PDF/JPG/PNG, hasta 5 MB cada uno)</span>
+                    <span class="text-gray-400 font-normal">(máximo 5 archivos, PDF/JPG/PNG, peso total hasta 5 MB)</span>
                 </label>
                 <input type="file" name="archivos" multiple
                        accept=".pdf,.jpg,.jpeg,.png"
@@ -178,24 +178,42 @@
                 <!-- Listas frontend de archivos válidos / inválidos -->
                 <ul class="text-xs mt-2 space-y-1" data-testid="file-list-valid">
                     <template x-for="f in validFiles" :key="f.id">
-                        <li class="text-green-700 border border-green-200 bg-green-50 rounded px-2 py-1 flex justify-between">
-                            <span x-text="f.name"></span>
+                        <li class="text-green-700 border border-green-200 bg-green-50 rounded px-2 py-1 flex justify-between items-center gap-2">
+                            <span x-text="f.name" class="truncate flex-1"></span>
                             <span x-text="prettySize(f.size)" class="text-green-600"></span>
+                            <button type="button"
+                                    @click="removeFile(f.id)"
+                                    data-testid="btn-remove-file"
+                                    :aria-label="'Quitar ' + f.name"
+                                    class="text-red-500 hover:text-red-700 font-bold px-2 leading-none">
+                                ×
+                            </button>
                         </li>
                     </template>
                 </ul>
                 <ul class="text-xs mt-1 space-y-1" data-testid="file-list-invalid">
                     <template x-for="f in invalidFiles" :key="f.id">
-                        <li class="text-red-700 border border-red-300 bg-red-50 rounded px-2 py-1 flex justify-between">
-                            <span x-text="f.name"></span>
+                        <li class="text-red-700 border border-red-300 bg-red-50 rounded px-2 py-1 flex justify-between items-center gap-2">
+                            <span x-text="f.name" class="truncate flex-1"></span>
                             <span x-text="f.reason" class="text-red-600 font-medium"></span>
+                            <button type="button"
+                                    @click="removeFile(f.id)"
+                                    data-testid="btn-remove-file-invalid"
+                                    :aria-label="'Quitar ' + f.name"
+                                    class="text-red-500 hover:text-red-700 font-bold px-2 leading-none">
+                                ×
+                            </button>
                         </li>
                     </template>
                 </ul>
-                <p x-show="invalidFiles.length > 0 && validFiles.length === 0"
+                <p x-show="batchError !== null"
+                   x-text="batchError"
+                   class="text-xs text-red-600 mt-1 font-medium"
+                   data-testid="batch-error"></p>
+                <p x-show="invalidFiles.length > 0 && validFiles.length === 0 && batchError === null"
                    class="text-xs text-red-600 mt-1"
                    data-testid="no-valid-files-warning">
-                    Ningún archivo es válido. Reseleccioná archivos PDF/JPG/PNG de hasta 5 MB cada uno.
+                    Ningún archivo es válido. Reseleccioná archivos PDF/JPG/PNG.
                 </p>
             </div>
 
@@ -207,6 +225,7 @@
                 </a>
                 <button type="submit"
                         data-testid="submit-button"
+                        :disabled="batchError !== null"
                         class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     Enviar justificación
                 </button>
@@ -267,6 +286,7 @@ function certForm() {
         tipo: "{{ form.tipo_certificado.value|default:'' }}",
         validFiles: [],
         invalidFiles: [],
+        batchError: null,
         showModal: false,
         todayISO: new Date().toISOString().slice(0, 10),
         _nextId: 1,
@@ -280,17 +300,31 @@ function certForm() {
             return (n / 1024 / 1024).toFixed(2) + ' MB';
         },
 
+        // Per-file validation: extension only (peso ya NO se valida por archivo).
         validate(file) {
             const ext = (file.name.split('.').pop() || '').toLowerCase();
             if (!this.VALID_EXT.includes(ext)) return 'Extensión no permitida';
-            if (file.size > this.MAX_SIZE) return 'Supera 5 MB';
+            return null;
+        },
+
+        // Batch validation: cantidad <= 5 AND peso total <= 5MB.
+        // Devuelve un mensaje de error UX-friendly o null si todo OK.
+        validateBatch() {
+            if (this.validFiles.length === 0) return null;
+            if (this.validFiles.length > this.MAX_FILES) {
+                return `Máximo ${this.MAX_FILES} archivos permitidos (seleccionaste ${this.validFiles.length}).`;
+            }
+            const total = this.validFiles.reduce((s, f) => s + f.size, 0);
+            if (total > this.MAX_SIZE) {
+                return `El peso total (${this.prettySize(total)}) supera el límite de ${this.prettySize(this.MAX_SIZE)}. Quitá algunos archivos.`;
+            }
             return null;
         },
 
         onFilesChange(event) {
             this.validFiles = [];
             this.invalidFiles = [];
-            const files = Array.from(event.target.files || []).slice(0, this.MAX_FILES);
+            const files = Array.from(event.target.files || []);
             for (const f of files) {
                 const err = this.validate(f);
                 const item = { id: this._nextId++, name: f.name, size: f.size, file: f };
@@ -301,21 +335,41 @@ function certForm() {
                     this.validFiles.push(item);
                 }
             }
+            this.batchError = this.validateBatch();
+        },
+
+        // Remove a single file from the preview lists and rebuild fileInput.files.
+        removeFile(id) {
+            let idx = this.validFiles.findIndex(f => f.id === id);
+            if (idx !== -1) {
+                this.validFiles.splice(idx, 1);
+            } else {
+                idx = this.invalidFiles.findIndex(f => f.id === id);
+                if (idx === -1) return;
+                this.invalidFiles.splice(idx, 1);
+            }
+            // Rebuild the file input from the remaining items so the form
+            // POST sends exactly what the user sees in the preview.
+            const dt = new DataTransfer();
+            this.validFiles.forEach(f => dt.items.add(f.file));
+            this.invalidFiles.forEach(f => dt.items.add(f.file));
+            this.$refs.fileInput.files = dt.files;
+            this.batchError = this.validateBatch();
         },
 
         onSubmit(event) {
-            // If there are invalid files OR mixed, show confirmation modal
+            // Bloquear si hay error de lote (peso o cantidad).
+            if (this.batchError !== null) return;
+            // Si hay archivos inválidos por extensión o ninguno válido: confirmar.
             if (this.invalidFiles.length > 0 || this.validFiles.length === 0) {
                 this.showModal = true;
                 return;
             }
-            // All valid → submit directly
             event.target.submit();
         },
 
         confirmSend() {
             if (this.validFiles.length === 0) return; // safety
-            // Rebuild the file input with only the valid files
             const dt = new DataTransfer();
             this.validFiles.forEach(f => dt.items.add(f.file));
             this.$refs.fileInput.files = dt.files;
