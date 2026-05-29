@@ -473,3 +473,201 @@ class TestParaleloCreateLoteViewConflictoDocente:
         # Algún message warning sobre el conflicto
         messages_text = " ".join(str(m) for m in response.context["messages"])
         assert "conflicto" in messages_text.lower() or "Conflicto" in messages_text
+
+
+# ---------------------------------------------------------------------------
+# Task 3.8 — Smoke tests: full request cycle renders partial markup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestSmokePartialRenderParalelo:
+    """Smoke tests del ciclo completo de request en los 4 entry points web de
+    Paralelo + 1 JSON (ParaleloHorarioUpdateView). Verifican que el partial
+    `conflicto_horario_error.html` se renderiza con sus strings clave."""
+
+    def _seed_setup(self, suffix: str):
+        tl = _make_tipo_licencia("C")
+        periodo = _make_periodo(tl)
+        docente = _make_docente(suffix)
+        inspector = _make_inspector(suffix)
+        return tl, periodo, docente, inspector
+
+    def test_smoke_paralelo_create_render_partial(self):
+        """ParaleloCreateView: POST con conflicto debe renderizar partial."""
+        tl, periodo, docente, inspector = self._seed_setup("smk_create")
+        asig_pre = _make_asignatura("SMKC-PRE", tl)
+        asig_new = _make_asignatura("SMKC-NEW", tl)
+
+        _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_pre,
+            nombre="A",
+            dia="lunes",
+            hora_inicio=time(8, 0),
+            hora_fin=time(10, 0),
+        )
+
+        client = Client()
+        client.force_login(inspector)
+        response = client.post(
+            reverse("academico:paralelo_create"),
+            data={
+                "periodo": periodo.pk,
+                "tipo_licencia": tl.pk,
+                "asignatura": asig_new.pk,
+                "nombre": "B",
+                "docente": docente.pk,
+                "capacidad_maxima": 30,
+                "bloques_count": "1",
+                "bloque_dia_0": "lunes",
+                "bloque_inicio_0": "09:00",
+                "bloque_fin_0": "11:00",
+            },
+        )
+
+        assert response.status_code == 200
+        from django.test.utils import setup_test_environment  # noqa: F401
+
+        content = response.content.decode("utf-8")
+        assert 'role="alert"' in content
+        assert "aria-live" in content
+        assert "Conflicto de horario detectado" in content
+        assert "SMKC-PRE" in content
+        assert "Lunes" in content
+        assert "08:00" in content
+        assert "10:00" in content
+
+    def test_smoke_paralelo_update_render_partial(self):
+        """ParaleloUpdateView (asignatura edit): POST conflicto renderiza partial."""
+        tl, periodo, docente, inspector = self._seed_setup("smk_update")
+        asig_otro = _make_asignatura("SMKU-OTH", tl)
+        asig_target = _make_asignatura("SMKU-TGT", tl)
+
+        _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_otro,
+            nombre="A",
+            dia="lunes",
+            hora_inicio=time(8, 0),
+            hora_fin=time(10, 0),
+        )
+        target = _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_target,
+            nombre="B",
+            dia="viernes",
+            hora_inicio=time(14, 0),
+            hora_fin=time(16, 0),
+        )
+
+        client = Client()
+        client.force_login(inspector)
+        response = client.post(
+            reverse("academico:paralelo_update", kwargs={"pk": target.pk}),
+            data={
+                "docente": docente.pk,
+                "bloque_dia_0": "lunes",
+                "bloque_inicio_0": "09:00",
+                "bloque_fin_0": "11:00",
+            },
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode("utf-8")
+        assert 'role="alert"' in content
+        assert "Conflicto de horario detectado" in content
+        assert "SMKU-OTH" in content
+        assert "Lunes" in content
+
+    def test_smoke_paralelo_horario_update_json_shape(self):
+        """ParaleloHorarioUpdateView: contrato JSON estructurado (sin partial)."""
+        tl, periodo, docente, inspector = self._seed_setup("smk_json")
+        asig_otro = _make_asignatura("SMKJ-OTH", tl)
+        asig_target = _make_asignatura("SMKJ-TGT", tl)
+
+        _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_otro,
+            nombre="A",
+            dia="lunes",
+            hora_inicio=time(8, 0),
+            hora_fin=time(10, 0),
+        )
+        target = _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_target,
+            nombre="B",
+            dia="viernes",
+            hora_inicio=time(14, 0),
+            hora_fin=time(16, 0),
+        )
+
+        client = Client()
+        client.force_login(inspector)
+        response = client.post(
+            reverse("academico:paralelo_horario_update", kwargs={"pk": target.pk}),
+            data=json.dumps({"bloques": [{"dia": "lunes", "inicio": "09:00", "fin": "11:00"}]}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        body = response.json()
+        assert body["ok"] is False
+        assert isinstance(body.get("conflictos"), list) and len(body["conflictos"]) == 1
+        c = body["conflictos"][0]
+        assert c["asignatura_codigo"] == "SMKJ-OTH"
+        assert c["dia_semana"] == "lunes"
+        assert c["hora_inicio"] == "08:00:00"
+
+    def test_smoke_paralelo_create_lote_warning_message(self):
+        """ParaleloCreateLoteView: collect-all → redirect con warning message
+        (no renderiza partial porque redirige; cubre el wire defensivo del
+        template para casos futuros)."""
+        tl, periodo, docente, inspector = self._seed_setup("smk_lote")
+        asig_pre = _make_asignatura("SMKL-PRE", tl)
+        asig_a = _make_asignatura("SMKL-A", tl)
+
+        _seed_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tipo_licencia=tl,
+            asignatura=asig_pre,
+            nombre="PRE",
+            dia="lunes",
+            hora_inicio=time(8, 0),
+            hora_fin=time(10, 0),
+        )
+
+        client = Client()
+        client.force_login(inspector)
+        response = client.post(
+            reverse("academico:paralelo_create_lote"),
+            data={
+                "periodo": periodo.pk,
+                "tipo_licencia": tl.pk,
+                "asignaturas": [asig_a.pk],
+                "nombre": "L1",
+                "docente": docente.pk,
+                "capacidad_maxima": 30,
+                f"horario_{asig_a.pk}_count": "1",
+                f"horario_{asig_a.pk}_dia_0": "lunes",
+                f"horario_{asig_a.pk}_inicio_0": "09:00",
+                f"horario_{asig_a.pk}_fin_0": "11:00",
+            },
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        messages_text = " ".join(str(m) for m in response.context["messages"])
+        assert "conflicto" in messages_text.lower()

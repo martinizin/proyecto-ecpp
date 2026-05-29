@@ -400,3 +400,118 @@ class TestMatricularEnLoteCollectAll:
         assert Matricula.objects.filter(estudiante=estudiante, paralelo=p3).exists()
         # Mensaje en omitidos para P2
         assert any("MV5L-B" in o.lower() or "MV5L-B" in o for o in omitidos)
+
+
+# ---------------------------------------------------------------------------
+# Task 3.8 — Smoke tests: full request cycle renders partial markup (Matrícula)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestSmokePartialRenderMatricula:
+    """Smoke tests del partial conflicto_horario_error renderizado por
+    MatriculaCreateView y wire defensivo en MatriculaLoteView (redirige)."""
+
+    def test_smoke_matricula_create_render_partial(self):
+        tl = _make_tl()
+        periodo = _make_periodo(tl)
+        docente = _make_docente("smk_create")
+        estudiante = _make_estudiante("smk_create")
+        secretaria = _make_secretaria("smk_create")
+        a1 = _make_asig("SMK-A", tl)
+        a2 = _make_asig("SMK-B", tl)
+
+        p1 = _make_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tl=tl,
+            asignatura=a1,
+            nombre="A",
+            dia="jueves",
+            hi=time(8, 0),
+            hf=time(10, 0),
+        )
+        Matricula.objects.create(
+            estudiante=estudiante,
+            paralelo=p1,
+            estado=Matricula.Estado.ACTIVA,
+            matriculado_por=secretaria,
+        )
+        p2 = _make_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tl=tl,
+            asignatura=a2,
+            nombre="B",
+            dia="jueves",
+            hi=time(9, 0),
+            hf=time(11, 0),
+        )
+
+        client = Client()
+        client.force_login(secretaria)
+        response = client.post(
+            reverse("secretaria:matricula_create"),
+            data={
+                "estudiante": estudiante.pk,
+                "paralelo": p2.pk,
+                "periodo": periodo.pk,
+            },
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode("utf-8")
+        assert 'role="alert"' in content
+        assert "aria-live" in content
+        assert "Conflicto de horario detectado" in content
+        assert "SMK-A" in content
+        assert "Jueves" in content
+        assert "08:00" in content
+        assert "10:00" in content
+
+    def test_smoke_matricula_lote_omitidos_message(self):
+        """MatriculaLoteView redirige → warning en messages (collect-all)."""
+        tl = _make_tl()
+        periodo = _make_periodo(tl)
+        docente = _make_docente("smk_lote")
+        estudiante = _make_estudiante("smk_lote")
+        secretaria = _make_secretaria("smk_lote")
+        a1 = _make_asig("SMKL-A", tl)
+        a2 = _make_asig("SMKL-B", tl)
+
+        p1 = _make_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tl=tl,
+            asignatura=a1,
+            nombre="A",
+            dia="lunes",
+            hi=time(8, 0),
+            hf=time(10, 0),
+        )
+        p2 = _make_paralelo_con_bloque(
+            docente=docente,
+            periodo=periodo,
+            tl=tl,
+            asignatura=a2,
+            nombre="B",
+            dia="lunes",
+            hi=time(9, 0),
+            hf=time(11, 0),
+        )
+
+        client = Client()
+        client.force_login(secretaria)
+        response = client.post(
+            reverse("secretaria:matricula_create_lote"),
+            data={
+                "estudiante": estudiante.pk,
+                "paralelos": [p1.pk, p2.pk],
+            },
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        messages_text = " ".join(str(m) for m in response.context["messages"])
+        # Uno se creó (P1), el otro debe ir a omitidos por conflicto
+        assert "omiti" in messages_text.lower()
