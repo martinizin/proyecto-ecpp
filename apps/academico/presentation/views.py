@@ -21,9 +21,11 @@ from apps.academico.application.services import (
 )
 from apps.academico.domain.exceptions import (
     AcademicoError,
+    ConflictoHorarioDocenteError,
     PeriodoActivoExistenteError,
 )
-from apps.academico.domain.services import AsignaturaService
+from apps.academico.domain.services import AsignaturaService, HorarioConflictoService
+from apps.academico.presentation.exception_mapping import to_django, _serialize_conflictos
 from apps.academico.infrastructure.models import (
     Asignatura,
     BloqueHorario,
@@ -302,8 +304,7 @@ class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
         for entrada in licencias:
             try:
                 service_domain.validar_horas_lectivas(
-                    horas=entrada["horas_lectivas"],
-                    maximo=settings.HORAS_LECTIVAS_MAX
+                    horas=entrada["horas_lectivas"], maximo=settings.HORAS_LECTIVAS_MAX
                 )
             except AcademicoError as e:
                 messages.error(request, str(e))
@@ -383,8 +384,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
         for entrada in licencias:
             try:
                 service_domain.validar_horas_lectivas(
-                    horas=entrada["horas_lectivas"],
-                    maximo=settings.HORAS_LECTIVAS_MAX
+                    horas=entrada["horas_lectivas"], maximo=settings.HORAS_LECTIVAS_MAX
                 )
             except AcademicoError as e:
                 messages.error(request, str(e))
@@ -493,6 +493,47 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
         periodo = form.cleaned_data["periodo"]
         asignatura = form.cleaned_data["asignatura"]
 
+        # Parse bloques first so we can run the docente-conflict check BEFORE
+        # creating the Paralelo row (locked decision 3 — design §9 + tasks 2.3).
+        bloques_count_str = request.POST.get("bloques_count", "0")
+        try:
+            bloques_count = int(bloques_count_str)
+        except ValueError:
+            bloques_count = 0
+
+        bloques_propuestos: list[tuple[str, time, time]] = []
+        for idx in range(bloques_count):
+            dia = request.POST.get(f"bloque_dia_{idx}", "").strip()
+            inicio_str = request.POST.get(f"bloque_inicio_{idx}", "").strip()
+            fin_str = request.POST.get(f"bloque_fin_{idx}", "").strip()
+            if dia and inicio_str and fin_str:
+                try:
+                    h_inicio = time.fromisoformat(inicio_str)
+                    h_fin = time.fromisoformat(fin_str)
+                    if h_inicio < h_fin:
+                        bloques_propuestos.append((dia, h_inicio, h_fin))
+                except ValueError:
+                    pass
+
+        if bloques_propuestos:
+            conflictos = HorarioConflictoService.detectar_conflicto_docente(
+                docente_id=docente.pk,
+                periodo_id=periodo.pk,
+                bloques_propuestos=bloques_propuestos,
+            )
+            if conflictos:
+                exc = ConflictoHorarioDocenteError(conflictos)
+                form.add_error(None, to_django(exc))
+                return render(
+                    request,
+                    self.template_name,
+                    {
+                        "form": form,
+                        "editing": False,
+                        "conflictos_horario": conflictos,
+                    },
+                )
+
         try:
             service.crear(
                 asignatura_codigo=asignatura.codigo,
@@ -511,13 +552,6 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
             form.add_error(None, str(e))
             return render(request, self.template_name, {"form": form, "editing": False})
 
-        # Parse and create schedule blocks
-        bloques_count_str = request.POST.get("bloques_count", "0")
-        try:
-            bloques_count = int(bloques_count_str)
-        except ValueError:
-            bloques_count = 0
-
         created_paralelo = (
             Paralelo.objects.filter(
                 asignatura=asignatura,
@@ -529,24 +563,14 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
             .first()
         )
 
-        if created_paralelo and bloques_count > 0:
-            for idx in range(bloques_count):
-                dia = request.POST.get(f"bloque_dia_{idx}", "").strip()
-                inicio_str = request.POST.get(f"bloque_inicio_{idx}", "").strip()
-                fin_str = request.POST.get(f"bloque_fin_{idx}", "").strip()
-                if dia and inicio_str and fin_str:
-                    try:
-                        h_inicio = time.fromisoformat(inicio_str)
-                        h_fin = time.fromisoformat(fin_str)
-                        if h_inicio < h_fin:
-                            BloqueHorario.objects.create(
-                                paralelo=created_paralelo,
-                                dia_semana=dia,
-                                hora_inicio=h_inicio,
-                                hora_fin=h_fin,
-                            )
-                    except ValueError:
-                        pass
+        if created_paralelo and bloques_propuestos:
+            for dia, h_inicio, h_fin in bloques_propuestos:
+                BloqueHorario.objects.create(
+                    paralelo=created_paralelo,
+                    dia_semana=dia,
+                    hora_inicio=h_inicio,
+                    hora_fin=h_fin,
+                )
 
         messages.success(request, "Paralelo creado exitosamente.")
         return redirect("academico:paralelo_list")
@@ -658,6 +682,28 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                             bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
                         except ValueError:
                             pass
+
+                # V5: docente conflict check across all paralelos of the
+                # period (collect-all per asignatura; skip bloques on conflict
+                # but DO NOT abort the lote — design §4 row 2 + task 2.6).
+                docente = form.cleaned_data["docente"]
+                if bloques_data and docente:
+                    bloques_propuestos = [(b["dia"], b["inicio"], b["fin"]) for b in bloques_data]
+                    docente_conflictos = HorarioConflictoService.detectar_conflicto_docente(
+                        docente_id=docente.pk,
+                        periodo_id=paralelo.periodo_id,
+                        bloques_propuestos=bloques_propuestos,
+                        paralelo_id_excluir=paralelo.pk,
+                    )
+                    if docente_conflictos:
+                        first = docente_conflictos[0]
+                        horario_warnings.append(
+                            f"{asig.nombre}: conflicto de docente con "
+                            f"{first.asignatura_nombre} ({first.paralelo_nombre}) "
+                            f"el {first.dia_semana_label} de "
+                            f"{first.hora_inicio:%H:%M} a {first.hora_fin:%H:%M}."
+                        )
+                        continue
 
                 # Conflict validation against same group
                 same_group = Paralelo.objects.filter(
@@ -835,6 +881,33 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
                 },
             )
 
+        # V5: docente cross-paralelo conflict check (decision 4 — context var).
+        # Uses incoming docente.pk from the form (may differ from paralelo.docente_id
+        # if the inspector is reassigning), and self-excludes the current paralelo.
+        new_docente = form.cleaned_data.get("docente") or paralelo.docente
+        bloques_propuestos = [(b["dia"], b["inicio"], b["fin"]) for b in bloques_data]
+        if bloques_propuestos and new_docente:
+            conflictos = HorarioConflictoService.detectar_conflicto_docente(
+                docente_id=new_docente.pk,
+                periodo_id=paralelo.periodo_id,
+                bloques_propuestos=bloques_propuestos,
+                paralelo_id_excluir=paralelo.pk,
+            )
+            if conflictos:
+                exc = ConflictoHorarioDocenteError(conflictos)
+                form.add_error(None, to_django(exc))
+                bloques = paralelo.bloques_horario.all()
+                return render(
+                    request,
+                    self.template_name,
+                    {
+                        "form": form,
+                        "paralelo": paralelo,
+                        "bloques": bloques,
+                        "conflictos_horario": conflictos,
+                    },
+                )
+
         # Save docente
         form.save()
 
@@ -918,6 +991,26 @@ class ParaleloHorarioUpdateView(View):
 
         if errores:
             return JsonResponse({"ok": False, "errors": errores}, status=400)
+
+        # V5: docente cross-paralelo conflict (JSON contract, design §5.3).
+        bloques_propuestos = [(b["dia"], b["inicio"], b["fin"]) for b in bloques_data]
+        if bloques_propuestos and paralelo.docente_id:
+            docente_conflictos = HorarioConflictoService.detectar_conflicto_docente(
+                docente_id=paralelo.docente_id,
+                periodo_id=paralelo.periodo_id,
+                bloques_propuestos=bloques_propuestos,
+                paralelo_id_excluir=paralelo.pk,
+            )
+            if docente_conflictos:
+                exc = ConflictoHorarioDocenteError(docente_conflictos)
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "errors": [str(exc)],
+                        "conflictos": _serialize_conflictos(exc) or [],
+                    },
+                    status=400,
+                )
 
         # Conflict validation against same group
         same_group_paralelos = Paralelo.objects.filter(

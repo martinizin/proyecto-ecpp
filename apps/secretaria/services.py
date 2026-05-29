@@ -173,6 +173,25 @@ class GestionMatriculasService:
         ).count()
         self.domain_service.validar_cupo(activas, paralelo.capacidad_maxima)
 
+        # V5: schedule conflict against student's ACTIVA matrículas in same period.
+        # Loads paralelo bloques as plain tuples; raises typed exception on conflict.
+        from apps.academico.domain.exceptions import ConflictoHorarioEstudianteError
+        from apps.academico.domain.services import HorarioConflictoService
+        from apps.academico.infrastructure.models import BloqueHorario
+
+        bloques_paralelo = [
+            (b.dia_semana, b.hora_inicio, b.hora_fin)
+            for b in BloqueHorario.objects.filter(paralelo_id=paralelo_id)
+        ]
+        if bloques_paralelo:
+            conflictos = HorarioConflictoService.detectar_conflicto_estudiante(
+                estudiante_id=estudiante_id,
+                periodo_id=paralelo.periodo_id,
+                bloques_propuestos=bloques_paralelo,
+            )
+            if conflictos:
+                raise ConflictoHorarioEstudianteError(conflictos)
+
         matricula = Matricula.objects.create(
             estudiante_id=estudiante_id,
             paralelo_id=paralelo_id,
@@ -286,7 +305,8 @@ class GestionMatriculasService:
         Returns (created_count, skipped_details).
         """
         from django.db import transaction
-        from apps.academico.infrastructure.models import Matricula, Paralelo
+        from apps.academico.domain.services import HorarioConflictoService
+        from apps.academico.infrastructure.models import BloqueHorario, Matricula, Paralelo
 
         paralelos = Paralelo.objects.filter(pk__in=paralelo_ids).select_related(
             "periodo", "asignatura"
@@ -330,6 +350,27 @@ class GestionMatriculasService:
                 if activas >= paralelo.capacidad_maxima:
                     omitidos.append(f"{paralelo.asignatura.codigo}: sin cupo")
                     continue
+
+                # V5: schedule conflict check (collect-all — design §4.1 + task 2.8).
+                bloques_paralelo = [
+                    (b.dia_semana, b.hora_inicio, b.hora_fin)
+                    for b in BloqueHorario.objects.filter(paralelo_id=paralelo.pk)
+                ]
+                if bloques_paralelo:
+                    conflictos = HorarioConflictoService.detectar_conflicto_estudiante(
+                        estudiante_id=estudiante_id,
+                        periodo_id=paralelo.periodo_id,
+                        bloques_propuestos=bloques_paralelo,
+                    )
+                    if conflictos:
+                        first = conflictos[0]
+                        omitidos.append(
+                            f"{paralelo.asignatura.codigo}: conflicto de horario con "
+                            f"{first.asignatura_codigo} ({first.paralelo_nombre}) "
+                            f"el {first.dia_semana_label} "
+                            f"{first.hora_inicio:%H:%M}-{first.hora_fin:%H:%M}"
+                        )
+                        continue
 
                 Matricula.objects.create(
                     estudiante_id=estudiante_id,

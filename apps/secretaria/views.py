@@ -16,6 +16,7 @@ from apps.usuarios.infrastructure.models import Usuario
 from apps.usuarios.presentation.permissions import RolRequeridoMixin
 
 from apps.academico.domain.exceptions import (
+    ConflictoHorarioEstudianteError,
     CupoExcedidoError,
     EstadoMatriculaInvalidoError,
     MatriculaAsignaturaDuplicadaError,
@@ -23,6 +24,7 @@ from apps.academico.domain.exceptions import (
     PeriodoInactivoError,
 )
 from apps.academico.infrastructure.models import Matricula
+from apps.academico.presentation.exception_mapping import to_django
 
 from .forms import CrearMatriculaForm, CrearUsuarioForm, EditarUsuarioForm
 from .services import GestionMatriculasService, GestionUsuariosService
@@ -320,6 +322,18 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             )
             messages.success(request, "Matrícula registrada exitosamente.")
             return redirect("secretaria:matricula_list")
+        except ConflictoHorarioEstudianteError as e:
+            form.add_error(None, to_django(e))
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                    "conflictos_horario": e.conflictos,
+                },
+            )
         except (
             CupoExcedidoError,
             MatriculaDuplicadaError,
