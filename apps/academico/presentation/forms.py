@@ -280,9 +280,9 @@ class ParaleloLoteForm(forms.Form):
         periodo = self.cleaned_data.get("periodo")
         if asignaturas and tipo_licencia and periodo:
             existentes_ids = list(
-                Paralelo.objects.filter(
-                    periodo=periodo, tipo_licencia=tipo_licencia
-                ).values_list("asignatura_id", flat=True)
+                Paralelo.objects.filter(periodo=periodo, tipo_licencia=tipo_licencia).values_list(
+                    "asignatura_id", flat=True
+                )
             )
             try:
                 ParaleloService().validar_max_asignaturas_por_periodo(

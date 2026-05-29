@@ -92,10 +92,7 @@ class TestPeriodoFormValidarDuracion:
         form = PeriodoForm(data=data)
         assert form.is_valid() is False
         # Non-field error from existing guard.
-        assert any(
-            "anterior a la fecha de fin" in str(err)
-            for err in form.errors.values()
-        )
+        assert any("anterior a la fecha de fin" in str(err) for err in form.errors.values())
 
 
 @pytest.mark.django_db

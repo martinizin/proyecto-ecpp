@@ -3,7 +3,6 @@ Pruebas unitarias para el helper de traducción de excepciones de dominio
 hacia los ValidationError de Django y DRF (HU21 QA V1-V4).
 """
 
-import pytest
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers as drf_serializers
 

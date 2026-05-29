@@ -80,9 +80,7 @@ class TestParaleloFormValidarCapacidad:
             "capacidad_maxima": capacidad,
         }
 
-    def test_capacidad_51_rechazada(
-        self, periodo_activo, tipo_licencia_c, asignatura_c, docente
-    ):
+    def test_capacidad_51_rechazada(self, periodo_activo, tipo_licencia_c, asignatura_c, docente):
         from apps.academico.presentation.forms import ParaleloForm
 
         form = ParaleloForm(
@@ -92,9 +90,7 @@ class TestParaleloFormValidarCapacidad:
         assert "capacidad_maxima" in form.errors
         assert "entre 1 y 50" in str(form.errors["capacidad_maxima"])
 
-    def test_capacidad_50_aceptada(
-        self, periodo_activo, tipo_licencia_c, asignatura_c, docente
-    ):
+    def test_capacidad_50_aceptada(self, periodo_activo, tipo_licencia_c, asignatura_c, docente):
         from apps.academico.presentation.forms import ParaleloForm
 
         form = ParaleloForm(
@@ -107,9 +103,7 @@ class TestParaleloFormValidarCapacidad:
 class TestParaleloLoteFormCapacidadMaxima:
     """ParaleloLoteForm rejects capacidad > settings.PARALELO_CAPACIDAD_MAXIMA."""
 
-    def test_capacidad_51_rechazada(
-        self, periodo_activo, tipo_licencia_c, asignatura_c, docente
-    ):
+    def test_capacidad_51_rechazada(self, periodo_activo, tipo_licencia_c, asignatura_c, docente):
         from apps.academico.presentation.forms import ParaleloLoteForm
 
         data = {
@@ -147,9 +141,7 @@ class TestParaleloSerializerValidarCapacidad:
         assert "capacidad_maxima" in serializer.errors
         assert "entre 1 y 50" in str(serializer.errors["capacidad_maxima"])
 
-    def test_capacidad_50_es_valida(
-        self, periodo_activo, tipo_licencia_c, asignatura_c, docente
-    ):
+    def test_capacidad_50_es_valida(self, periodo_activo, tipo_licencia_c, asignatura_c, docente):
         from apps.academico.presentation.serializers import ParaleloSerializer
 
         data = {

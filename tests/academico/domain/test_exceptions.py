@@ -7,8 +7,6 @@ Verifican que cada excepción:
 - Produce un mensaje en español que incluye los valores numéricos clave.
 """
 
-import pytest
-
 from apps.academico.domain.exceptions import (
     AcademicoError,
     CapacidadParaleloInvalidaError,
@@ -67,9 +65,7 @@ class TestMaxAsignaturasExcedidasError:
         assert issubclass(MaxAsignaturasExcedidasError, AcademicoError)
 
     def test_expone_atributos_y_mensaje(self):
-        exc = MaxAsignaturasExcedidasError(
-            actual=6, limite=5, tipo_licencia_codigo="BASICA"
-        )
+        exc = MaxAsignaturasExcedidasError(actual=6, limite=5, tipo_licencia_codigo="BASICA")
 
         assert exc.actual == 6
         assert exc.limite == 5

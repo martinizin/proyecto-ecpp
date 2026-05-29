@@ -66,9 +66,7 @@ def periodo_activo(tipo_licencia_e):
 
 def _crear_asignatura(codigo: str, tipo_licencia: TipoLicencia) -> Asignatura:
     a = Asignatura.objects.create(nombre=f"Asig {codigo}", codigo=codigo, descripcion="")
-    AsignaturaLicencia.objects.create(
-        asignatura=a, tipo_licencia=tipo_licencia, horas_lectivas=20
-    )
+    AsignaturaLicencia.objects.create(asignatura=a, tipo_licencia=tipo_licencia, horas_lectivas=20)
     return a
 
 
@@ -156,9 +154,7 @@ class TestParaleloLoteFormV1MaxAsignaturas:
             "capacidad_maxima": 30,
         }
 
-    def test_lote_que_cruza_el_limite_es_rechazado(
-        self, periodo_activo, tipo_licencia_e, docente
-    ):
+    def test_lote_que_cruza_el_limite_es_rechazado(self, periodo_activo, tipo_licencia_e, docente):
         """existentes=3 + lote de 3 nuevas (todas distintas) → union=6 > 5 → falla."""
         from apps.academico.presentation.forms import ParaleloLoteForm
 
@@ -167,9 +163,7 @@ class TestParaleloLoteFormV1MaxAsignaturas:
 
         nuevas = [_crear_asignatura(f"V1L-N{i:03d}", tipo_licencia_e) for i in range(3)]
         form = ParaleloLoteForm(
-            data=self._lote_data(
-                periodo_activo, tipo_licencia_e, [a.pk for a in nuevas], docente
-            )
+            data=self._lote_data(periodo_activo, tipo_licencia_e, [a.pk for a in nuevas], docente)
         )
         assert form.is_valid() is False
         # Error puede estar en 'asignaturas' (clean_asignaturas) o non-field; aceptamos ambos.
@@ -187,16 +181,17 @@ class TestParaleloLoteFormV1MaxAsignaturas:
 
         nuevas = [_crear_asignatura(f"V1L-OKN{i:03d}", tipo_licencia_e) for i in range(2)]
         form = ParaleloLoteForm(
-            data=self._lote_data(
-                periodo_activo, tipo_licencia_e, [a.pk for a in nuevas], docente
-            )
+            data=self._lote_data(periodo_activo, tipo_licencia_e, [a.pk for a in nuevas], docente)
         )
         assert form.is_valid() is True, form.errors
 
 
 @pytest.mark.django_db
 class TestParaleloSerializerV1MaxAsignaturas:
-    """ParaleloSerializer enforces V1 via domain service, with self.instance.pk exclusion on update."""
+    """ParaleloSerializer enforces V1 via domain service.
+
+    Uses self.instance.pk exclusion on update.
+    """
 
     def _ser_data(self, periodo, tipo_licencia, asignatura, docente, nombre="A"):
         return {
@@ -208,9 +203,7 @@ class TestParaleloSerializerV1MaxAsignaturas:
             "capacidad_maxima": 30,
         }
 
-    def test_create_supera_limite_es_rechazado(
-        self, periodo_activo, tipo_licencia_e, docente
-    ):
+    def test_create_supera_limite_es_rechazado(self, periodo_activo, tipo_licencia_e, docente):
         from apps.academico.presentation.serializers import ParaleloSerializer
 
         existentes = [_crear_asignatura(f"V1S-{i:03d}", tipo_licencia_e) for i in range(5)]

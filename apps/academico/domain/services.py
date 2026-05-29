@@ -47,7 +47,10 @@ class PeriodoService:
         minimo: int,
         maximo: int,
     ) -> None:
-        """Validate periodo duration in [minimo, maximo] months (lenient: any trailing days bump up)."""
+        """Validate periodo duration in [minimo, maximo] months.
+
+        Lenient: any trailing days bump the month count up.
+        """
         from dateutil.relativedelta import relativedelta
 
         delta = relativedelta(fecha_fin, fecha_inicio)

@@ -8,9 +8,7 @@ Layers: View-level (Django test Client) and Serializer-level (DRF).
 import pytest
 from django.test import Client
 from django.urls import reverse
-from rest_framework import status
-
-from apps.academico.infrastructure.models import Asignatura, TipoLicencia
+from apps.academico.infrastructure.models import TipoLicencia
 from apps.usuarios.infrastructure.models import Usuario
 
 
@@ -61,9 +59,7 @@ class TestAsignaturaSerializerValidarHorasLectivas:
 
         serializer = AsignaturaSerializer(data=data)
         assert serializer.is_valid() is False
-        assert "licencias" in serializer.errors or "horas_lectivas" in str(
-            serializer.errors
-        )
+        assert "licencias" in serializer.errors or "horas_lectivas" in str(serializer.errors)
         error_msg = str(serializer.errors)
         assert "entre 1 y 60" in error_msg
 

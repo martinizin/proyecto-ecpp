@@ -91,7 +91,8 @@ class DuracionPeriodoInvalidaError(AcademicoError):
         self.minimo = minimo
         self.maximo = maximo
         super().__init__(
-            f"La duración del periodo debe estar entre {minimo} y {maximo} meses (recibido: {meses})."
+            f"La duración del periodo debe estar entre {minimo} y {maximo} meses "
+            f"(recibido: {meses})."
         )
 
 
