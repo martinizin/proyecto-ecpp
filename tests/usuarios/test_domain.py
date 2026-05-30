@@ -362,3 +362,53 @@ class TestCedulaObligatoriaError:
         from apps.usuarios.domain.exceptions import UsuarioError
 
         assert issubclass(CedulaObligatoriaError, UsuarioError)
+
+
+# =============================================================================
+# UsuarioEntity (cédula required post-immutability)
+# =============================================================================
+
+
+class TestUsuarioEntityCedulaRequired:
+    """
+    After the immutability change, `cedula` is part of the user's identity and
+    must be provided at construction time — no `Optional`, no default.
+    """
+
+    def test_constructing_without_cedula_raises_type_error(self):
+        """Forces callers to supply cédula explicitly (no silent None)."""
+        from apps.usuarios.domain.entities import Rol, UsuarioEntity
+
+        with pytest.raises(TypeError):
+            UsuarioEntity(  # type: ignore[call-arg]
+                username="ana",
+                email="ana@test.com",
+                rol=Rol.ESTUDIANTE,
+            )
+
+    def test_cedula_field_has_no_default_and_is_str(self):
+        """Dataclass field metadata must reflect required-str cédula."""
+        import dataclasses
+
+        from apps.usuarios.domain.entities import UsuarioEntity
+
+        field = next(f for f in dataclasses.fields(UsuarioEntity) if f.name == "cedula")
+        assert field.default is dataclasses.MISSING, (
+            "cedula must not carry a default value; it is required for every user."
+        )
+        # Annotation must be plain `str`, not `Optional[str]` / `str | None`.
+        assert field.type in ("str", str), (
+            f"cedula annotation must be `str`, got {field.type!r}"
+        )
+
+    def test_entity_constructed_with_cedula_keeps_value(self):
+        """Happy-path triangulation — entity stores the cedula it was built with."""
+        from apps.usuarios.domain.entities import Rol, UsuarioEntity
+
+        entity = UsuarioEntity(
+            username="ana",
+            email="ana@test.com",
+            rol=Rol.ESTUDIANTE,
+            cedula="1710034065",
+        )
+        assert entity.cedula == "1710034065"

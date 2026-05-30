@@ -22,14 +22,18 @@ class UsuarioEntity:
     """
     Domain representation of a user.
     This is the pure domain entity — the ORM model lives in infrastructure.
+
+    `cedula` is required: after the immutability change, a user cannot exist in
+    the domain without an Ecuadorian cédula. Defaults are forbidden so callers
+    must supply it explicitly.
     """
 
     username: str
     email: str
     rol: Rol
+    cedula: str
     first_name: str = ""
     last_name: str = ""
-    cedula: Optional[str] = None
     telefono: str = ""
     direccion: str = ""
     is_active: bool = True
