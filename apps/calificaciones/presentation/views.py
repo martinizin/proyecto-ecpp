@@ -213,7 +213,11 @@ class EditarEvaluacionView(RolRequeridoMixin, View):
         if redir:
             return redir
         evaluacion = get_object_or_404(Evaluacion, pk=evaluacion_id, paralelo=paralelo)
-        return render(request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion})
+        return render(
+            request,
+            self.template_name,
+            {"paralelo": paralelo, "evaluacion": evaluacion},
+        )
 
     def post(self, request, paralelo_id, evaluacion_id):
         paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
@@ -245,7 +249,11 @@ class EditarEvaluacionView(RolRequeridoMixin, View):
         evaluacion = get_object_or_404(Evaluacion, pk=evaluacion_id)
         for err in resultado["errores"]:
             messages.error(request, err)
-        return render(request, self.template_name, {"paralelo": paralelo, "evaluacion": evaluacion})
+        return render(
+            request,
+            self.template_name,
+            {"paralelo": paralelo, "evaluacion": evaluacion},
+        )
 
 
 class EliminarEvaluacionView(RolRequeridoMixin, View):

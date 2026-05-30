@@ -145,7 +145,7 @@ class UsuarioCreateView(RolRequeridoMixin, View):
 
         messages.success(
             request,
-            f"Usuario creado exitosamente. Las credenciales " f"fueron enviadas a {usuario.email}.",
+            f"Usuario creado exitosamente. Las credenciales fueron enviadas a {usuario.email}.",
         )
         return redirect("secretaria:usuario_list")
 
