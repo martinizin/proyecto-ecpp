@@ -238,6 +238,27 @@ class TestEliminarUsuario:
 
         assert not Usuario.objects.filter(pk=user_id).exists()
 
+    def test_eliminar_usuario_usa_select_for_update(self):
+        """The SELECT that fetches the user must carry FOR UPDATE (row lock).
+
+        We capture the raw SQL executed during `eliminar_usuario` and assert
+        that at least one query contains 'FOR UPDATE'. This verifies the lock
+        is actually requested from the database (PG16 — no SQLite fallback).
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        user = UsuarioFactory()
+        user_id = user.pk
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.service.eliminar_usuario(user_id)
+
+        sqls = [q["sql"] for q in ctx.captured_queries]
+        assert any("FOR UPDATE" in sql.upper() for sql in sqls), (
+            f"No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
+        )
+
 
 # =============================================================================
 # GestionMatriculasService

@@ -86,20 +86,20 @@ class GestionUsuariosService:
         """Get a single user by ID."""
         return Usuario.objects.get(pk=usuario_id)
 
+    @transaction.atomic
     def eliminar_usuario(self, usuario_id) -> None:
         """Hard-delete a user, guarding against CASCADE-FK data loss.
 
         Workflow (per design D5):
-        1. Count dependencies across `_FK_SOURCES` (CASCADE relations only).
-        2. If any are non-zero, raise `UsuarioConDependenciasError` with the
+        1. Acquire a row-level lock with SELECT FOR UPDATE inside the atomic
+           block — prevents a concurrent request from sneaking in a FK between
+           the dependency check and the DELETE.
+        2. Count dependencies across `_FK_SOURCES` (CASCADE relations only).
+        3. If any are non-zero, raise `UsuarioConDependenciasError` with the
            full breakdown so the secretaría sees the complete picture.
-        3. Otherwise, delete the row.
-
-        The `@transaction.atomic` + `select_for_update` wrapping arrives in
-        Task 3.4 (it requires consolidating crear_usuario as well, kept as a
-        separate slice for review clarity).
+        4. Otherwise, delete the row.
         """
-        usuario = Usuario.objects.get(pk=usuario_id)
+        usuario = Usuario.objects.select_for_update().get(pk=usuario_id)
         dependencias = self._contar_dependencias(usuario_id)
         if dependencias:
             raise UsuarioConDependenciasError(dependencias)
