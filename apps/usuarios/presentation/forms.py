@@ -186,13 +186,15 @@ class DatosPersonalesForm(forms.Form):
         max_length=15,
         required=False,
         label="Teléfono",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.TextInput(attrs={"class": "form-control", "x-model": "current.telefono"}),
     )
     direccion = forms.CharField(
         max_length=500,
         required=False,
         label="Dirección",
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        widget=forms.Textarea(
+            attrs={"class": "form-control", "rows": 3, "x-model": "current.direccion"}
+        ),
     )
 
     def clean_telefono(self):

@@ -14,6 +14,9 @@
 
 <div class="max-w-2xl mx-auto">
     {{ profile_initial|json_script:"perfil-initial-data" }}
+    {% if profile_submitted %}
+    {{ profile_submitted|json_script:"perfil-submitted-data" }}
+    {% endif %}
     <div class="bg-white rounded-xl shadow-md p-8"
          x-data="perfilEditor({{ form.errors|yesno:'true,false' }})">
 
@@ -138,17 +141,19 @@
 
 <script>
     function perfilEditor(hasErrors) {
-        // El backend embebe los datos originales vía json_script (XSS-safe).
         const initial = JSON.parse(document.getElementById('perfil-initial-data').textContent);
+        // When the form came back with validation errors, initialize `current`
+        // from what the user submitted — not from the DB snapshot.
+        const submittedEl = document.getElementById('perfil-submitted-data');
+        const submitted  = submittedEl ? JSON.parse(submittedEl.textContent) : null;
+
         return {
-            // Snapshot inmutable de los valores cargados desde el server
             original: { ...initial },
-            // Si el form vino con errores de validación → arrancar en edit mode
-            // para que el usuario vea el error y pueda corregir
+            // `current` is bound via x-model → Alpine tracks it reactively
+            current: submitted ? { ...submitted } : { ...initial },
             editing: hasErrors,
 
             enterEditMode() {
-                // Reset cualquier input que el usuario hubiera tocado antes
                 this.resetInputs();
                 this.editing = true;
             },
@@ -159,26 +164,16 @@
             },
 
             resetInputs() {
-                // Volver los inputs al snapshot original
-                const map = {
-                    id_telefono:   this.original.telefono,
-                    id_direccion:  this.original.direccion,
-                };
-                for (const [id, val] of Object.entries(map)) {
-                    const el = document.getElementById(id);
-                    if (el) el.value = val;
-                }
+                // Restore reactive state to the server snapshot
+                this.current.telefono  = this.original.telefono;
+                this.current.direccion = this.original.direccion;
             },
 
             isDirty() {
-                // Comparar valores actuales de los inputs vs snapshot original
-                const get = (id) => {
-                    const el = document.getElementById(id);
-                    return el ? el.value : '';
-                };
+                // Alpine tracks `this.current.*` — re-evaluates on every keystroke
                 return (
-                    get('id_telefono')   !== this.original.telefono  ||
-                    get('id_direccion')  !== this.original.direccion
+                    this.current.telefono  !== this.original.telefono ||
+                    this.current.direccion !== this.original.direccion
                 );
             },
         };

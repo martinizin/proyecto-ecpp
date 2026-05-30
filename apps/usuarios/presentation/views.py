@@ -200,7 +200,14 @@ class PerfilView(View):
             return render(
                 request,
                 self.template_name,
-                {"form": form, "profile_initial": self._profile_initial(request.user)},
+                {
+                    "form": form,
+                    "profile_initial": self._profile_initial(request.user),
+                    "profile_submitted": {
+                        "telefono": request.POST.get("telefono", ""),
+                        "direccion": request.POST.get("direccion", ""),
+                    },
+                },
             )
 
         service = PerfilAppService()
