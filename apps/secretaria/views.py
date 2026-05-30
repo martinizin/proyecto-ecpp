@@ -63,6 +63,17 @@ class UsuarioListView(RolRequeridoMixin, View):
         )
 
 
+class UsuarioDetailView(RolRequeridoMixin, View):
+    """Read-only profile page for a user — Secretaría only."""
+
+    rol_requerido = "secretaria"
+    template_name = "secretaria/usuario_detail.html"
+
+    def get(self, request, pk):
+        usuario = get_object_or_404(Usuario, pk=pk)
+        return render(request, self.template_name, {"usuario": usuario})
+
+
 class UsuarioCreateView(RolRequeridoMixin, View):
     """Create a new user — Secretaría only."""
 

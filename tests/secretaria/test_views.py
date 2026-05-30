@@ -601,3 +601,40 @@ class TestResetearPasswordUsuarioView:
         client.force_login(est)
         response = client.get(self._url(est.pk))
         assert response.status_code == 403
+
+
+# =============================================================================
+# UsuarioDetailView
+# =============================================================================
+
+
+class TestUsuarioDetailView:
+    """Tests for UsuarioDetailView."""
+
+    def _url(self, pk):
+        return reverse("secretaria:usuario_detail", kwargs={"pk": pk})
+
+    def test_usuario_detail_returns_200(self, client):
+        """Secretaria GETs detail page → 200, context has 'usuario'."""
+        sec = make_secretaria()
+        target = _saved(UsuarioFactory())
+        client.force_login(sec)
+        response = client.get(self._url(target.pk))
+        assert response.status_code == 200
+        assert "usuario" in response.context
+        assert response.context["usuario"].pk == target.pk
+
+    def test_usuario_detail_forbidden_non_secretaria(self, client):
+        """Non-secretaria user (estudiante) gets 403."""
+        est = _saved(EstudianteFactory())
+        target = _saved(UsuarioFactory())
+        client.force_login(est)
+        response = client.get(self._url(target.pk))
+        assert response.status_code == 403
+
+    def test_usuario_detail_anonymous_redirect(self, client):
+        """Unauthenticated user is redirected to login."""
+        target = _saved(UsuarioFactory())
+        response = client.get(self._url(target.pk))
+        assert response.status_code == 302
+        assert "/login/" in response.url
