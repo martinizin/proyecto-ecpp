@@ -68,6 +68,13 @@ class InspectorFactory(UsuarioFactory):
     username = factory.Sequence(lambda n: f"inspector{n}")
 
 
+class SecretariaFactory(UsuarioFactory):
+    """Factory for secretaria users."""
+
+    rol = Usuario.Rol.SECRETARIA
+    username = factory.Sequence(lambda n: f"secretaria{n}")
+
+
 class OTPTokenFactory(factory.django.DjangoModelFactory):
     """Factory for OTPToken model."""
 

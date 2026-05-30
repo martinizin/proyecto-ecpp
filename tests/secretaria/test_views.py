@@ -554,6 +554,7 @@ class TestResetearPasswordUsuarioView:
         "EstudianteFactory",
         "DocenteFactory",
         "InspectorFactory",
+        "SecretariaFactory",
     ])
     def test_get_shows_confirmation_any_role(self, client, factory, request):
         """GET returns 200 for any user role — no more role guard."""
@@ -568,6 +569,7 @@ class TestResetearPasswordUsuarioView:
         "EstudianteFactory",
         "DocenteFactory",
         "InspectorFactory",
+        "SecretariaFactory",
     ])
     def test_post_resets_password_any_role(self, client, factory, request):
         """POST resets password for any role — widening confirmed."""
