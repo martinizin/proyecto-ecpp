@@ -15,9 +15,36 @@
     </ol>
 </nav>
 
-<div class="max-w-2xl mx-auto">
+<div
+    class="max-w-2xl mx-auto"
+    x-data="{
+        modalCrearAbierto: false,
+        resumen: { nombre: '', cedula: '', email: '', rol: '', rolLabel: '' },
+        rolLabels: {
+            'estudiante': 'Estudiante',
+            'docente': 'Docente',
+            'inspector': 'Inspector',
+            'secretaria': 'Secretaría'
+        },
+        abrirModalCrear() {
+            const f = this.$refs.formCrear;
+            this.resumen.nombre   = (f.querySelector('[name=first_name]').value + ' ' + f.querySelector('[name=last_name]').value).trim();
+            this.resumen.cedula   = f.querySelector('[name=cedula]').value;
+            this.resumen.email    = f.querySelector('[name=email]').value;
+            const rolVal          = f.querySelector('[name=rol]').value;
+            this.resumen.rol      = rolVal;
+            this.resumen.rolLabel = this.rolLabels[rolVal] || rolVal;
+            this.modalCrearAbierto = true;
+        }
+    }"
+>
     <div class="bg-white rounded-xl shadow-md p-8">
-        <h1 class="text-xl font-semibold text-gray-800 mb-6">Nuevo Usuario</h1>
+        <h1 class="text-xl font-semibold text-gray-800 mb-2">Nuevo Usuario</h1>
+
+        <!-- Immutability inline notice -->
+        <p class="text-sm text-amber-700 mb-6">
+            Verificá todos los datos antes de confirmar — una vez creado el registro no podrá modificarse.
+        </p>
 
         {% if form.non_field_errors %}
         <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 border border-red-300 text-sm">
@@ -27,7 +54,7 @@
         </div>
         {% endif %}
 
-        <form method="post" novalidate>
+        <form method="post" novalidate x-ref="formCrear">
             {% csrf_token %}
 
             <!-- Email field -->
@@ -81,12 +108,19 @@
             </div>
 
             <div class="flex items-center gap-4 mt-6">
-                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                <button
+                    type="button"
+                    x-ref="guardarBtn"
+                    @click="abrirModalCrear()"
+                    class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm"
+                >
                     Guardar
                 </button>
                 <a href="{% url 'secretaria:usuario_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>
             </div>
         </form>
     </div>
+
+    {% include "secretaria/partials/confirm_create_modal.html" %}
 </div>
 {% endblock %}

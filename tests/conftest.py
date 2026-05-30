@@ -54,6 +54,16 @@ def inspector(db):
 
 
 @pytest.fixture
+def secretaria(db):
+    """Create a test secretaria user via SecretariaFactory."""
+    from tests.factories import SecretariaFactory
+
+    user = SecretariaFactory()
+    user.save()
+    return user
+
+
+@pytest.fixture
 def active_periodo(db):
     """Create an active academic period."""
     return Periodo.objects.create(
@@ -85,4 +95,12 @@ def estudiante_client(estudiante):
     """Return a Django test Client logged in as estudiante."""
     client = Client()
     client.force_login(estudiante)
+    return client
+
+
+@pytest.fixture
+def secretaria_client(secretaria):
+    """Return a Django test Client logged in as secretaria."""
+    client = Client()
+    client.force_login(secretaria)
     return client
