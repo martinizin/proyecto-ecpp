@@ -238,6 +238,27 @@ def _build_tipos_licencia_data(tipos_licencia_qs, asignatura=None):
     ]
 
 
+def _solapamiento_interno(bloques_data):
+    """Detect overlapping blocks within the same proposed list.
+
+    Each element must be a dict with keys ``dia`` (str), ``inicio`` (time), ``fin`` (time).
+    Returns a list of human-readable error strings; empty when no overlaps exist.
+    """
+    errores = []
+    dia_choices = dict(BloqueHorario.DiaSemana.choices)
+    for i in range(len(bloques_data)):
+        for j in range(i + 1, len(bloques_data)):
+            a, b = bloques_data[i], bloques_data[j]
+            if a["dia"] == b["dia"] and a["inicio"] < b["fin"] and b["inicio"] < a["fin"]:
+                dia_label = dia_choices.get(a["dia"], a["dia"])
+                errores.append(
+                    f"Los bloques {i + 1} y {j + 1} se solapan el {dia_label}: "
+                    f"{a['inicio']:%H:%M}–{a['fin']:%H:%M} y "
+                    f"{b['inicio']:%H:%M}–{b['fin']:%H:%M}."
+                )
+    return errores
+
+
 class AsignaturaDeleteView(MultiRolRequeridoMixin, View):
     """Delete an asignatura if it has no paralelos — Inspector/Secretaría."""
 
@@ -519,6 +540,13 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
                     pass
 
         if bloques_propuestos:
+            bloques_dict = [{"dia": d, "inicio": i, "fin": f} for d, i, f in bloques_propuestos]
+            solapamientos = _solapamiento_interno(bloques_dict)
+            if solapamientos:
+                for e in solapamientos:
+                    form.add_error(None, e)
+                return render(request, self.template_name, {"form": form, "editing": False})
+
             conflictos = HorarioConflictoService.detectar_conflicto_docente(
                 docente_id=docente.pk,
                 periodo_id=periodo.pk,
@@ -535,6 +563,37 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
                         "editing": False,
                         "conflictos_horario": conflictos,
                     },
+                )
+
+        # Same-group conflict check (before creating the paralelo row)
+        if bloques_propuestos:
+            same_group_paralelos = Paralelo.objects.filter(
+                periodo_id=periodo.pk,
+                tipo_licencia_id=form.cleaned_data["tipo_licencia"].pk,
+                nombre=form.cleaned_data["nombre"],
+            ).exclude(asignatura_id=asignatura.pk)
+            errores_grupo = []
+            for dia, h_inicio, h_fin in bloques_propuestos:
+                conflicting_blocks = BloqueHorario.objects.filter(
+                    paralelo__in=same_group_paralelos,
+                    dia_semana=dia,
+                    hora_inicio__lt=h_fin,
+                    hora_fin__gt=h_inicio,
+                ).select_related("paralelo__asignatura")
+                for cb in conflicting_blocks:
+                    dia_display = dict(BloqueHorario.DiaSemana.choices).get(dia, dia)
+                    errores_grupo.append(
+                        f"Conflicto de horario: {cb.paralelo.asignatura.nombre} "
+                        f"ya tiene clase el {dia_display} de "
+                        f"{cb.hora_inicio:%H:%M} a {cb.hora_fin:%H:%M}"
+                    )
+            if errores_grupo:
+                for e in errores_grupo:
+                    form.add_error(None, e)
+                return render(
+                    request,
+                    self.template_name,
+                    {"form": form, "editing": False, "errores_horario": errores_grupo},
                 )
 
         try:
@@ -689,6 +748,13 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                             bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
                         except ValueError:
                             pass
+
+                # Intra-paralelo overlap check
+                solapamientos = _solapamiento_interno(bloques_data)
+                if solapamientos:
+                    for e in solapamientos:
+                        horario_warnings.append(f"{asig.nombre}: {e}")
+                    continue
 
                 # V5: docente conflict check across all paralelos of the
                 # period (collect-all per asignatura; skip bloques on conflict
@@ -852,6 +918,9 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
                     f"el {dia_display} y el bloque debe durar al menos 1 hora."
                 )
 
+        # Intra-paralelo overlap check
+        errores.extend(_solapamiento_interno(bloques_data))
+
         # Conflict validation: check other paralelos in the same group
         if not errores:
             same_group_paralelos = Paralelo.objects.filter(
@@ -1008,6 +1077,8 @@ class ParaleloHorarioUpdateView(View):
                 continue
 
             bloques_data.append({"dia": dia, "inicio": inicio, "fin": fin})
+
+        errores.extend(_solapamiento_interno(bloques_data))
 
         if errores:
             return JsonResponse({"ok": False, "errors": errores}, status=400)
