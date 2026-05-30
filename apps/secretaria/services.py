@@ -3,6 +3,7 @@
 import string
 
 from django.apps import apps as django_apps
+from django.db import transaction
 from django.utils.crypto import get_random_string
 
 from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
@@ -44,10 +45,20 @@ class GestionUsuariosService:
             qs = qs.filter(rol=rol_filter)
         return qs
 
+    @transaction.atomic
     def crear_usuario(self, email, first_name, last_name, rol, cedula, telefono="") -> tuple:
-        """
-        Create a new user with auto-generated temp password.
-        Returns (usuario, temp_password, email_sent: bool).
+        """Create a new user with auto-generated temp password.
+
+        Wrapped in `@transaction.atomic` (per design D5 / R8): if the
+        credentials email cannot be sent, the entire creation rolls back —
+        no orphan accounts whose email is already burned by the UNIQUE
+        constraint. The exception propagates so the caller (view) can render
+        a proper error and let the secretaría retry.
+
+        Returns (usuario, temp_password, email_sent: bool). The `email_sent`
+        flag is kept for backward compatibility with the current view, but
+        is always `True` on return — failures now raise instead of returning
+        `False`. The flag will be dropped in a follow-up cleanup (Task 3.4).
         """
         temp_password = get_random_string(
             length=12,
@@ -68,14 +79,11 @@ class GestionUsuariosService:
         usuario.set_password(temp_password)
         usuario.save()
 
-        # Send credentials email
-        email_sent = True
-        try:
-            send_credenciales_email(usuario, temp_password)
-        except Exception:
-            email_sent = False
+        # Side-effect MUST run inside the atomic block: any exception here
+        # triggers the rollback above, ensuring no half-created user lingers.
+        send_credenciales_email(usuario, temp_password)
 
-        return usuario, temp_password, email_sent
+        return usuario, temp_password, True
 
     def editar_usuario(self, usuario_id, **kwargs):
         """Update user fields. Only updates provided kwargs."""

@@ -118,6 +118,36 @@ class TestGestionUsuariosService:
         toggled2 = self.service.toggle_activo(user.pk)
         assert toggled2.is_active is True
 
+    @patch("apps.secretaria.services.send_credenciales_email")
+    def test_crear_usuario_rollback_en_fallo_email(self, mock_email):
+        """RED → GREEN: SMTP failure must roll back the user creation.
+
+        Acceptance (R8 — qa-usuarios-registro-inmutable): if the credentials
+        email cannot be sent, the user MUST NOT exist in the database. Half-
+        created accounts are worse than no account at all because the
+        secretaría has no way to deliver the temp password and the email is
+        burned (unique constraint).
+
+        Current behavior (before this task): the service swallows the
+        exception and returns `email_sent=False`, leaving an orphan account.
+        That contract was wrong — this test pins the correct one.
+        """
+        from apps.usuarios.infrastructure.models import Usuario
+
+        mock_email.side_effect = Exception("SMTP unreachable")
+
+        with pytest.raises(Exception, match="SMTP unreachable"):
+            self.service.crear_usuario(
+                email="ghost@test.com",
+                first_name="Ghost",
+                last_name="Account",
+                rol="estudiante",
+                cedula="0926687856",
+            )
+
+        # The Usuario row must NOT have been persisted.
+        assert not Usuario.objects.filter(email="ghost@test.com").exists()
+
 
 # =============================================================================
 # eliminar_usuario — hard delete with FK-dependency guard
