@@ -266,7 +266,7 @@ class TestEliminarUsuario:
 
         sqls = [q["sql"] for q in ctx.captured_queries]
         assert any("FOR UPDATE" in sql.upper() for sql in sqls), (
-            f"No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
+            "No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
         )
 
 
