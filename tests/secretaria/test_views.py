@@ -152,6 +152,34 @@ class TestUsuarioCreateView:
         assert response.status_code == 200
         assert "cedula" in response.context["form"].errors
 
+    @pytest.mark.parametrize("patch_target", [
+        "apps.secretaria.services.send_credenciales_email",
+    ])
+    def test_post_smtp_failure_rerenders_form_no_user(self, client, patch_target, monkeypatch):
+        """SMTP failure: form re-renders with error message, no user created."""
+        from apps.usuarios.infrastructure.models import Usuario
+
+        sec = make_secretaria()
+        client.force_login(sec)
+
+        monkeypatch.setattr(
+            "apps.secretaria.services.send_credenciales_email",
+            lambda *a, **kw: (_ for _ in ()).throw(Exception("SMTP error")),
+        )
+
+        response = client.post(
+            self.url,
+            {
+                "email": "smtp_fail@test.com",
+                "first_name": "Test",
+                "last_name": "Smtp",
+                "rol": "estudiante",
+                "cedula": "1710034065",
+            },
+        )
+        assert response.status_code == 200
+        assert not Usuario.objects.filter(email="smtp_fail@test.com").exists()
+
 
 # =============================================================================
 # Matrícula Views
@@ -467,48 +495,50 @@ class TestParalelosPorPeriodoView:
 
 
 # =============================================================================
-# ResetearPasswordEstudiante Views
+# ResetearPasswordUsuario Views (widened — all roles)
 # =============================================================================
 
 
-class TestResetearPasswordEstudianteView:
-    """Tests for ResetearPasswordEstudianteView."""
+class TestResetearPasswordUsuarioView:
+    """Tests for ResetearPasswordUsuarioView (widens reset to all roles)."""
 
     def _url(self, pk):
-        return reverse("secretaria:resetear_password_estudiante", kwargs={"pk": pk})
+        return reverse("secretaria:resetear_password", kwargs={"pk": pk})
 
-    def test_get_shows_confirmation(self, client):
-        """GET returns 200 with student info."""
+    @pytest.mark.parametrize("factory", [
+        "EstudianteFactory",
+        "DocenteFactory",
+        "InspectorFactory",
+    ])
+    def test_get_shows_confirmation_any_role(self, client, factory, request):
+        """GET returns 200 for any user role — no more role guard."""
         sec = make_secretaria()
-        est = _saved(EstudianteFactory())
+        from tests import factories as f
+        usuario = _saved(getattr(f, factory)())
         client.force_login(sec)
-        response = client.get(self._url(est.pk))
+        response = client.get(self._url(usuario.pk))
         assert response.status_code == 200
-        assert "estudiante" in response.context
 
-    def test_post_generates_temp_password(self, client):
-        """POST sets temp password and debe_cambiar_password=True."""
+    @pytest.mark.parametrize("factory", [
+        "EstudianteFactory",
+        "DocenteFactory",
+        "InspectorFactory",
+    ])
+    def test_post_resets_password_any_role(self, client, factory, request):
+        """POST resets password for any role — widening confirmed."""
         sec = make_secretaria()
-        est = _saved(EstudianteFactory())
-        old_hash = est.password
+        from tests import factories as f
+        usuario = _saved(getattr(f, factory)())
+        old_hash = usuario.password
         client.force_login(sec)
-        response = client.post(self._url(est.pk))
+        response = client.post(self._url(usuario.pk))
         assert response.status_code == 302
-
-        est.refresh_from_db()
-        assert est.debe_cambiar_password is True
-        assert est.password != old_hash
-
-    def test_post_non_student_returns_403(self, client):
-        """POST on non-student user returns 403."""
-        sec = make_secretaria()
-        docente = _saved(DocenteFactory())
-        client.force_login(sec)
-        response = client.post(self._url(docente.pk))
-        assert response.status_code == 403
+        usuario.refresh_from_db()
+        assert usuario.debe_cambiar_password is True
+        assert usuario.password != old_hash
 
     def test_non_secretaria_forbidden(self, client):
-        """Non-secretaria user gets 403."""
+        """Non-secretaria user gets 403 regardless."""
         est = _saved(EstudianteFactory())
         client.force_login(est)
         response = client.get(self._url(est.pk))

@@ -43,7 +43,7 @@ class TestGestionUsuariosService:
         """Service creates user with temp password and debe_cambiar_password=True."""
         mock_email.return_value = None
 
-        usuario, temp_password, email_sent = self.service.crear_usuario(
+        usuario, temp_password = self.service.crear_usuario(
             email="nuevo@test.com",
             first_name="Ana",
             last_name="Torres",
@@ -55,7 +55,6 @@ class TestGestionUsuariosService:
         assert usuario.debe_cambiar_password is True
         assert usuario.username == "nuevo@test.com"
         assert usuario.check_password(temp_password)
-        assert email_sent is True
 
     @patch("apps.secretaria.services.send_credenciales_email")
     def test_crear_usuario_email_duplicado(self, mock_email):

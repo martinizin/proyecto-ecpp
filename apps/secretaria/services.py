@@ -55,10 +55,7 @@ class GestionUsuariosService:
         constraint. The exception propagates so the caller (view) can render
         a proper error and let the secretaría retry.
 
-        Returns (usuario, temp_password, email_sent: bool). The `email_sent`
-        flag is kept for backward compatibility with the current view, but
-        is always `True` on return — failures now raise instead of returning
-        `False`. The flag will be dropped in a follow-up cleanup (Task 3.4).
+        Returns (usuario, temp_password).
         """
         temp_password = get_random_string(
             length=12,
@@ -83,7 +80,7 @@ class GestionUsuariosService:
         # triggers the rollback above, ensuring no half-created user lingers.
         send_credenciales_email(usuario, temp_password)
 
-        return usuario, temp_password, True
+        return usuario, temp_password
 
     def obtener_usuario(self, usuario_id):
         """Get a single user by ID."""
