@@ -1,4 +1,4 @@
-﻿"""Forms for the SecretarÃ­a module."""
+﻿"""Forms for the Secretaría module."""
 
 from django import forms
 
@@ -14,7 +14,7 @@ class CrearUsuarioForm(forms.Form):
     """Form for creating a new user."""
 
     email = forms.EmailField(
-        label="Correo electrÃ³nico",
+        label="Correo electrónico",
         widget=forms.EmailInput(
             attrs={"class": "form-control", "placeholder": "correo@ejemplo.com"}
         ),
@@ -37,20 +37,20 @@ class CrearUsuarioForm(forms.Form):
     cedula = forms.CharField(
         max_length=10,
         required=True,
-        label="CÃ©dula",
+        label="Cédula",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "1234567890"}),
     )
     telefono = forms.CharField(
         max_length=15,
         required=False,
-        label="TelÃ©fono",
+        label="Teléfono",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "0991234567"}),
     )
 
     def clean_email(self):
         email = self.cleaned_data["email"]
         if Usuario.objects.filter(email=email).exists():
-            raise forms.ValidationError("Ya existe un usuario con este correo electrÃ³nico.")
+            raise forms.ValidationError("Ya existe un usuario con este correo electrónico.")
         return email
 
     def clean_first_name(self):
@@ -66,7 +66,7 @@ class CrearUsuarioForm(forms.Form):
         if cedula:
             validate_cedula_ecuatoriana(cedula)
             if Usuario.objects.filter(cedula=cedula).exists():
-                raise forms.ValidationError("Ya existe un usuario con esta cÃ©dula.")
+                raise forms.ValidationError("Ya existe un usuario con esta cédula.")
         return cedula
 
     def clean_telefono(self):
