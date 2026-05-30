@@ -152,9 +152,12 @@ class TestUsuarioCreateView:
         assert response.status_code == 200
         assert "cedula" in response.context["form"].errors
 
-    @pytest.mark.parametrize("patch_target", [
-        "apps.secretaria.services.send_credenciales_email",
-    ])
+    @pytest.mark.parametrize(
+        "patch_target",
+        [
+            "apps.secretaria.services.send_credenciales_email",
+        ],
+    )
     def test_post_smtp_failure_rerenders_form_no_user(self, client, patch_target, monkeypatch):
         """SMTP failure: form re-renders with error message, no user created."""
         from apps.usuarios.infrastructure.models import Usuario
@@ -550,31 +553,39 @@ class TestResetearPasswordUsuarioView:
     def _url(self, pk):
         return reverse("secretaria:resetear_password", kwargs={"pk": pk})
 
-    @pytest.mark.parametrize("factory", [
-        "EstudianteFactory",
-        "DocenteFactory",
-        "InspectorFactory",
-        "SecretariaFactory",
-    ])
+    @pytest.mark.parametrize(
+        "factory",
+        [
+            "EstudianteFactory",
+            "DocenteFactory",
+            "InspectorFactory",
+            "SecretariaFactory",
+        ],
+    )
     def test_get_shows_confirmation_any_role(self, client, factory, request):
         """GET returns 200 for any user role — no more role guard."""
         sec = make_secretaria()
         from tests import factories as f
+
         usuario = _saved(getattr(f, factory)())
         client.force_login(sec)
         response = client.get(self._url(usuario.pk))
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("factory", [
-        "EstudianteFactory",
-        "DocenteFactory",
-        "InspectorFactory",
-        "SecretariaFactory",
-    ])
+    @pytest.mark.parametrize(
+        "factory",
+        [
+            "EstudianteFactory",
+            "DocenteFactory",
+            "InspectorFactory",
+            "SecretariaFactory",
+        ],
+    )
     def test_post_resets_password_any_role(self, client, factory, request):
         """POST resets password for any role — widening confirmed."""
         sec = make_secretaria()
         from tests import factories as f
+
         usuario = _saved(getattr(f, factory)())
         old_hash = usuario.password
         client.force_login(sec)

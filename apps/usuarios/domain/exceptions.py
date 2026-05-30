@@ -48,6 +48,4 @@ class UsuarioConDependenciasError(UsuarioError):
     def __init__(self, dependencias: dict[str, int]):
         self.dependencias = dependencias
         total = sum(dependencias.values())
-        super().__init__(
-            f"El usuario tiene {total} dependencia(s) y no puede ser eliminado."
-        )
+        super().__init__(f"El usuario tiene {total} dependencia(s) y no puede ser eliminado.")

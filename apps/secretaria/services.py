@@ -19,10 +19,10 @@ from apps.usuarios.infrastructure.models import Usuario
 # *_por SET_NULL fields) are intentionally absent — they survive deletion
 # with a NULL pointer, which is the desired behavior.
 _FK_SOURCES = {
-    "matriculas":     ("academico.Matricula",       "estudiante"),
+    "matriculas": ("academico.Matricula", "estudiante"),
     "calificaciones": ("calificaciones.Calificacion", "estudiante"),
-    "asistencias":    ("asistencia.Asistencia",     "estudiante"),
-    "solicitudes":    ("solicitudes.Solicitud",     "estudiante"),
+    "asistencias": ("asistencia.Asistencia", "estudiante"),
+    "solicitudes": ("solicitudes.Solicitud", "estudiante"),
 }
 
 

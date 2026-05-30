@@ -209,9 +209,7 @@ class TestUserAttributeContainmentValidator:
     # --- Rechaza por email local-part ---
 
     def test_rechaza_password_con_local_part_de_email(self):
-        user = _FakeUser(
-            first_name="X", last_name="Y", email="jperez@ecppp.edu.ec", rol="docente"
-        )
+        user = _FakeUser(first_name="X", last_name="Y", email="jperez@ecppp.edu.ec", rol="docente")
         with pytest.raises(ValidationError):
             self.validator.validate("Jperez@2024!", user=user)
 

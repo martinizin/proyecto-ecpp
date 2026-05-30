@@ -101,14 +101,9 @@ class UserAttributeContainmentValidator:
         for token in self._tokens_for(user):
             if token in normalized_password:
                 raise ValidationError(
-                    _(
-                        "La contraseña no puede contener su nombre, apellido, "
-                        "correo o rol."
-                    ),
+                    _("La contraseña no puede contener su nombre, apellido, " "correo o rol."),
                     code="password_contains_user_attribute",
                 )
 
     def get_help_text(self):
-        return _(
-            "La contraseña no puede contener su nombre, apellido, correo o rol."
-        )
+        return _("La contraseña no puede contener su nombre, apellido, correo o rol.")

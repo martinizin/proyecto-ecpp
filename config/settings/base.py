@@ -122,8 +122,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": (
-            "apps.usuarios.infrastructure.password_validators"
-            ".UserAttributeContainmentValidator"
+            "apps.usuarios.infrastructure.password_validators" ".UserAttributeContainmentValidator"
         ),
     },
 ]
@@ -144,10 +143,10 @@ MAX_LOGIN_ATTEMPTS = 5
 # ============================================================
 # Validaciones de negocio — Académico (QA HU21 V1-V4)
 # ============================================================
-PARALELO_CAPACIDAD_MAXIMA = 50      # V3 — cupo máximo por paralelo
-PERIODO_DURACION_MIN_MESES = 4      # V4 — duración mínima de periodo
-PERIODO_DURACION_MAX_MESES = 7      # V4 — duración máxima de periodo
-HORAS_LECTIVAS_MAX = 60             # V2 — tope de horas lectivas por asignatura/licencia
+PARALELO_CAPACIDAD_MAXIMA = 50  # V3 — cupo máximo por paralelo
+PERIODO_DURACION_MIN_MESES = 4  # V4 — duración mínima de periodo
+PERIODO_DURACION_MAX_MESES = 7  # V4 — duración máxima de periodo
+HORAS_LECTIVAS_MAX = 60  # V2 — tope de horas lectivas por asignatura/licencia
 
 # Internationalization
 LANGUAGE_CODE = "es-ec"

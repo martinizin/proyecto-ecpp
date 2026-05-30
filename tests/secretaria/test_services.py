@@ -265,9 +265,9 @@ class TestEliminarUsuario:
             self.service.eliminar_usuario(user_id)
 
         sqls = [q["sql"] for q in ctx.captured_queries]
-        assert any("FOR UPDATE" in sql.upper() for sql in sqls), (
-            "No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
-        )
+        assert any(
+            "FOR UPDATE" in sql.upper() for sql in sqls
+        ), "No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
 
 
 # =============================================================================

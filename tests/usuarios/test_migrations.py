@@ -36,11 +36,9 @@ def _fake_apps_with_null_emails(emails):
     """
     fake_apps = MagicMock(name="HistoricalApps")
     fake_model = MagicMock(name="HistoricalUsuario")
-    (
-        fake_model.objects.filter.return_value
-        .order_by.return_value
-        .values_list.return_value
-    ) = list(emails)
+    (fake_model.objects.filter.return_value.order_by.return_value.values_list.return_value) = list(
+        emails
+    )
     fake_apps.get_model.return_value = fake_model
     return fake_apps, fake_model
 

@@ -393,13 +393,11 @@ class TestUsuarioEntityCedulaRequired:
         from apps.usuarios.domain.entities import UsuarioEntity
 
         field = next(f for f in dataclasses.fields(UsuarioEntity) if f.name == "cedula")
-        assert field.default is dataclasses.MISSING, (
-            "cedula must not carry a default value; it is required for every user."
-        )
+        assert (
+            field.default is dataclasses.MISSING
+        ), "cedula must not carry a default value; it is required for every user."
         # Annotation must be plain `str`, not `Optional[str]` / `str | None`.
-        assert field.type in ("str", str), (
-            f"cedula annotation must be `str`, got {field.type!r}"
-        )
+        assert field.type in ("str", str), f"cedula annotation must be `str`, got {field.type!r}"
 
     def test_entity_constructed_with_cedula_keeps_value(self):
         """Happy-path triangulation — entity stores the cedula it was built with."""
