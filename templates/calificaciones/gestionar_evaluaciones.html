@@ -43,6 +43,15 @@
             </div>
         </div>
 
+        {% if not puede_editar %}
+        <div class="px-6 py-3 bg-blue-50 border-b border-blue-200 flex items-center gap-2 text-sm text-blue-700">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+            </svg>
+            Las evaluaciones están bloqueadas porque las calificaciones ya fueron enviadas a validación.
+        </div>
+        {% endif %}
+
         {% if evaluaciones %}
         <table class="w-full text-sm text-left">
             <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-semibold tracking-wider">
@@ -60,6 +69,7 @@
                         <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ ev.peso }}%</span>
                     </td>
                     <td class="px-6 py-4 text-right">
+                        {% if puede_editar %}
                         <div class="flex items-center justify-end gap-3" x-data="{ showDeleteModal: false }">
                             <a href="{% url 'calificaciones:editar_evaluacion' paralelo_id=paralelo.pk evaluacion_id=ev.pk %}"
                                class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
@@ -122,6 +132,9 @@
                                 </div>
                             </div>
                         </div>
+                        {% else %}
+                        <span class="text-gray-300 text-sm">—</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -136,7 +149,7 @@
     </div>
 
     <!-- Add evaluacion form -->
-    {% if tipos_disponibles %}
+    {% if tipos_disponibles and puede_editar %}
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
         <h2 class="text-base font-semibold text-gray-800 mb-4">Agregar evaluación</h2>
         <form method="post" novalidate class="flex flex-col sm:flex-row items-start sm:items-end gap-4">

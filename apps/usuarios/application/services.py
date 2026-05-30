@@ -13,7 +13,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.usuarios.domain.entities import OTPTokenEntity, RegistroAuditoriaEntity
-from apps.usuarios.domain.exceptions import OTPInvalidoError
+from apps.usuarios.domain.exceptions import (
+    CuentaDesactivadaError,
+    OTPInvalidoError,
+)
 from apps.usuarios.domain.services import LoginService, OTPService, RegistroService
 from apps.usuarios.infrastructure.email_service import (
     send_lockout_notification,
@@ -200,6 +203,12 @@ class LoginAppService:
             )
             return None
 
+        # Check if account was administratively deactivated
+        if not user.is_active:
+            raise CuentaDesactivadaError(
+                "Esta cuenta ha sido desactivada. Contacte a secretaría para más información."
+            )
+
         # Check lockout
         self.login_service.verificar_bloqueo(
             bloqueado_hasta=user.bloqueado_hasta,
@@ -278,18 +287,14 @@ class PerfilAppService:
     def actualizar_datos(
         self,
         user_id: int,
-        first_name: str,
-        last_name: str,
         telefono: str,
         direccion: str,
     ) -> None:
-        """Update user's personal data."""
+        """Update only the user's mutable profile fields (phone and address)."""
         user = Usuario.objects.get(pk=user_id)
-        user.first_name = first_name
-        user.last_name = last_name
         user.telefono = telefono
         user.direccion = direccion
-        user.save(update_fields=["first_name", "last_name", "telefono", "direccion"])
+        user.save(update_fields=["telefono", "direccion"])
 
     def cambiar_contrasena(self, user_id: int, old_password: str, new_password: str) -> bool:
         """

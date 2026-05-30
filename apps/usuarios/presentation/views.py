@@ -22,6 +22,7 @@ from django.views import View
 from apps.usuarios.application.services import LoginAppService, Login2FAService, PerfilAppService
 from apps.usuarios.domain.exceptions import (
     CuentaBloqueadaError,
+    CuentaDesactivadaError,
     OTPExpiradoError,
     OTPInvalidoError,
 )
@@ -70,6 +71,9 @@ class LoginView(View):
                 tipo_usuario=form.cleaned_data["tipo_usuario"],
                 ip=ip,
             )
+        except CuentaDesactivadaError as e:
+            form.add_error(None, str(e))
+            return render(request, self.template_name, {"form": form})
         except CuentaBloqueadaError as e:
             form.add_error(None, str(e))
             return render(request, self.template_name, {"form": form})
@@ -173,8 +177,6 @@ class PerfilView(View):
         on the template (json_script-encoded to be XSS-safe).
         """
         return {
-            "firstName": user.first_name or "",
-            "lastName": user.last_name or "",
             "telefono": user.telefono or "",
             "direccion": user.direccion or "",
         }
@@ -182,8 +184,6 @@ class PerfilView(View):
     def get(self, request):
         form = DatosPersonalesForm(
             initial={
-                "first_name": request.user.first_name,
-                "last_name": request.user.last_name,
                 "telefono": request.user.telefono,
                 "direccion": request.user.direccion,
             }
@@ -206,8 +206,6 @@ class PerfilView(View):
         service = PerfilAppService()
         service.actualizar_datos(
             user_id=request.user.pk,
-            first_name=form.cleaned_data["first_name"],
-            last_name=form.cleaned_data["last_name"],
             telefono=form.cleaned_data["telefono"],
             direccion=form.cleaned_data["direccion"],
         )
@@ -265,8 +263,15 @@ class CambiarContrasenaView(View):
 class ECPPPPasswordResetView(PasswordResetView):
     template_name = "registration/password_reset_form.html"
     email_template_name = "registration/password_reset_email.html"
+    html_email_template_name = "registration/password_reset_email_html.html"
     success_url = "/usuarios/recuperar/enviado/"
     form_class = ECPPPPasswordResetForm
+
+    @property
+    def extra_email_context(self):
+        from django.conf import settings
+
+        return {"logo_url": getattr(settings, "LOGO_URL", "")}
 
 
 class ECPPPPasswordResetDoneView(PasswordResetDoneView):

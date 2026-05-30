@@ -99,6 +99,7 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
         registro = service.obtener_o_crear_registro(paralelo_id)
         puede_editar = service.puede_editar(paralelo_id)
         planilla_completa = service.verificar_completitud(paralelo_id)
+        hay_calificaciones = service.hay_calificaciones_registradas(paralelo_id)
         return render(
             request,
             self.template_name,
@@ -107,6 +108,7 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                 "registro": registro,
                 "puede_editar": puede_editar,
                 "planilla_completa": planilla_completa,
+                "hay_calificaciones": hay_calificaciones,
                 **planilla,
             },
         )
@@ -163,12 +165,25 @@ class GestionEvaluacionesView(RolRequeridoMixin, View):
             return redir
         service = GestionEvaluacionesAppService()
         datos = service.obtener_evaluaciones(paralelo_id)
-        return render(request, self.template_name, {"paralelo": paralelo, **datos})
+        puede_editar = RegistroCalificacionAppService().puede_editar(paralelo_id)
+        return render(
+            request,
+            self.template_name,
+            {"paralelo": paralelo, "puede_editar": puede_editar, **datos},
+        )
 
     def post(self, request, paralelo_id):
         paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
         if redir:
             return redir
+
+        if not RegistroCalificacionAppService().puede_editar(paralelo_id):
+            messages.error(
+                request,
+                "No se pueden modificar las evaluaciones: "
+                "las calificaciones ya fueron enviadas a validación.",
+            )
+            return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
 
         service = GestionEvaluacionesAppService()
         resultado = service.crear_evaluacion(
@@ -207,6 +222,14 @@ class EditarEvaluacionView(RolRequeridoMixin, View):
         if redir:
             return redir
 
+        if not RegistroCalificacionAppService().puede_editar(paralelo_id):
+            messages.error(
+                request,
+                "No se pueden modificar los pesos: "
+                "las calificaciones ya fueron enviadas a validación.",
+            )
+            return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
+
         service = GestionEvaluacionesAppService()
         resultado = service.actualizar_evaluacion(
             evaluacion_id=evaluacion_id,
@@ -240,6 +263,14 @@ class EliminarEvaluacionView(RolRequeridoMixin, View):
             return redir
 
         get_object_or_404(Evaluacion, pk=evaluacion_id, paralelo=paralelo)
+
+        if not RegistroCalificacionAppService().puede_editar(paralelo_id):
+            messages.error(
+                request,
+                "No se pueden eliminar evaluaciones: "
+                "las calificaciones ya fueron enviadas a validación.",
+            )
+            return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
 
         service = GestionEvaluacionesAppService()
         resultado = service.eliminar_evaluacion(evaluacion_id)

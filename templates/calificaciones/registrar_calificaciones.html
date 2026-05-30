@@ -227,10 +227,18 @@
             </div>
         </form>
 
-        {% if puede_editar and planilla_completa and registro.estado == 'borrador' or puede_editar and planilla_completa and registro.estado == 'rechazado' %}
+        {% if puede_editar and hay_calificaciones and registro.estado == 'borrador' or puede_editar and hay_calificaciones and registro.estado == 'rechazado' %}
         <div class="px-6 py-4 border-t border-gray-200 bg-green-50 flex items-center justify-between"
              x-data="{ showModal: false }">
-            <p class="text-sm text-green-700">Todas las calificaciones están registradas. Puede enviar a validación.</p>
+            <div>
+                <p class="text-sm text-green-700">
+                    {% if planilla_completa %}
+                        Todas las calificaciones están registradas. Puede enviar a validación.
+                    {% else %}
+                        Puede enviar las calificaciones registradas hasta ahora para revisión.
+                    {% endif %}
+                </p>
+            </div>
             <button type="button"
                     @click="showModal = true"
                     class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">

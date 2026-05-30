@@ -57,6 +57,14 @@
                     <span class="text-gray-500 block mb-0.5">Rol</span>
                     <span class="inline-block bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ user.get_rol_display }}</span>
                 </div>
+                <div>
+                    <span class="text-gray-500 block mb-0.5">Nombres</span>
+                    <span class="font-medium text-gray-800">{{ user.first_name|default:"Sin registrar" }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 block mb-0.5">Apellidos</span>
+                    <span class="font-medium text-gray-800">{{ user.last_name|default:"Sin registrar" }}</span>
+                </div>
             </div>
         </div>
 
@@ -73,17 +81,6 @@
 
             <!-- =====================  READ MODE  ===================== -->
             <div x-show="!editing" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <span class="block text-sm font-medium text-gray-500 mb-1">Nombres</span>
-                        <p class="text-gray-800 text-sm py-2.5 px-3 bg-gray-50 rounded-lg border border-gray-100" x-text="original.firstName || 'Sin registrar'"></p>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-500 mb-1">Apellidos</span>
-                        <p class="text-gray-800 text-sm py-2.5 px-3 bg-gray-50 rounded-lg border border-gray-100" x-text="original.lastName || 'Sin registrar'"></p>
-                    </div>
-                </div>
-
                 <div>
                     <span class="block text-sm font-medium text-gray-500 mb-1">Teléfono</span>
                     <p class="text-gray-800 text-sm py-2.5 px-3 bg-gray-50 rounded-lg border border-gray-100" x-text="original.telefono || 'Sin registrar'"></p>
@@ -103,23 +100,6 @@
 
             <!-- =====================  EDIT MODE  ===================== -->
             <div x-show="editing" x-cloak class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="id_first_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.first_name.label }}</label>
-                        {{ form.first_name }}
-                        {% if form.first_name.errors %}
-                            <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_last_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.last_name.label }}</label>
-                        {{ form.last_name }}
-                        {% if form.last_name.errors %}
-                            <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-
                 <div>
                     <label for="id_telefono" class="block text-sm font-medium text-gray-700 mb-1">{{ form.telefono.label }}</label>
                     {{ form.telefono }}
@@ -181,8 +161,6 @@
             resetInputs() {
                 // Volver los inputs al snapshot original
                 const map = {
-                    id_first_name: this.original.firstName,
-                    id_last_name:  this.original.lastName,
                     id_telefono:   this.original.telefono,
                     id_direccion:  this.original.direccion,
                 };
@@ -199,8 +177,6 @@
                     return el ? el.value : '';
                 };
                 return (
-                    get('id_first_name') !== this.original.firstName ||
-                    get('id_last_name')  !== this.original.lastName  ||
                     get('id_telefono')   !== this.original.telefono  ||
                     get('id_direccion')  !== this.original.direccion
                 );

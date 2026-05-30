@@ -79,8 +79,12 @@ class RegistroCalificacionAppService:
         total_existente = Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).count()
         return total_existente >= total_esperado
 
+    def hay_calificaciones_registradas(self, paralelo_id: int) -> bool:
+        """Check if at least one grade has been entered for this paralelo."""
+        return Calificacion.objects.filter(evaluacion__paralelo_id=paralelo_id).exists()
+
     def enviar_a_validacion(self, paralelo_id: int, usuario=None) -> dict:
-        """Change state to COMPLETO if all grades are filled."""
+        """Change state to COMPLETO if at least one grade is registered."""
         registro = self.obtener_o_crear_registro(paralelo_id)
 
         if registro.estado not in [
@@ -92,10 +96,10 @@ class RegistroCalificacionAppService:
                 "error": "Las calificaciones ya fueron enviadas a validación.",
             }
 
-        if not self.verificar_completitud(paralelo_id):
+        if not self.hay_calificaciones_registradas(paralelo_id):
             return {
                 "ok": False,
-                "error": "No se puede enviar: faltan calificaciones por registrar.",
+                "error": "No se puede enviar: no hay calificaciones registradas.",
             }
 
         total_peso = Evaluacion.objects.filter(paralelo_id=paralelo_id).aggregate(

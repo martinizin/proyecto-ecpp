@@ -178,18 +178,10 @@ class LoginForm(forms.Form):
 
 
 class DatosPersonalesForm(forms.Form):
-    """Profile form — update personal data (read-only: email, cedula, rol)."""
+    """Profile form — only phone and address are editable.
+    Name, email, cédula and role are immutable (display-only in template).
+    """
 
-    first_name = forms.CharField(
-        max_length=150,
-        label="Nombres",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    last_name = forms.CharField(
-        max_length=150,
-        label="Apellidos",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
     telefono = forms.CharField(
         max_length=15,
         required=False,
@@ -202,14 +194,6 @@ class DatosPersonalesForm(forms.Form):
         label="Dirección",
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
     )
-
-    def clean_first_name(self):
-        value = self.cleaned_data["first_name"]
-        return validate_nombre(value)
-
-    def clean_last_name(self):
-        value = self.cleaned_data["last_name"]
-        return validate_nombre(value)
 
     def clean_telefono(self):
         value = self.cleaned_data.get("telefono", "")

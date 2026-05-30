@@ -56,18 +56,11 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             messages.error(request, "No tiene permiso para este paralelo.")
             return redirect("asistencia:seleccionar_paralelo")
 
+        # Attendance can only be taken for today — ignore any date override
+        fecha = date.today()
+
         service = RegistroAsistenciaAppService()
         matriculas = service.obtener_estudiantes_matriculados(paralelo_id)
-
-        # Get date from query param or default to today
-        fecha_str = request.GET.get("fecha")
-        if fecha_str:
-            try:
-                fecha = date.fromisoformat(fecha_str)
-            except ValueError:
-                fecha = date.today()
-        else:
-            fecha = date.today()
 
         # Check if attendance already exists for this date (for pre-filling)
         asistencia_existente = service.obtener_asistencia_existente(paralelo_id, fecha)
@@ -106,6 +99,15 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             fecha = date.fromisoformat(fecha_str)
         except ValueError:
             messages.error(request, "Fecha inválida.")
+            return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
+
+        # Only allow attendance for today
+        if fecha != date.today():
+            messages.error(
+                request,
+                "Solo se puede registrar asistencia para la fecha actual. "
+                "No está permitido registrar asistencia en fechas pasadas o futuras.",
+            )
             return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
         # Get list of student IDs marked as present

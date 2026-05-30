@@ -51,14 +51,22 @@ def validate_cedula_ecuatoriana(value):
     return value
 
 
-# === Phone validator ===
+# === Phone validator (Ecuador) ===
 def validate_telefono(value):
-    """Only digits, 7-15 characters."""
+    """
+    Validates Ecuadorian phone numbers.
+    Accepted formats:
+    - Mobile: 09XXXXXXXX (10 digits, starts with 09)
+    - Landline: 0[2-7]XXXXXXX (9 digits, starts with 02–07)
+    """
     value = value.strip()
     if not value:
         return value  # Allow empty if field is not required
-    if not re.match(r"^\d{7,15}$", value):
-        raise ValidationError("El teléfono debe contener entre 7 y 15 dígitos numéricos.")
+    if not re.match(r"^(09\d{8}|0[2-7]\d{7})$", value):
+        raise ValidationError(
+            "Ingrese un número ecuatoriano válido: "
+            "móvil (09XXXXXXXX, 10 dígitos) o fijo (0[2-7]XXXXXXX, 9 dígitos)."
+        )
     return value
 
 
