@@ -147,7 +147,11 @@ class AsignaturaSerializer(serializers.ModelSerializer):
         for entry in value:
             horas = entry.get("horas_lectivas", 0)
             try:
-                service.validar_horas_lectivas(horas=horas, maximo=settings.HORAS_LECTIVAS_MAX)
+                service.validar_horas_lectivas(
+                    horas=horas,
+                    maximo=settings.HORAS_LECTIVAS_MAX,
+                    minimo=settings.HORAS_LECTIVAS_MIN,
+                )
             except Exception as e:
                 # Translate domain exception to DRF error routed to 'licencias' field
                 raise to_drf(e, field="licencias")

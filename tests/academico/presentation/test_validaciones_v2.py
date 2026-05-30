@@ -61,7 +61,7 @@ class TestAsignaturaSerializerValidarHorasLectivas:
         assert serializer.is_valid() is False
         assert "licencias" in serializer.errors or "horas_lectivas" in str(serializer.errors)
         error_msg = str(serializer.errors)
-        assert "entre 1 y 60" in error_msg
+        assert "entre 20 y 60" in error_msg
 
     def test_horas_lectivas_60_es_valida(self, tipo_licencia_c):
         """Serializer accepts horas_lectivas=60 (max valid)."""
@@ -99,10 +99,10 @@ class TestAsignaturaSerializerValidarHorasLectivas:
         serializer = AsignaturaSerializer(data=data)
         assert serializer.is_valid() is False
         error_msg = str(serializer.errors)
-        assert "entre 1 y 60" in error_msg
+        assert "entre 20 y 60" in error_msg
 
-    def test_horas_lectivas_1_es_valida(self, tipo_licencia_c):
-        """Serializer accepts horas_lectivas=1 (min valid)."""
+    def test_horas_lectivas_20_es_valida(self, tipo_licencia_c):
+        """V2b: Serializer accepts horas_lectivas=20 (new minimum valid)."""
         from apps.academico.presentation.serializers import AsignaturaSerializer
 
         data = {
@@ -111,13 +111,33 @@ class TestAsignaturaSerializerValidarHorasLectivas:
             "licencias": [
                 {
                     "tipo_licencia_id": tipo_licencia_c.pk,
-                    "horas_lectivas": 1,  # V2#1
+                    "horas_lectivas": 20,  # V2b — new boundary
                 }
             ],
         }
 
         serializer = AsignaturaSerializer(data=data)
         assert serializer.is_valid() is True
+
+    def test_horas_lectivas_1_es_rechazada(self, tipo_licencia_c):
+        """V2b regression: Serializer rejects horas_lectivas=1 (was accepted before V2b)."""
+        from apps.academico.presentation.serializers import AsignaturaSerializer
+
+        data = {
+            "nombre": "Cálculo I",
+            "codigo": "CALC001",
+            "licencias": [
+                {
+                    "tipo_licencia_id": tipo_licencia_c.pk,
+                    "horas_lectivas": 1,  # V2b — below the new minimum
+                }
+            ],
+        }
+
+        serializer = AsignaturaSerializer(data=data)
+        assert serializer.is_valid() is False
+        error_msg = str(serializer.errors)
+        assert "entre 20 y 60" in error_msg
 
 
 @pytest.mark.django_db
@@ -144,7 +164,7 @@ class TestAsignaturaCreateViewValidarHorasLectivas:
         assert response.status_code == 200
         content = response.content.decode()
         # Error message should contain the validation rule
-        assert "entre 1 y 60" in content.lower() or "61" in content
+        assert "entre 20 y 60" in content.lower() or "61" in content
 
     def test_create_con_horas_60_exitoso(self, user_inspector, tipo_licencia_c):
         """POST to AsignaturaCreateView with horas_lectivas=60 succeeds."""

@@ -325,7 +325,9 @@ class AsignaturaCreateView(MultiRolRequeridoMixin, ListView):
         for entrada in licencias:
             try:
                 service_domain.validar_horas_lectivas(
-                    horas=entrada["horas_lectivas"], maximo=settings.HORAS_LECTIVAS_MAX
+                    horas=entrada["horas_lectivas"],
+                    maximo=settings.HORAS_LECTIVAS_MAX,
+                    minimo=settings.HORAS_LECTIVAS_MIN,
                 )
             except AcademicoError as e:
                 messages.error(request, str(e))
@@ -405,7 +407,9 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
         for entrada in licencias:
             try:
                 service_domain.validar_horas_lectivas(
-                    horas=entrada["horas_lectivas"], maximo=settings.HORAS_LECTIVAS_MAX
+                    horas=entrada["horas_lectivas"],
+                    maximo=settings.HORAS_LECTIVAS_MAX,
+                    minimo=settings.HORAS_LECTIVAS_MIN,
                 )
             except AcademicoError as e:
                 messages.error(request, str(e))

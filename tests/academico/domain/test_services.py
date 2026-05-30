@@ -61,6 +61,29 @@ class TestAsignaturaServiceValidarHorasLectivas:
         assert exc_info.value.horas == -3
         assert exc_info.value.maximo == 60
 
+    def test_v2b_1_minimo_20_horas_19_levanta_excepcion(self):
+        """V2b#1: minimo=20, horas=19 → raises with 'entre 20 y 60' message."""
+        service = AsignaturaService()
+        with pytest.raises(HorasLectivasInvalidasError) as exc_info:
+            service.validar_horas_lectivas(horas=19, maximo=60, minimo=20)
+
+        assert exc_info.value.horas == 19
+        assert exc_info.value.minimo == 20
+        assert "entre 20 y 60" in str(exc_info.value)
+
+    def test_v2b_2_minimo_20_horas_20_es_valida(self):
+        """V2b#2: minimo=20, horas=20 → passes (boundary)."""
+        service = AsignaturaService()
+        # Should not raise
+        service.validar_horas_lectivas(horas=20, maximo=60, minimo=20)
+
+    def test_v2b_3_minimo_20_horas_1_levanta_excepcion(self):
+        """V2b#3: minimo=20, horas=1 → raises (regression: prevents the
+        production bug where '1h' was accepted as horas_lectivas)."""
+        service = AsignaturaService()
+        with pytest.raises(HorasLectivasInvalidasError):
+            service.validar_horas_lectivas(horas=1, maximo=60, minimo=20)
+
 
 class TestParaleloServiceValidarCapacidad:
     """Test validar_capacidad boundary scenarios per design §5 V3."""

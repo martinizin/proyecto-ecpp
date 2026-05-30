@@ -64,12 +64,15 @@ class EstadoMatriculaInvalidoError(AcademicoError):
 
 
 class HorasLectivasInvalidasError(AcademicoError):
-    """V2 — Las horas lectivas exceden el tope permitido o no son positivas."""
+    """V2 — Las horas lectivas están fuera del rango [minimo, maximo] permitido."""
 
-    def __init__(self, horas: int, maximo: int):
+    def __init__(self, horas: int, maximo: int, minimo: int = 1):
         self.horas = horas
         self.maximo = maximo
-        super().__init__(f"Las horas lectivas deben estar entre 1 y {maximo} (recibido: {horas}).")
+        self.minimo = minimo
+        super().__init__(
+            f"Las horas lectivas deben estar entre {minimo} y {maximo} (recibido: {horas})."
+        )
 
 
 class CapacidadParaleloInvalidaError(AcademicoError):
