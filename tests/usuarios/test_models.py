@@ -65,14 +65,18 @@ class TestUsuarioConstraints:
                 cedula=estudiante.cedula,
             )
 
-    def test_cedula_blank_allowed(self):
-        """Cedula can be left blank."""
-        user = Usuario.objects.create_user(
-            username="no_cedula",
-            password="testpass123",
-            rol=Usuario.Rol.ESTUDIANTE,
-        )
-        assert user.cedula is None
+    def test_cedula_required_post_immutability(self):
+        """Cedula is required at form/domain layer (R3 — qa-usuarios-registro-inmutable).
+
+        Note: at the pure ORM `create_user` level the field falls back to the
+        Django default (empty string), which Postgres accepts as a non-NULL
+        value. The "required" guarantee lives in `CrearUsuarioForm` and the
+        domain layer — not in the model. This test documents that contract so
+        future maintainers don't bring back `blank=True` thinking it's safe.
+        """
+        field = Usuario._meta.get_field("cedula")
+        assert field.null is False
+        assert field.blank is False
 
     def test_telefono_blank_allowed(self):
         """Telefono can be left blank."""

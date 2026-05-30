@@ -17,7 +17,7 @@ class Usuario(AbstractUser):
         SECRETARIA = "secretaria", "Secretaría"
 
     rol = models.CharField(max_length=20, choices=Rol.choices)
-    cedula = models.CharField(max_length=13, unique=True, blank=True, null=True)
+    cedula = models.CharField(max_length=13, unique=True)
     telefono = models.CharField(max_length=15, blank=True)
     direccion = models.TextField(blank=True, default="")
 

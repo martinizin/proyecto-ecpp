@@ -606,7 +606,11 @@ class TestUsuarioAdmin:
         mock_send_email.side_effect = Exception("SMTP error")
 
         superuser = _create_active_user(
-            "admin@test.com", rol="inspector", is_staff=True, is_superuser=True
+            "admin@test.com",
+            rol="inspector",
+            is_staff=True,
+            is_superuser=True,
+            cedula="1710034065",
         )
 
         request = self.factory.post("/admin/usuarios/usuario/add/")
@@ -621,6 +625,7 @@ class TestUsuarioAdmin:
             first_name="Fallo",
             last_name="Email",
             rol="docente",
+            cedula="0926687856",
         )
 
         form = UsuarioCreationForm(
@@ -629,7 +634,7 @@ class TestUsuarioAdmin:
                 "first_name": "Fallo",
                 "last_name": "Email",
                 "rol": "docente",
-                "cedula": "",
+                "cedula": "0926687856",
                 "telefono": "",
             }
         )
