@@ -268,6 +268,53 @@ class TestCrearRecalificacionView:
         assert response.status_code == 302
         assert Solicitud.objects.filter(estudiante=estudiante).exists()
 
+    def test_asignaturas_map_en_contexto(self, client):
+        """GET expone asignaturas_map agrupado por asignatura para los cascading selects."""
+        estudiante, calificacion = self._setup(client)
+        url = reverse("solicitudes:crear_recalificacion")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "asignaturas_map" in response.context
+
+        mapa = response.context["asignaturas_map"]
+        assert isinstance(mapa, dict)
+        assert all(
+            isinstance(k, str) for k in mapa.keys()
+        ), "keys deben ser str (json_script-safe)"
+
+        # La asignatura del setup debe estar
+        asignatura = calificacion.evaluacion.paralelo.asignatura
+        entry = mapa[str(asignatura.pk)]
+        assert entry["nombre"] == asignatura.nombre
+        assert entry["codigo"] == asignatura.codigo
+
+        # La evaluación debe estar dentro de su asignatura
+        evaluaciones = entry["evaluaciones"]
+        assert len(evaluaciones) == 1
+        ev = evaluaciones[0]
+        assert ev["id"] == calificacion.pk
+        assert ev["tipo_label"] == calificacion.evaluacion.get_tipo_display()
+        assert ev["nota"] == str(calificacion.nota)
+
+    def test_asignaturas_map_agrupa_por_asignatura(self, client):
+        """Múltiples calificaciones de la misma asignatura quedan bajo una sola key."""
+        estudiante, cal1 = self._setup(client)
+        # Agregar segunda evaluación al MISMO paralelo (misma asignatura)
+        paralelo = cal1.evaluacion.paralelo
+        ev2 = EvaluacionFactory(paralelo=paralelo, tipo="parcial2_10h")
+        cal2 = CalificacionFactory(evaluacion=ev2, estudiante=estudiante)
+
+        url = reverse("solicitudes:crear_recalificacion")
+        response = client.get(url)
+        mapa = response.context["asignaturas_map"]
+
+        asignatura_key = str(paralelo.asignatura.pk)
+        assert asignatura_key in mapa
+        ids = [ev["id"] for ev in mapa[asignatura_key]["evaluaciones"]]
+        assert cal1.pk in ids
+        assert cal2.pk in ids
+
 
 @pytest.mark.django_db
 class TestCrearJustificacionView:

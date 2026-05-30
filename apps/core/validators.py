@@ -61,9 +61,7 @@ def validate_telefono(value):
     if not value:
         return value
     if not re.match(r"^\d{10}$", value):
-        raise ValidationError(
-            "El teléfono debe contener exactamente 10 dígitos numéricos."
-        )
+        raise ValidationError("El teléfono debe contener exactamente 10 dígitos numéricos.")
     return value
 
 

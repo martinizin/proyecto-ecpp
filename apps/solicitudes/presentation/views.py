@@ -42,15 +42,69 @@ from apps.usuarios.presentation.permissions import (
 
 
 class CrearRecalificacionView(RolRequeridoMixin, View):
-    """Form to create a grade rectification request. Only estudiante."""
+    """Form to create a grade rectification request. Only estudiante.
+
+    UX: the template renders two cascading selects (asignatura → evaluación)
+    backed by ``asignaturas_map`` (a dict grouped by asignatura, consumed via
+    ``json_script`` in the template). The POST contract is unchanged — the
+    template syncs the selected evaluación id into a hidden input
+    ``name="calificacion"``.
+    """
 
     rol_requerido = "estudiante"
     template_name = "solicitudes/crear_recalificacion.html"
 
-    def get(self, request):
+    @staticmethod
+    def _build_asignaturas_map(calificaciones) -> dict:
+        """Group calificaciones by asignatura for cascading-select UI.
+
+        Returns a dict keyed by asignatura id (as str — json_script-safe):
+            {
+                "<asignatura_id>": {
+                    "nombre": "Primeros Auxilios",
+                    "codigo": "PA101",
+                    "evaluaciones": [
+                        {"id": 42, "tipo_label": "Parcial 1", "nota": "17.00"},
+                        ...
+                    ],
+                },
+                ...
+            }
+        """
+        mapa: dict = {}
+        for cal in calificaciones:
+            asignatura = cal.evaluacion.paralelo.asignatura
+            key = str(asignatura.pk)
+            entry = mapa.setdefault(
+                key,
+                {
+                    "nombre": asignatura.nombre,
+                    "codigo": asignatura.codigo,
+                    "evaluaciones": [],
+                },
+            )
+            entry["evaluaciones"].append(
+                {
+                    "id": cal.pk,
+                    "tipo_label": cal.evaluacion.get_tipo_display(),
+                    "nota": str(cal.nota),
+                }
+            )
+        return mapa
+
+    def _context(self, request, *, form_data=None):
         service = SolicitudAppService()
         calificaciones = service.obtener_calificaciones_reclamables(request.user)
-        return render(request, self.template_name, {"calificaciones": calificaciones})
+        ctx = {
+            "calificaciones": calificaciones,
+            "asignaturas_map": self._build_asignaturas_map(calificaciones),
+        }
+        if form_data is not None:
+            ctx["form_data"] = form_data
+        return ctx
+
+    def get(self, request):
+        return render(request, self.template_name, self._context(request))
 
     def post(self, request):
         service = SolicitudAppService()
@@ -70,17 +124,13 @@ class CrearRecalificacionView(RolRequeridoMixin, View):
             return redirect("solicitudes:mis_solicitudes")
 
         messages.error(request, resultado["error"])
-        calificaciones = service.obtener_calificaciones_reclamables(request.user)
         return render(
             request,
             self.template_name,
-            {
-                "calificaciones": calificaciones,
-                "form_data": {
-                    "calificacion": calificacion_id,
-                    "descripcion": descripcion,
-                },
-            },
+            self._context(
+                request,
+                form_data={"calificacion": calificacion_id, "descripcion": descripcion},
+            ),
         )
 
 

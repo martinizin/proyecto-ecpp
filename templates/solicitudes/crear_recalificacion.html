@@ -14,33 +14,92 @@
     </ol>
 </nav>
 
+{{ asignaturas_map|json_script:"calificaciones-data" }}
+
 <div class="max-w-2xl mx-auto">
     <div class="bg-white rounded-xl shadow-md overflow-hidden">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200">
             <h1 class="text-xl font-semibold text-gray-800">Solicitar Recalificación</h1>
-            <p class="text-sm text-gray-500 mt-1">Seleccione la evaluación a reclamar e indique el motivo detallado.</p>
+            <p class="text-sm text-gray-500 mt-1">Seleccione primero la asignatura y luego la evaluación que desea reclamar.</p>
         </div>
 
-        {% if calificaciones %}
-        <form method="post" enctype="multipart/form-data" class="px-6 py-5 space-y-5">
+        {% if asignaturas_map %}
+        <form
+            method="post"
+            enctype="multipart/form-data"
+            class="px-6 py-5 space-y-5"
+            x-data="recalificacionForm()"
+            x-init="init({{ form_data.calificacion|default:'null'|stringformat:'s' }})"
+        >
             {% csrf_token %}
 
-            <!-- Selección de evaluación -->
-            <div class="flex flex-col gap-1.5">
-                <label for="calificacion" class="text-sm font-medium text-gray-700">Evaluación a reclamar</label>
-                <select name="calificacion" id="calificacion" required
-                        class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    <option value="">Seleccione...</option>
-                    {% for cal in calificaciones %}
-                    <option value="{{ cal.pk }}"
-                            {% if form_data.calificacion == cal.pk|stringformat:"s" %}selected{% endif %}>
-                        {{ cal.evaluacion.paralelo.asignatura.nombre }} —
-                        {{ cal.evaluacion.get_tipo_display }}
-                        (Nota actual: {{ cal.nota }})
-                    </option>
-                    {% endfor %}
-                </select>
+            <!-- Hidden input: el POST sigue mandando 'calificacion=<pk>' (contract intacto) -->
+            <input type="hidden" name="calificacion" :value="evaluacionSeleccionada" required>
+
+            <!-- Grid: dos selects lado a lado en desktop, apilados en mobile -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Select 1: Asignatura -->
+                <div class="flex flex-col gap-1.5">
+                    <label for="select-asignatura" class="text-sm font-medium text-gray-700">
+                        Asignatura
+                    </label>
+                    <select
+                        id="select-asignatura"
+                        x-model="asignaturaSeleccionada"
+                        @change="onAsignaturaChange()"
+                        class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    >
+                        <option value="">Seleccione una asignatura...</option>
+                        <template x-for="(asig, id) in asignaturas" :key="id">
+                            <option :value="id" x-text="asig.nombre"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Select 2: Evaluación (disabled hasta elegir asignatura) -->
+                <div class="flex flex-col gap-1.5">
+                    <label for="select-evaluacion" class="text-sm font-medium text-gray-700">
+                        Evaluación
+                    </label>
+                    <select
+                        id="select-evaluacion"
+                        x-model="evaluacionSeleccionada"
+                        :disabled="!asignaturaSeleccionada"
+                        :class="!asignaturaSeleccionada ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'"
+                        class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    >
+                        <option value="" x-text="asignaturaSeleccionada ? 'Seleccione una evaluación...' : 'Seleccione una asignatura'"></option>
+                        <template x-for="ev in evaluacionesDisponibles" :key="ev.id">
+                            <option :value="ev.id" x-text="ev.tipo_label"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Card de feedback: nota actual destacada -->
+            <div
+                x-show="evaluacionActiva"
+                x-transition.opacity
+                class="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex items-center justify-between gap-3"
+                role="status"
+                aria-live="polite"
+            >
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Nota actual</p>
+                        <p class="text-2xl font-bold text-gray-800 leading-tight" x-text="evaluacionActiva?.nota"></p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">Evaluación seleccionada</p>
+                    <p class="text-sm font-medium text-gray-700" x-text="evaluacionActiva?.tipo_label"></p>
+                </div>
             </div>
 
             <!-- Motivo -->
@@ -48,7 +107,7 @@
                 <label for="descripcion" class="text-sm font-medium text-gray-700">Motivo de la solicitud</label>
                 <textarea name="descripcion" id="descripcion" rows="4" required
                           placeholder="Describa detalladamente el motivo de su solicitud de recalificación..."
-                          class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y">{% if form_data.descripcion %}{{ form_data.descripcion }}{% endif %}</textarea>
+                          class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-y">{% if form_data.descripcion %}{{ form_data.descripcion }}{% endif %}</textarea>
             </div>
 
             <!-- Archivo adjunto -->
@@ -69,7 +128,9 @@
                     Cancelar
                 </a>
                 <button type="submit"
-                        class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                        :disabled="!evaluacionSeleccionada"
+                        :class="!evaluacionSeleccionada ? 'opacity-50 cursor-not-allowed bg-primary/60' : 'bg-primary hover:bg-secondary'"
+                        class="text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                     Enviar Solicitud
                 </button>
             </div>
@@ -87,4 +148,45 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function recalificacionForm() {
+    return {
+        asignaturas: JSON.parse(document.getElementById('calificaciones-data').textContent),
+        asignaturaSeleccionada: '',
+        evaluacionSeleccionada: '',
+
+        init(preselectedCalificacionId) {
+            // Re-hidratar selección si vino un form_data tras error de POST
+            if (!preselectedCalificacionId || preselectedCalificacionId === 'null') return;
+            const id = String(preselectedCalificacionId);
+            for (const [asigId, asig] of Object.entries(this.asignaturas)) {
+                if (asig.evaluaciones.some(ev => String(ev.id) === id)) {
+                    this.asignaturaSeleccionada = asigId;
+                    this.evaluacionSeleccionada = id;
+                    return;
+                }
+            }
+        },
+
+        onAsignaturaChange() {
+            // Al cambiar de asignatura, limpiar la evaluación seleccionada
+            this.evaluacionSeleccionada = '';
+        },
+
+        get evaluacionesDisponibles() {
+            if (!this.asignaturaSeleccionada) return [];
+            const asig = this.asignaturas[this.asignaturaSeleccionada];
+            return asig ? asig.evaluaciones : [];
+        },
+
+        get evaluacionActiva() {
+            if (!this.evaluacionSeleccionada) return null;
+            return this.evaluacionesDisponibles.find(
+                ev => String(ev.id) === String(this.evaluacionSeleccionada)
+            ) || null;
+        },
+    };
+}
+</script>
 {% endblock %}
