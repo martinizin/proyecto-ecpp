@@ -42,8 +42,7 @@ class MultiRolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def test_func(self) -> bool:
         return (
-            self.request.user.is_authenticated
-            and self.request.user.rol in self.roles_permitidos
+            self.request.user.is_authenticated and self.request.user.rol in self.roles_permitidos
         )
 
 
