@@ -99,7 +99,7 @@ class RegistroCalificacionAppService:
         if not self.hay_calificaciones_registradas(paralelo_id):
             return {
                 "ok": False,
-                "error": "No se puede enviar: no hay calificaciones registradas.",
+                "error": "No se puede enviar: faltan calificaciones por registrar.",
             }
 
         total_peso = Evaluacion.objects.filter(paralelo_id=paralelo_id).aggregate(
