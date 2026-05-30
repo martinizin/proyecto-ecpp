@@ -36,6 +36,7 @@ class CrearUsuarioForm(forms.Form):
     )
     cedula = forms.CharField(
         max_length=10,
+        required=True,
         label="CÃ©dula",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "1234567890"}),
     )
