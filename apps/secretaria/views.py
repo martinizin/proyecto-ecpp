@@ -4,7 +4,6 @@ CRUD views for user management.
 All operations restricted to Secretaría role via RolRequeridoMixin.
 """
 
-import json
 from collections import OrderedDict
 
 from django.contrib import messages
@@ -70,10 +69,12 @@ class UsuarioListView(RolRequeridoMixin, View):
                 "rol_filter": rol_filter,
                 "roles": Usuario.Rol.choices,
                 "dependencias_por_usuario": dependencias_por_usuario,
-                # Pre-serialized for Alpine x-data (keys must be strings in JSON)
-                "dependencias_por_usuario_json": json.dumps(
-                    {str(pk): counts for pk, counts in dependencias_por_usuario.items()}
-                ),
+                # Dict for json_script in template (keys serialized as strings).
+                # json_script renders <script type="application/json"> which avoids
+                # HTML attribute-quote breakage and is XSS-safe.
+                "dependencias_por_usuario_map": {
+                    str(pk): counts for pk, counts in dependencias_por_usuario.items()
+                },
             },
         )
 
