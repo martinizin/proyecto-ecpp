@@ -4,6 +4,7 @@ CRUD views for user management.
 All operations restricted to Secretaría role via RolRequeridoMixin.
 """
 
+import json
 from collections import OrderedDict
 
 from django.contrib import messages
@@ -51,6 +52,15 @@ class UsuarioListView(RolRequeridoMixin, View):
             rol_filter=rol_filter or None,
         )
 
+        # Compute FK dependency counts for active users so the toggle modal
+        # can display a warning before deactivating a user with records.
+        dependencias_por_usuario = {}
+        for u in usuarios:
+            if u.is_active:
+                counts = GestionUsuariosService._contar_dependencias(u.pk)
+                if counts:
+                    dependencias_por_usuario[u.pk] = counts
+
         return render(
             request,
             self.template_name,
@@ -59,6 +69,11 @@ class UsuarioListView(RolRequeridoMixin, View):
                 "search_query": search_query,
                 "rol_filter": rol_filter,
                 "roles": Usuario.Rol.choices,
+                "dependencias_por_usuario": dependencias_por_usuario,
+                # Pre-serialized for Alpine x-data (keys must be strings in JSON)
+                "dependencias_por_usuario_json": json.dumps(
+                    {str(pk): counts for pk, counts in dependencias_por_usuario.items()}
+                ),
             },
         )
 

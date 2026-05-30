@@ -638,3 +638,61 @@ class TestUsuarioDetailView:
         response = client.get(self._url(target.pk))
         assert response.status_code == 302
         assert "/login/" in response.url
+
+
+# =============================================================================
+# UsuarioListView — dependencias en contexto (enhanced modal)
+# =============================================================================
+
+
+class TestUsuarioListViewDependencias:
+    """Tests that UsuarioListView exposes FK dependency counts per user."""
+
+    def setup_method(self):
+        self.url = reverse("secretaria:usuario_list")
+
+    def test_usuario_list_pasa_dependencias_al_template(self, client):
+        """Context has dependencias_por_usuario with counts for users with deps."""
+        sec = make_secretaria()
+        # Create an active student with one real matricula
+        mat = MatriculaFactory()
+        target = mat.estudiante  # active, has 1 matricula dependency
+        _saved(target)
+
+        client.force_login(sec)
+        response = client.get(self.url)
+
+        assert response.status_code == 200
+        assert "dependencias_por_usuario" in response.context
+
+        deps = response.context["dependencias_por_usuario"]
+        assert target.pk in deps
+        assert deps[target.pk].get("matriculas", 0) >= 1
+
+    def test_usuario_sin_deps_no_aparece_en_dict(self, client):
+        """Active user with zero dependencies is NOT in dependencias_por_usuario."""
+        sec = make_secretaria()
+        target = _saved(UsuarioFactory(is_active=True))
+        # no matriculas, no other FK records
+
+        client.force_login(sec)
+        response = client.get(self.url)
+
+        deps = response.context["dependencias_por_usuario"]
+        # target may be absent or present with empty dict; either is acceptable
+        # but must not have positive counts
+        user_deps = deps.get(target.pk, {})
+        assert sum(user_deps.values()) == 0
+
+    def test_dependencias_por_usuario_json_en_contexto(self, client):
+        """Context also provides dependencias_por_usuario_json (pre-serialized)."""
+        import json
+
+        sec = make_secretaria()
+        client.force_login(sec)
+        response = client.get(self.url)
+
+        assert "dependencias_por_usuario_json" in response.context
+        # Must be a valid JSON string
+        data = json.loads(response.context["dependencias_por_usuario_json"])
+        assert isinstance(data, dict)

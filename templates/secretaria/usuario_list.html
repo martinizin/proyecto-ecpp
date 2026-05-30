@@ -10,11 +10,18 @@
         nombreUsuario: '',
         accionLabel: '',
         toggleUrl: '',
+        dependencias: {},
+        allDeps: {{ dependencias_por_usuario_json|safe }},
         abrirModal(btn) {
             this.nombreUsuario = btn.dataset.nombre;
             this.accionLabel   = btn.dataset.accion;
             this.toggleUrl     = btn.dataset.url;
+            const pk = btn.dataset.pk;
+            this.dependencias  = this.allDeps[pk] || {};
             this.modalAbierto  = true;
+        },
+        tieneDependencias() {
+            return Object.values(this.dependencias).some(v => v > 0);
         }
     }"
 >
@@ -111,10 +118,12 @@
                     </td>
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
+                            <a href="{% url 'secretaria:usuario_detail' usuario.pk %}" class="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors">Ver perfil</a>
                             <a href="{% url 'secretaria:resetear_password' usuario.pk %}" class="text-amber-600 hover:text-amber-800 font-medium text-sm transition-colors">Resetear Contraseña</a>
                             <button
                                 type="button"
                                 @click="abrirModal($event.currentTarget)"
+                                data-pk="{{ usuario.pk }}"
                                 data-nombre="{{ usuario.get_full_name }}"
                                 data-accion="{% if usuario.is_active %}Desactivar{% else %}Activar{% endif %}"
                                 data-url="{% url 'secretaria:usuario_toggle_activo' usuario.pk %}"
@@ -187,12 +196,39 @@
         </div>
 
         <!-- Body -->
+        <!-- Warning section: shown only when deactivating a user with FK records -->
+        <template x-if="tieneDependencias() && accionLabel === 'Desactivar'">
+            <div class="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <div class="flex items-start gap-2">
+                    <span class="text-amber-500 text-base leading-none mt-0.5" aria-hidden="true">⚠️</span>
+                    <div class="text-sm text-amber-800">
+                        <p class="font-semibold mb-1">Este usuario tiene registros asociados:</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <template x-for="[key, val] in Object.entries(dependencias)" :key="key">
+                                <li x-show="val > 0">
+                                    <span x-text="val"></span>
+                                    <span x-text="key"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </template>
+
         <p class="text-sm text-gray-600 mb-6">
-            Estás por
-            <span class="font-semibold" x-text="accionLabel.toLowerCase()"></span>
-            al usuario
-            <span class="font-semibold text-gray-800" x-text="nombreUsuario"></span>.
-            ¿Querés continuar?
+            <template x-if="tieneDependencias() && accionLabel === 'Desactivar'">
+                <span>¿Querés continuar de todas formas?</span>
+            </template>
+            <template x-if="!(tieneDependencias() && accionLabel === 'Desactivar')">
+                <span>
+                    Estás por
+                    <span class="font-semibold" x-text="accionLabel.toLowerCase()"></span>
+                    al usuario
+                    <span class="font-semibold text-gray-800" x-text="nombreUsuario"></span>.
+                    ¿Querés continuar?
+                </span>
+            </template>
         </p>
 
         <!-- Actions -->
