@@ -15,6 +15,7 @@ from apps.academico.infrastructure.models import Matricula
 from apps.secretaria.services import GestionMatriculasService, GestionUsuariosService
 from tests.factories import (
     AsignaturaFactory,
+    CalificacionFactory,
     DocenteFactory,
     EstudianteFactory,
     MatriculaFactory,
@@ -143,6 +144,81 @@ class TestEliminarUsuario:
 
         user = UsuarioFactory()
         user_id = user.pk
+
+        self.service.eliminar_usuario(user_id)
+
+        assert not Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_con_matriculas_raises_y_no_borra(self):
+        """RED → GREEN: user with matrículas must raise + NOT be deleted.
+
+        Canonical FK-guard case: matrículas are the most critical dependency
+        because losing them silently (CASCADE) would destroy academic history.
+        """
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        user_id = estudiante.pk
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(user_id)
+
+        assert excinfo.value.dependencias.get("matriculas") == 3
+        # Row must survive — the guard runs BEFORE delete.
+        assert Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_con_calificaciones_raises(self):
+        """Triangulation: a different CASCADE FK (calificaciones) also blocks."""
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiante = EstudianteFactory()
+        CalificacionFactory(estudiante=estudiante)
+        user_id = estudiante.pk
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(user_id)
+
+        assert excinfo.value.dependencias.get("calificaciones") == 1
+        assert Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_reporta_todas_las_dependencias(self):
+        """Triangulation: the dict must enumerate EVERY CASCADE source,
+        not just the first one found. The secretaría needs the full picture
+        before deciding how to proceed.
+        """
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        CalificacionFactory(estudiante=estudiante)
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(estudiante.pk)
+
+        deps = excinfo.value.dependencias
+        assert deps.get("matriculas") == 2
+        assert deps.get("calificaciones") == 1
+
+    def test_eliminar_usuario_ignora_dependencias_set_null(self):
+        """Triangulation: SET_NULL relations must NOT block deletion.
+
+        E.g. `Matricula.matriculado_por` is SET_NULL — when a secretaría
+        registered enrollments and then leaves, her account must be removable
+        without dragging matrículas with her. Only CASCADE relations block.
+        """
+        from apps.usuarios.infrastructure.models import Usuario
+
+        secretaria = UsuarioFactory(rol="secretaria")
+        # MatriculaFactory's `matriculado_por` defaults to a different user.
+        # We attach our secretaria explicitly:
+        MatriculaFactory(matriculado_por=secretaria)
+        user_id = secretaria.pk
 
         self.service.eliminar_usuario(user_id)
 

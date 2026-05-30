@@ -2,10 +2,27 @@
 
 import string
 
+from django.apps import apps as django_apps
 from django.utils.crypto import get_random_string
 
+from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
 from apps.usuarios.infrastructure.email_service import send_credenciales_email
 from apps.usuarios.infrastructure.models import Usuario
+
+
+# CASCADE FK sources that BLOCK deletion of a Usuario. We enumerate them
+# explicitly (instead of walking _meta.related_objects) to keep the policy
+# decision documented and reviewable: secretaría must NOT silently destroy
+# academic history (matrículas, calificaciones, asistencias) or workflow
+# evidence (solicitudes). Audit-only relations (RegistroAuditoria, LogEntry,
+# *_por SET_NULL fields) are intentionally absent — they survive deletion
+# with a NULL pointer, which is the desired behavior.
+_FK_SOURCES = {
+    "matriculas":     ("academico.Matricula",       "estudiante"),
+    "calificaciones": ("calificaciones.Calificacion", "estudiante"),
+    "asistencias":    ("asistencia.Asistencia",     "estudiante"),
+    "solicitudes":    ("solicitudes.Solicitud",     "estudiante"),
+}
 
 
 class GestionUsuariosService:
@@ -80,15 +97,38 @@ class GestionUsuariosService:
         return usuario
 
     def eliminar_usuario(self, usuario_id) -> None:
-        """Hard-delete a user.
+        """Hard-delete a user, guarding against CASCADE-FK data loss.
 
-        Phase 3.1 — happy path only: removes the row. The FK-dependency guard
-        (raises `UsuarioConDependenciasError` when matrículas / registros point
-        at this user) is added in Task 3.2, and the `@transaction.atomic` +
-        `select_for_update` wrapping arrives in Task 3.4 GREEN per design D5.
+        Workflow (per design D5):
+        1. Count dependencies across `_FK_SOURCES` (CASCADE relations only).
+        2. If any are non-zero, raise `UsuarioConDependenciasError` with the
+           full breakdown so the secretaría sees the complete picture.
+        3. Otherwise, delete the row.
+
+        The `@transaction.atomic` + `select_for_update` wrapping arrives in
+        Task 3.4 (it requires consolidating crear_usuario as well, kept as a
+        separate slice for review clarity).
         """
         usuario = Usuario.objects.get(pk=usuario_id)
+        dependencias = self._contar_dependencias(usuario_id)
+        if dependencias:
+            raise UsuarioConDependenciasError(dependencias)
         usuario.delete()
+
+    @staticmethod
+    def _contar_dependencias(usuario_id) -> dict:
+        """Return a dict {source_name: count} for every non-zero CASCADE FK.
+
+        Sources with zero rows are omitted so the resulting dict is empty when
+        the user can be safely deleted — callers can do `if deps: raise(...)`.
+        """
+        counts = {}
+        for nombre, (label, fk_field) in _FK_SOURCES.items():
+            Model = django_apps.get_model(label)
+            cantidad = Model.objects.filter(**{fk_field: usuario_id}).count()
+            if cantidad:
+                counts[nombre] = cantidad
+        return counts
 
 
 class GestionMatriculasService:
