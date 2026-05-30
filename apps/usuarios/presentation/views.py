@@ -177,6 +177,8 @@ class PerfilView(View):
         on the template (json_script-encoded to be XSS-safe).
         """
         return {
+            "first_name": user.first_name or "",
+            "last_name": user.last_name or "",
             "telefono": user.telefono or "",
             "direccion": user.direccion or "",
         }
@@ -184,6 +186,8 @@ class PerfilView(View):
     def get(self, request):
         form = DatosPersonalesForm(
             initial={
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
                 "telefono": request.user.telefono,
                 "direccion": request.user.direccion,
             }
@@ -204,6 +208,8 @@ class PerfilView(View):
                     "form": form,
                     "profile_initial": self._profile_initial(request.user),
                     "profile_submitted": {
+                        "first_name": request.POST.get("first_name", ""),
+                        "last_name": request.POST.get("last_name", ""),
                         "telefono": request.POST.get("telefono", ""),
                         "direccion": request.POST.get("direccion", ""),
                     },
@@ -213,6 +219,8 @@ class PerfilView(View):
         service = PerfilAppService()
         service.actualizar_datos(
             user_id=request.user.pk,
+            first_name=form.cleaned_data["first_name"],
+            last_name=form.cleaned_data["last_name"],
             telefono=form.cleaned_data["telefono"],
             direccion=form.cleaned_data["direccion"],
         )

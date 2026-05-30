@@ -289,12 +289,18 @@ class PerfilAppService:
         user_id: int,
         telefono: str,
         direccion: str,
+        first_name: str = "",
+        last_name: str = "",
     ) -> None:
-        """Update only the user's mutable profile fields (phone and address)."""
+        """Update the user's mutable profile fields."""
         user = Usuario.objects.get(pk=user_id)
         user.telefono = telefono
         user.direccion = direccion
-        user.save(update_fields=["telefono", "direccion"])
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        user.save(update_fields=["telefono", "direccion", "first_name", "last_name"])
 
     def cambiar_contrasena(self, user_id: int, old_password: str, new_password: str) -> bool:
         """

@@ -178,10 +178,22 @@ class LoginForm(forms.Form):
 
 
 class DatosPersonalesForm(forms.Form):
-    """Profile form — only phone and address are editable.
-    Name, email, cédula and role are immutable (display-only in template).
+    """Profile form — name, phone and address are editable.
+    Email, cédula and role are immutable (display-only in template).
     """
 
+    first_name = forms.CharField(
+        max_length=150,
+        required=False,
+        label="Nombre",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        required=False,
+        label="Apellido",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
     telefono = forms.CharField(
         max_length=15,
         required=False,
