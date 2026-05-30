@@ -85,24 +85,9 @@ class GestionUsuariosService:
 
         return usuario, temp_password, True
 
-    def editar_usuario(self, usuario_id, **kwargs):
-        """Update user fields. Only updates provided kwargs."""
-        usuario = Usuario.objects.get(pk=usuario_id)
-        for field, value in kwargs.items():
-            setattr(usuario, field, value)
-        usuario.save(update_fields=list(kwargs.keys()))
-        return usuario
-
     def obtener_usuario(self, usuario_id):
         """Get a single user by ID."""
         return Usuario.objects.get(pk=usuario_id)
-
-    def toggle_activo(self, usuario_id) -> Usuario:
-        """Toggle user is_active status."""
-        usuario = Usuario.objects.get(pk=usuario_id)
-        usuario.is_active = not usuario.is_active
-        usuario.save(update_fields=["is_active"])
-        return usuario
 
     def eliminar_usuario(self, usuario_id) -> None:
         """Hard-delete a user, guarding against CASCADE-FK data loss.

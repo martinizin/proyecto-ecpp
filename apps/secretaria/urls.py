@@ -11,16 +11,6 @@ urlpatterns = [
     path("usuarios/", views.UsuarioListView.as_view(), name="usuario_list"),
     path("usuarios/crear/", views.UsuarioCreateView.as_view(), name="usuario_create"),
     path(
-        "usuarios/<int:pk>/editar/",
-        views.UsuarioEditView.as_view(),
-        name="usuario_edit",
-    ),
-    path(
-        "usuarios/<int:pk>/toggle-activo/",
-        views.UsuarioToggleActivoView.as_view(),
-        name="usuario_toggle_activo",
-    ),
-    path(
         "usuarios/<int:pk>/resetear-password/",
         views.ResetearPasswordEstudianteView.as_view(),
         name="resetear_password_estudiante",

@@ -26,7 +26,7 @@ from apps.academico.domain.exceptions import (
 from apps.academico.infrastructure.models import Matricula
 from apps.academico.presentation.exception_mapping import to_django
 
-from .forms import CrearMatriculaForm, CrearUsuarioForm, EditarUsuarioForm
+from .forms import CrearMatriculaForm, CrearUsuarioForm
 from .services import GestionMatriculasService, GestionUsuariosService
 
 
@@ -115,79 +115,6 @@ class UsuarioCreateView(RolRequeridoMixin, View):
                 f"Contraseña temporal: {temp_password}",
             )
 
-        return redirect("secretaria:usuario_list")
-
-
-class UsuarioEditView(RolRequeridoMixin, View):
-    """Edit an existing user — Secretaría only."""
-
-    rol_requerido = "secretaria"
-    template_name = "secretaria/usuario_form.html"
-
-    def get(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.obtener_usuario(pk)
-        form = EditarUsuarioForm(
-            initial={
-                "first_name": usuario.first_name,
-                "last_name": usuario.last_name,
-                "rol": usuario.rol,
-                "telefono": usuario.telefono,
-                "direccion": usuario.direccion,
-            }
-        )
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "editing": True,
-                "usuario": usuario,
-            },
-        )
-
-    def post(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.obtener_usuario(pk)
-        form = EditarUsuarioForm(request.POST)
-        if not form.is_valid():
-            return render(
-                request,
-                self.template_name,
-                {
-                    "form": form,
-                    "editing": True,
-                    "usuario": usuario,
-                },
-            )
-
-        service.editar_usuario(
-            usuario_id=pk,
-            first_name=form.cleaned_data["first_name"],
-            last_name=form.cleaned_data["last_name"],
-            rol=form.cleaned_data["rol"],
-            telefono=form.cleaned_data["telefono"],
-            direccion=form.cleaned_data["direccion"],
-        )
-
-        messages.success(request, "Usuario actualizado exitosamente.")
-        return redirect("secretaria:usuario_list")
-
-
-class UsuarioToggleActivoView(RolRequeridoMixin, View):
-    """Toggle user active status — Secretaría only."""
-
-    rol_requerido = "secretaria"
-
-    def post(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.toggle_activo(pk)
-
-        estado = "activado" if usuario.is_active else "desactivado"
-        messages.success(
-            request,
-            f"El usuario {usuario.get_full_name()} ha sido {estado}.",
-        )
         return redirect("secretaria:usuario_list")
 
 

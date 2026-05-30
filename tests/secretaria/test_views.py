@@ -153,54 +153,6 @@ class TestUsuarioCreateView:
         assert "cedula" in response.context["form"].errors
 
 
-class TestUsuarioEditView:
-    """Tests for UsuarioEditView."""
-
-    def test_get_shows_form(self, client):
-        """Secretaria sees the edit form with editing=True."""
-        sec = make_secretaria()
-        target = UsuarioFactory()
-        client.force_login(sec)
-
-        url = reverse("secretaria:usuario_edit", kwargs={"pk": target.pk})
-        response = client.get(url)
-        assert response.status_code == 200
-        assert response.context["editing"] is True
-
-    def test_post_updates_user(self, client):
-        """Valid POST updates user fields."""
-        sec = make_secretaria()
-        target = UsuarioFactory(first_name="Viejo")
-        client.force_login(sec)
-
-        url = reverse("secretaria:usuario_edit", kwargs={"pk": target.pk})
-        response = client.post(
-            url,
-            {
-                "first_name": "Nuevo",
-                "last_name": "Apellido",
-                "rol": "docente",
-                "telefono": "0991234567",
-                "direccion": "Calle 123",
-            },
-        )
-        assert response.status_code == 302
-        target.refresh_from_db()
-        assert target.first_name == "Nuevo"
-
-    def test_non_secretaria_forbidden(self, client):
-        """Inspector cannot access edit view."""
-        from tests.factories import InspectorFactory
-
-        inspector = _saved(InspectorFactory())
-        target = UsuarioFactory()
-        client.force_login(inspector)
-
-        url = reverse("secretaria:usuario_edit", kwargs={"pk": target.pk})
-        response = client.get(url)
-        assert response.status_code == 403
-
-
 # =============================================================================
 # Matrícula Views
 # =============================================================================

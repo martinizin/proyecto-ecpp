@@ -103,21 +103,6 @@ class TestGestionUsuariosService:
         result = self.service.listar_usuarios(rol_filter="docente")
         assert result.count() == 2
 
-    def test_editar_usuario(self):
-        """Updates fields correctly."""
-        user = UsuarioFactory(first_name="Viejo")
-        updated = self.service.editar_usuario(user.pk, first_name="Nuevo")
-        assert updated.first_name == "Nuevo"
-
-    def test_toggle_activo(self):
-        """Toggles is_active."""
-        user = UsuarioFactory(is_active=True)
-        toggled = self.service.toggle_activo(user.pk)
-        assert toggled.is_active is False
-
-        toggled2 = self.service.toggle_activo(user.pk)
-        assert toggled2.is_active is True
-
     @patch("apps.secretaria.services.send_credenciales_email")
     def test_crear_usuario_rollback_en_fallo_email(self, mock_email):
         """RED → GREEN: SMTP failure must roll back the user creation.
