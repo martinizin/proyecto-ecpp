@@ -119,6 +119,37 @@ class TestGestionUsuariosService:
 
 
 # =============================================================================
+# eliminar_usuario — hard delete with FK-dependency guard
+# (SDD change qa-usuarios-registro-inmutable, Phase 3)
+# =============================================================================
+
+
+class TestEliminarUsuario:
+    """Acceptance for `GestionUsuariosService.eliminar_usuario`:
+
+    - Happy path: user with no FK dependencies is removed from the table.
+    - With dependencies: raises `UsuarioConDependenciasError` carrying a dict
+      of FK counts (covered by Task 3.2, not this RED slice).
+    - Wrapped in `transaction.atomic` with `select_for_update` (covered by
+      Task 3.4 GREEN; this RED slice only drives the method into existence).
+    """
+
+    def setup_method(self):
+        self.service = GestionUsuariosService()
+
+    def test_eliminar_usuario_sin_dependencias_borra(self):
+        """RED → GREEN: deleting a user without FK refs removes the row."""
+        from apps.usuarios.infrastructure.models import Usuario
+
+        user = UsuarioFactory()
+        user_id = user.pk
+
+        self.service.eliminar_usuario(user_id)
+
+        assert not Usuario.objects.filter(pk=user_id).exists()
+
+
+# =============================================================================
 # GestionMatriculasService
 # =============================================================================
 

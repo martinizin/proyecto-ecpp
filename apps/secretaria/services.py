@@ -79,6 +79,17 @@ class GestionUsuariosService:
         usuario.save(update_fields=["is_active"])
         return usuario
 
+    def eliminar_usuario(self, usuario_id) -> None:
+        """Hard-delete a user.
+
+        Phase 3.1 — happy path only: removes the row. The FK-dependency guard
+        (raises `UsuarioConDependenciasError` when matrículas / registros point
+        at this user) is added in Task 3.2, and the `@transaction.atomic` +
+        `select_for_update` wrapping arrives in Task 3.4 GREEN per design D5.
+        """
+        usuario = Usuario.objects.get(pk=usuario_id)
+        usuario.delete()
+
 
 class GestionMatriculasService:
     """Service for enrollment management by secretaría."""
