@@ -2,10 +2,28 @@
 
 import string
 
+from django.apps import apps as django_apps
+from django.db import transaction
 from django.utils.crypto import get_random_string
 
+from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
 from apps.usuarios.infrastructure.email_service import send_credenciales_email
 from apps.usuarios.infrastructure.models import Usuario
+
+
+# CASCADE FK sources that BLOCK deletion of a Usuario. We enumerate them
+# explicitly (instead of walking _meta.related_objects) to keep the policy
+# decision documented and reviewable: secretaría must NOT silently destroy
+# academic history (matrículas, calificaciones, asistencias) or workflow
+# evidence (solicitudes). Audit-only relations (RegistroAuditoria, LogEntry,
+# *_por SET_NULL fields) are intentionally absent — they survive deletion
+# with a NULL pointer, which is the desired behavior.
+_FK_SOURCES = {
+    "matriculas": ("academico.Matricula", "estudiante"),
+    "calificaciones": ("calificaciones.Calificacion", "estudiante"),
+    "asistencias": ("asistencia.Asistencia", "estudiante"),
+    "solicitudes": ("solicitudes.Solicitud", "estudiante"),
+}
 
 
 class GestionUsuariosService:
@@ -27,10 +45,17 @@ class GestionUsuariosService:
             qs = qs.filter(rol=rol_filter)
         return qs
 
+    @transaction.atomic
     def crear_usuario(self, email, first_name, last_name, rol, cedula, telefono="") -> tuple:
-        """
-        Create a new user with auto-generated temp password.
-        Returns (usuario, temp_password, email_sent: bool).
+        """Create a new user with auto-generated temp password.
+
+        Wrapped in `@transaction.atomic` (per design D5 / R8): if the
+        credentials email cannot be sent, the entire creation rolls back —
+        no orphan accounts whose email is already burned by the UNIQUE
+        constraint. The exception propagates so the caller (view) can render
+        a proper error and let the secretaría retry.
+
+        Returns (usuario, temp_password).
         """
         temp_password = get_random_string(
             length=12,
@@ -51,22 +76,11 @@ class GestionUsuariosService:
         usuario.set_password(temp_password)
         usuario.save()
 
-        # Send credentials email
-        email_sent = True
-        try:
-            send_credenciales_email(usuario, temp_password)
-        except Exception:
-            email_sent = False
+        # Side-effect MUST run inside the atomic block: any exception here
+        # triggers the rollback above, ensuring no half-created user lingers.
+        send_credenciales_email(usuario, temp_password)
 
-        return usuario, temp_password, email_sent
-
-    def editar_usuario(self, usuario_id, **kwargs):
-        """Update user fields. Only updates provided kwargs."""
-        usuario = Usuario.objects.get(pk=usuario_id)
-        for field, value in kwargs.items():
-            setattr(usuario, field, value)
-        usuario.save(update_fields=list(kwargs.keys()))
-        return usuario
+        return usuario, temp_password
 
     def obtener_usuario(self, usuario_id):
         """Get a single user by ID."""
@@ -78,6 +92,40 @@ class GestionUsuariosService:
         usuario.is_active = not usuario.is_active
         usuario.save(update_fields=["is_active"])
         return usuario
+
+    @transaction.atomic
+    def eliminar_usuario(self, usuario_id) -> None:
+        """Hard-delete a user, guarding against CASCADE-FK data loss.
+
+        Workflow (per design D5):
+        1. Acquire a row-level lock with SELECT FOR UPDATE inside the atomic
+           block — prevents a concurrent request from sneaking in a FK between
+           the dependency check and the DELETE.
+        2. Count dependencies across `_FK_SOURCES` (CASCADE relations only).
+        3. If any are non-zero, raise `UsuarioConDependenciasError` with the
+           full breakdown so the secretaría sees the complete picture.
+        4. Otherwise, delete the row.
+        """
+        usuario = Usuario.objects.select_for_update().get(pk=usuario_id)
+        dependencias = self._contar_dependencias(usuario_id)
+        if dependencias:
+            raise UsuarioConDependenciasError(dependencias)
+        usuario.delete()
+
+    @staticmethod
+    def _contar_dependencias(usuario_id) -> dict:
+        """Return a dict {source_name: count} for every non-zero CASCADE FK.
+
+        Sources with zero rows are omitted so the resulting dict is empty when
+        the user can be safely deleted — callers can do `if deps: raise(...)`.
+        """
+        counts = {}
+        for nombre, (label, fk_field) in _FK_SOURCES.items():
+            Model = django_apps.get_model(label)
+            cantidad = Model.objects.filter(**{fk_field: usuario_id}).count()
+            if cantidad:
+                counts[nombre] = cantidad
+        return counts
 
 
 class GestionMatriculasService:
@@ -172,6 +220,25 @@ class GestionMatriculasService:
             paralelo_id=paralelo_id, estado=Matricula.Estado.ACTIVA
         ).count()
         self.domain_service.validar_cupo(activas, paralelo.capacidad_maxima)
+
+        # V5: schedule conflict against student's ACTIVA matrículas in same period.
+        # Loads paralelo bloques as plain tuples; raises typed exception on conflict.
+        from apps.academico.domain.exceptions import ConflictoHorarioEstudianteError
+        from apps.academico.domain.services import HorarioConflictoService
+        from apps.academico.infrastructure.models import BloqueHorario
+
+        bloques_paralelo = [
+            (b.dia_semana, b.hora_inicio, b.hora_fin)
+            for b in BloqueHorario.objects.filter(paralelo_id=paralelo_id)
+        ]
+        if bloques_paralelo:
+            conflictos = HorarioConflictoService.detectar_conflicto_estudiante(
+                estudiante_id=estudiante_id,
+                periodo_id=paralelo.periodo_id,
+                bloques_propuestos=bloques_paralelo,
+            )
+            if conflictos:
+                raise ConflictoHorarioEstudianteError(conflictos)
 
         matricula = Matricula.objects.create(
             estudiante_id=estudiante_id,
@@ -286,7 +353,8 @@ class GestionMatriculasService:
         Returns (created_count, skipped_details).
         """
         from django.db import transaction
-        from apps.academico.infrastructure.models import Matricula, Paralelo
+        from apps.academico.domain.services import HorarioConflictoService
+        from apps.academico.infrastructure.models import BloqueHorario, Matricula, Paralelo
 
         paralelos = Paralelo.objects.filter(pk__in=paralelo_ids).select_related(
             "periodo", "asignatura"
@@ -330,6 +398,27 @@ class GestionMatriculasService:
                 if activas >= paralelo.capacidad_maxima:
                     omitidos.append(f"{paralelo.asignatura.codigo}: sin cupo")
                     continue
+
+                # V5: schedule conflict check (collect-all — design §4.1 + task 2.8).
+                bloques_paralelo = [
+                    (b.dia_semana, b.hora_inicio, b.hora_fin)
+                    for b in BloqueHorario.objects.filter(paralelo_id=paralelo.pk)
+                ]
+                if bloques_paralelo:
+                    conflictos = HorarioConflictoService.detectar_conflicto_estudiante(
+                        estudiante_id=estudiante_id,
+                        periodo_id=paralelo.periodo_id,
+                        bloques_propuestos=bloques_paralelo,
+                    )
+                    if conflictos:
+                        first = conflictos[0]
+                        omitidos.append(
+                            f"{paralelo.asignatura.codigo}: conflicto de horario con "
+                            f"{first.asignatura_codigo} ({first.paralelo_nombre}) "
+                            f"el {first.dia_semana_label} "
+                            f"{first.hora_inicio:%H:%M}-{first.hora_fin:%H:%M}"
+                        )
+                        continue
 
                 Matricula.objects.create(
                     estudiante_id=estudiante_id,

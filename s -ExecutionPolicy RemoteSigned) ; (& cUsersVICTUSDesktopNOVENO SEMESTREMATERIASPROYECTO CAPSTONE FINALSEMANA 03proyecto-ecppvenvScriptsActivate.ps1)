@@ -1,0 +1,380 @@
+[33mcommit 3169e38675037107f367563f5677bfc8cd39864e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mhotfixes/validaciones-ux[m[33m)[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 22:36:34 2026 -0500
+
+    refactor(secretaria): widening reset password + SMTP error handling en creación
+    
+    resetear contraseña ya no está
+    restringido a estudiantes; cualquier rol puede ser reseteado por secretaría.
+
+[33mcommit ca7e02255a42370a7b141ae3e1393464f2fba9df[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 22:24:23 2026 -0500
+
+    refactor(secretaria): eliminar CRUD de edición y toggle de usuarios
+    
+    Inmutabilidad post-creación (R7, R10 de qa-usuarios-registro-inmutable):
+    los usuarios ya no se editan ni se desactivan desde la UI. La única
+    operación de mutación que persiste es resetear contraseña
+
+[33mcommit 48520177c06e5c2e0f79b6700bf537e36d5dbc0c[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 22:00:00 2026 -0500
+
+    feat(secretaria): crear_usuario hace rollback cuando falla el envío de email
+    
+    Tercer slice del refactor del service layer: si el correo de credenciales
+    no puede enviarse, la creación del Usuario se revierte por completo.
+    Evita cuentas huérfanas con email "quemado" por el constraint UNIQUE
+    que después no se pueden recrear ni notificar.
+
+[33mcommit 31400970a9c8699258d96335ce6bf143689b6510[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 21:51:41 2026 -0500
+
+    feat(secretaria): bloquea eliminar_usuario cuando hay dependencias CASCADE
+    
+    Segundo slice del refactor del service layer: `eliminar_usuario` ahora
+    cuenta dependencias antes de borrar y lanza `UsuarioConDependenciasError`
+    con el desglose completo cuando hay FKs CASCADE apuntando al usuario.
+    Evita la pérdida silenciosa de historia académica.
+
+[33mcommit 39c12c6d474415a3b4a5cdf6fcf5b4d78ba43f0f[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 21:41:56 2026 -0500
+
+    feat(secretaria): agrega eliminar_usuario (happy-path)
+    
+    Primer slice del refactor del service layer en el SDD change
+    qa-usuarios-registro-inmutable: el método `eliminar_usuario(usuario_id)`
+    ahora existe y borra usuarios sin dependencias.
+
+[33mcommit 8cf172e7765412d09f97fbd7f20166df47aed9e8[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 21:26:25 2026 -0500
+
+    feat(usuarios)!: cédula obligatoria a nivel de columna (NOT NULL)
+    
+    Cierra Phase 2 del SDD change qa-usuarios-registro-inmutable: la cédula
+    del Usuario pasa a ser inmutable y obligatoria también en el schema, no
+    solo en el dominio.
+
+[33mcommit 66f7153d2780bbd2210e59ad97f45d11f60af204[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 21:15:17 2026 -0500
+
+    feat(usuarios): valida ausencia de cédulas NULL antes de NOT NULL
+    
+    Agrega migración de datos 0005 que aborta el despliegue cuando algún
+    Usuario aún tiene cedula IS NULL, listando los emails afectados para
+    que la secretaría los corrija manualmente. Es el paso previo a la
+    migración 0006 que aplicará NOT NULL a nivel de columna.
+
+[33mcommit 6af8b38eb28391d7066d5c923a8cae3810ac7486[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 21:03:31 2026 -0500
+
+    feat(usuarios): exige cedula obligatoria en UsuarioEntity (dominio)
+
+[33mcommit f04b8ce470be22f53a571ad10867c54211f83b5f[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Fri May 29 20:51:58 2026 -0500
+
+    feat(usuarios): agrega UsuarioConDependenciasError y CedulaObligatoriaError al dominio
+
+[33mcommit ec51edbea00fdbbeb708d2fad453a25227840100[m[33m ([m[1;31morigin/hotfixes/validaciones-ux[m[33m)[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 23:40:43 2026 -0500
+
+    chore(lint): limpia deuda de flake8 y black en el branch hotfixes/validaciones-ux
+    
+    Mop-up cosmetico previo al PR para que CI quede limpio. La deuda venia
+    de los commits V1-V4 (a4a0282, ef12443) y de imports legacy en tests:
+    
+    - E501: envuelve 3 lineas largas en exceptions.py:94, services.py:50,
+      test_validaciones_v1.py:199.
+    - F401: remueve imports unused (pytest en test_exceptions.py y
+      test_exception_mapping.py; rest_framework.status y Asignatura en
+      test_validaciones_v2.py).
+    - black: aplica formato a 6 archivos pre-existentes (forms.py + 5 tests
+      V1-V4) sin cambios funcionales.
+    
+    Sin cambios de logica. Suite 290/290 GREEN. flake8 exit 0, black clean.
+
+[33mcommit 85012e2d6054df7817c00df201724d2503c22bed[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 23:32:08 2026 -0500
+
+    test(academico,secretaria): smoke tests del ciclo completo de render V5
+    
+    Tests de integracion del cycle Request -> View -> Template -> Partial
+    para cada entry point con conflicto de horario:
+    
+    - 4 smoke tests paralelo (TestSmokePartialRenderParalelo): Create/Update
+      via Django test client + assertContains del markup del partial.
+    - 2 smoke tests matricula (TestSmokePartialRenderMatricula): Create + Lote
+      via messages framework (lote redirige, no re-renderiza).
+    - JSON contract test para ParaleloHorarioUpdateView (JSON-only, sin
+      template) verificando shape del payload conflictos.
+    
+    Cubre los 6 entry points wireados en Phase 2.
+    
+    Total suite: 290 passed (282 -> 290, +8 tests).
+    
+    Refs: openspec/changes/qa-academico-conflictos-horario-v5 task 3.8
+
+[33mcommit ae34b634a1705fa81b0446b9ba8070baf8b3ab10[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 23:32:01 2026 -0500
+
+    feat(academico,secretaria): wire partial de conflictos en 5 templates
+    
+    Incluye conflicto_horario_error.html en los formularios que pueden recibir
+    conflictos_horario en contexto desde la view:
+    
+    - paralelo_form.html (Create + Update)
+    - paralelo_form_lote.html (defensivo, view actualmente redirige)
+    - paralelo_asignatura_edit.html (decision 4 del design)
+    - matricula_form.html
+    - matricula_form_lote.html (defensivo, view actualmente redirige)
+    
+    Los includes lote son defensivos: si en el futuro el flujo de lote
+    cambia de redirect a re-render, el partial ya esta listo sin tocar
+    templates.
+    
+    Refs: openspec/changes/qa-academico-conflictos-horario-v5 task 3.3-3.7
+
+[33mcommit 55a82d8cbd76ad65abb8ec09ed0929a53d3f2e41[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 23:31:53 2026 -0500
+
+    feat(academico): partial Tailwind accesible para conflictos de horario
+    
+    Crea conflicto_horario_error.html para mostrar conflictos de horario
+    docente/estudiante (V5). Tailwind 3.4.17 server-side render, sin Alpine.
+    Accesibilidad: role=alert + aria-live=polite. Guard {% if conflictos %}
+    para no romper si el contexto viene vacio.
+    
+    Tests RED+GREEN aislados (render del partial con y sin conflictos).
+    
+    Refs: openspec/changes/qa-academico-conflictos-horario-v5 task 3.1-3.2
+
+[33mcommit 3262e0645d2933fb45ad65a405fd586c7961f1a6[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 23:16:27 2026 -0500
+
+    feat(academico,secretaria): integra HorarioConflictoService en adapters Web y DRF
+    
+    Phase 2 completa de qa-academico-conflictos-horario-v5. Wirea
+    detectar_conflicto_docente y detectar_conflicto_estudiante en los 6
+    entry points reales, traduciendo excepciones via exception_mapping.
+    
+    Plan revisado vs design original: el check vive en views (no en form)
+    porque ParaleloForm.clean no tiene acceso a bloques (parseados a mano
+    como bloque_dia_{idx} en views.py).
+    
+    Academico:
+    - ParaleloCreateView: REORDER, conflict check ANTES de service.crear.
+    - ParaleloUpdateView: check con paralelo_id_excluir=instance.pk.
+    - ParaleloHorarioUpdateView: JSON-only, error via to_drf.
+    - ParaleloAsignaturaEditView: migra al partial via conflictos_horario context.
+    - ParaleloCreateLoteView: per-asignatura, acumula en horario_warnings.
+    - ParaleloSerializer.validate (DRF): gate behind initial_data presence.
+    
+    Secretaria:
+    - MatriculaCreateView: check via GestionMatriculasService.crear_matricula.
+    - MatriculaLoteView: collect-all policy (todos los conflictos al final).
+    
+    Decision lockeada: NO se crea MatriculaSerializer DRF.
+    
+    Tests: 282/282 GREEN (+79 V5 sobre baseline 203). Flake8 limpio, black aplicado.
+    
+    Refs: openspec/changes/qa-academico-conflictos-horario-v5 Phase 2
+
+[33mcommit 30be7d6082f86c98ad1c1a60a52baa3f42358972[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 16:51:40 2026 -0500
+
+    feat(academico): extender to_drf con serialización de conflictos de horario
+
+[33mcommit 259a1389508ebda073e7f3822d4df9f62e622950[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 16:33:11 2026 -0500
+
+    chore(academico): aplica black format en archivos V5
+    
+    Aplica black a apps/academico/domain/services.py, exceptions.py y
+    tests/academico/domain/test_horario_conflicto_service.py. Solo cambios
+    cosméticos (line breaks, alineación), sin cambios de comportamiento.
+    Suite domain 47/47 GREEN.
+    Las 2 violaciones E501 restantes (exceptions.py:94, services.py:50)
+    son pre-existentes de V4 (commits a4a0282 y ef12443) y quedan fuera
+    del scope de V5. Tracked como deuda de cleanup posterior.
+
+[33mcommit 9fc5392187b0f1bcde73a3c21462810bf6a1bb1d[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 14:38:31 2026 -0500
+
+    feat(academico/domain): implementa HorarioConflictoService.detectar_conflicto_docente y _estudiante
+
+[33mcommit 87973f3eaffaa72e376f81fa2b4a3e4e8e0ffb43[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 14:18:27 2026 -0500
+
+    feat(academico/domain): add ConflictoHorarioDocente/Estudiante exceptions
+
+[33mcommit e779b697847ffe2e34ea08ae3bfeb975648378a1[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 14:15:14 2026 -0500
+
+    feat(academico): add Conflicto frozen dataclass for horario
+
+[33mcommit 94d0c4c7a8bfdc41246afdb6f772ef3b37e4c380[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 14:08:57 2026 -0500
+
+    test(academico): RED query budget tests for HorarioConflictoService
+
+[33mcommit c0dd8ab4c875a130e21811f6f91167287724a1ad[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 14:02:33 2026 -0500
+
+    test(academico): RED domain tests for HorarioConflictoService
+
+[33mcommit 31c10f5090c3d6b2f14ebae168455525b6b7fd74[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 12:48:44 2026 -0500
+
+    test(academico): RED para to_django preservando conflictos accesibles
+
+[33mcommit 6c9f61d9af365c76cf21a10d4c96c8bc300116b6[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 12:45:21 2026 -0500
+
+    test(academico): RED para to_drf con payload de conflictos
+
+[33mcommit abe4ae542156f834112ff65c53162edeb5ee68da[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 10:42:21 2026 -0500
+
+    feat(academico): valida tope de asignaturas únicas por periodo según licencia
+    
+    HU21 QA V1 — Centraliza la regla en ParaleloService.validar_max_asignaturas_por_periodo
+    (union de sets, lanza MaxAsignaturasExcedidasError). Wiring en 3 adaptadores: ParaleloForm.clean,
+    ParaleloLoteForm.clean_asignaturas, ParaleloSerializer.validate. Form y Serializer excluyen
+    self.instance.pk para dedup en edit-mode (misma asignatura al límite sigue válida).
+    La lógica inline de conteo en ParaleloLoteForm fue removida limpiamente y reemplazada por la
+    delegación al dominio.
+
+[33mcommit ef124432170ae86d98ce9cfa2e0a3f60efe0def8[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 10:16:37 2026 -0500
+
+    feat(academico): valida duración de periodo entre 4 y 7 meses
+
+[33mcommit a350e7af415cd0624643689a72a626fc580fc5ed[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 10:08:54 2026 -0500
+
+    feat(academico): valida capacidad de paralelo entre 1 y 50
+    
+    Centraliza la regla en ParaleloService.validar_capacidad y la inyecta vía
+    settings.PARALELO_CAPACIDAD_MAXIMA en ParaleloForm, ParaleloLoteForm y
+    ParaleloSerializer
+
+[33mcommit 74a198227f5ba788b31882724053fc1a5d3e6a2c[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 09:45:48 2026 -0500
+
+    feat(academico): valida tope máximo de 60 horas lectivas por asignatura
+    
+    Agrega AsignaturaService.validar_horas_lectivas(horas, maximo) en el dominio
+    que rechaza horas < 1 o > 60 con HorasLectivasInvalidasError. Wirea la
+    validación en AsignaturaCreateView/AsignaturaUpdateView después del parse
+    de licencias (messages.error + re-render) y en AsignaturaSerializer
+    .validate_licencias con traducción a DRF ValidationError ruteada al campo
+    'licencias'.
+
+[33mcommit a4a0282fa127a310630ab1411995cb80435a9051[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 09:09:41 2026 -0500
+
+    feat(academico): agrega excepciones de dominio y helper de traducción a ValidationError
+    
+    Suma 4 excepciones de dominio (HorasLectivasInvalidasError,
+    CapacidadParaleloInvalidaError, DuracionPeriodoInvalidaError,
+    MaxAsignaturasExcedidasError) heredando de AcademicoError, con atributos
+    de contexto numérico y mensajes en español. Crea
+    apps/academico/presentation/exception_mapping.py con to_django y to_drf
+    (con ruteo opcional por field) para que adaptadores traduzcan errores
+    de dominio sin acoplarse al framework. Cubre con 11 tests unitarios
+    (strict TDD RED→GREEN). Scaffolding para HU21 QA V1-V4.
+
+[33mcommit c7adc4701b994dfe835f736df211185f8b9bd049[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 01:43:51 2026 -0500
+
+    fix(usuarios): perfil con modo lectura/edición y dirty-check
+
+[33mcommit 66e65debae970fc96d918e5b1fb3ad1b0b82e99e[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 01:37:50 2026 -0500
+
+    feat(usuarios): validar que contraseña no contenga nombre/rol del usuario
+
+[33mcommit 8abc23bf7e22e623103efc2e67c43e269fd99263[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 01:18:40 2026 -0500
+
+    chore(templates): eliminar login.html legacy no referenciado
+
+[33mcommit db031349418aa8f07e9ed5f539de0de26fe73957[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 01:17:29 2026 -0500
+
+    refactor(templates): extraer password_field partial reutilizable
+
+[33mcommit b0a56c1f12863411f167826e97d2460be39d8683[m[33m ([m[1;31morigin/develop[m[33m, [m[1;32mdevelop[m[33m)[m
+Merge: 23c66f1 8b42430
+Author: Martin Jimenez <117743846+martinizin@users.noreply.github.com>
+Date:   Thu May 28 00:50:40 2026 -0500
+
+    Merge pull request #22 from martinizin/feature/HU21-resolucion-inspector
+    
+    Feature/hu21 resolucion inspector
+
+[33mcommit 8b42430c76bee5b30354df1a94c3eca731f5b95f[m[33m ([m[1;31morigin/feature/HU21-resolucion-inspector[m[33m, [m[1;32mfeature/HU21-resolucion-inspector[m[33m)[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Thu May 28 00:14:52 2026 -0500
+
+    fix(solicitudes): preview de imagen en adjunto legacy del detalle inspector
+
+[33mcommit dd8bcc3245536484e57d9b9ed9ef37af00b1e322[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Wed May 27 23:52:04 2026 -0500
+
+    fix(solicitudes): apuntar notificacion de justificacion al detalle HU21
+
+[33mcommit 7bda9d58fad4ce56a842428db6d70de3f7eee64e[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Wed May 27 23:38:01 2026 -0500
+
+    feat(solicitudes): validar limite agregado de archivos y preview removible
+
+[33mcommit 8c499222a847406a83cb89095e628a9d575a92ee[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Wed May 27 19:30:30 2026 -0500
+
+    feat(solicitudes): simplificar formulario de justificacion segun QA
+
+[33mcommit b53a1e3130976af943a65450133507d1ff6065d1[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Tue May 26 00:16:42 2026 -0500
+
+    fix(solicitudes-views): mostrar badge urgencia solo en solicitudes pendientes
+
+[33mcommit 8a774ca08ff721c51c81dec407cab7ffe806b77a[m
+Author: Martin Jimenez <mar45pillacela@gmail.com>
+Date:   Tue May 26 00:16:13 2026 -0500
+
+    fix(settings): permitir preview de PDFs same-origin con X-Frame-Options SAMEORIGIN

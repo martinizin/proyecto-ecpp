@@ -11,10 +11,12 @@ import pytest
 
 from apps.usuarios.domain.exceptions import (
     CedulaDuplicadaError,
+    CedulaObligatoriaError,
     CorreoDuplicadoError,
     CuentaBloqueadaError,
     OTPExpiradoError,
     OTPInvalidoError,
+    UsuarioConDependenciasError,
 )
 from apps.usuarios.domain.services import LoginService, OTPService, RegistroService
 from apps.usuarios.domain.value_objects import Cedula, Email
@@ -324,3 +326,87 @@ class TestRegistroService:
                 email_exists=False,
                 cedula_exists=False,
             )
+
+
+# =============================================================================
+# Domain Exceptions (Inmutabilidad post-creación)
+# =============================================================================
+
+
+class TestUsuarioConDependenciasError:
+    """The exception that gates `eliminar_usuario` when FK dependencies exist."""
+
+    def test_carries_dependencias_dict(self):
+        """Exception must expose the per-entity counts on `.dependencias`."""
+        deps = {"matriculas": 3, "asistencias": 0, "solicitudes": 1}
+        exc = UsuarioConDependenciasError(deps)
+        assert exc.dependencias == deps
+
+    def test_message_includes_total(self):
+        """`str(exc)` must mention the total count (3+0+1 = 4) so messages stay friendly."""
+        deps = {"matriculas": 3, "asistencias": 0, "solicitudes": 1}
+        exc = UsuarioConDependenciasError(deps)
+        assert "4" in str(exc)
+
+    def test_message_total_zero(self):
+        """Edge: empty dict → total 0 still surfaces in the message (triangulation)."""
+        exc = UsuarioConDependenciasError({})
+        assert "0" in str(exc)
+
+
+class TestCedulaObligatoriaError:
+    """Sanity check for the new domain exception used by entities/services."""
+
+    def test_is_subclass_of_usuario_error(self):
+        """Keeps domain hierarchy consistent with the rest of the bounded context."""
+        from apps.usuarios.domain.exceptions import UsuarioError
+
+        assert issubclass(CedulaObligatoriaError, UsuarioError)
+
+
+# =============================================================================
+# UsuarioEntity (cédula required post-immutability)
+# =============================================================================
+
+
+class TestUsuarioEntityCedulaRequired:
+    """
+    After the immutability change, `cedula` is part of the user's identity and
+    must be provided at construction time — no `Optional`, no default.
+    """
+
+    def test_constructing_without_cedula_raises_type_error(self):
+        """Forces callers to supply cédula explicitly (no silent None)."""
+        from apps.usuarios.domain.entities import Rol, UsuarioEntity
+
+        with pytest.raises(TypeError):
+            UsuarioEntity(  # type: ignore[call-arg]
+                username="ana",
+                email="ana@test.com",
+                rol=Rol.ESTUDIANTE,
+            )
+
+    def test_cedula_field_has_no_default_and_is_str(self):
+        """Dataclass field metadata must reflect required-str cédula."""
+        import dataclasses
+
+        from apps.usuarios.domain.entities import UsuarioEntity
+
+        field = next(f for f in dataclasses.fields(UsuarioEntity) if f.name == "cedula")
+        assert (
+            field.default is dataclasses.MISSING
+        ), "cedula must not carry a default value; it is required for every user."
+        # Annotation must be plain `str`, not `Optional[str]` / `str | None`.
+        assert field.type in ("str", str), f"cedula annotation must be `str`, got {field.type!r}"
+
+    def test_entity_constructed_with_cedula_keeps_value(self):
+        """Happy-path triangulation — entity stores the cedula it was built with."""
+        from apps.usuarios.domain.entities import Rol, UsuarioEntity
+
+        entity = UsuarioEntity(
+            username="ana",
+            email="ana@test.com",
+            rol=Rol.ESTUDIANTE,
+            cedula="1710034065",
+        )
+        assert entity.cedula == "1710034065"

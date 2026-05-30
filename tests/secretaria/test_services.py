@@ -15,6 +15,7 @@ from apps.academico.infrastructure.models import Matricula
 from apps.secretaria.services import GestionMatriculasService, GestionUsuariosService
 from tests.factories import (
     AsignaturaFactory,
+    CalificacionFactory,
     DocenteFactory,
     EstudianteFactory,
     MatriculaFactory,
@@ -42,7 +43,7 @@ class TestGestionUsuariosService:
         """Service creates user with temp password and debe_cambiar_password=True."""
         mock_email.return_value = None
 
-        usuario, temp_password, email_sent = self.service.crear_usuario(
+        usuario, temp_password = self.service.crear_usuario(
             email="nuevo@test.com",
             first_name="Ana",
             last_name="Torres",
@@ -54,7 +55,6 @@ class TestGestionUsuariosService:
         assert usuario.debe_cambiar_password is True
         assert usuario.username == "nuevo@test.com"
         assert usuario.check_password(temp_password)
-        assert email_sent is True
 
     @patch("apps.secretaria.services.send_credenciales_email")
     def test_crear_usuario_email_duplicado(self, mock_email):
@@ -102,20 +102,172 @@ class TestGestionUsuariosService:
         result = self.service.listar_usuarios(rol_filter="docente")
         assert result.count() == 2
 
-    def test_editar_usuario(self):
-        """Updates fields correctly."""
-        user = UsuarioFactory(first_name="Viejo")
-        updated = self.service.editar_usuario(user.pk, first_name="Nuevo")
-        assert updated.first_name == "Nuevo"
-
     def test_toggle_activo(self):
-        """Toggles is_active."""
+        """toggle_activo flips is_active both ways."""
         user = UsuarioFactory(is_active=True)
+
         toggled = self.service.toggle_activo(user.pk)
         assert toggled.is_active is False
 
         toggled2 = self.service.toggle_activo(user.pk)
         assert toggled2.is_active is True
+
+    @patch("apps.secretaria.services.send_credenciales_email")
+    def test_crear_usuario_rollback_en_fallo_email(self, mock_email):
+        """RED → GREEN: SMTP failure must roll back the user creation.
+
+        Acceptance (R8 — qa-usuarios-registro-inmutable): if the credentials
+        email cannot be sent, the user MUST NOT exist in the database. Half-
+        created accounts are worse than no account at all because the
+        secretaría has no way to deliver the temp password and the email is
+        burned (unique constraint).
+
+        Current behavior (before this task): the service swallows the
+        exception and returns `email_sent=False`, leaving an orphan account.
+        That contract was wrong — this test pins the correct one.
+        """
+        from apps.usuarios.infrastructure.models import Usuario
+
+        mock_email.side_effect = Exception("SMTP unreachable")
+
+        with pytest.raises(Exception, match="SMTP unreachable"):
+            self.service.crear_usuario(
+                email="ghost@test.com",
+                first_name="Ghost",
+                last_name="Account",
+                rol="estudiante",
+                cedula="0926687856",
+            )
+
+        # The Usuario row must NOT have been persisted.
+        assert not Usuario.objects.filter(email="ghost@test.com").exists()
+
+
+# =============================================================================
+# eliminar_usuario — hard delete with FK-dependency guard
+# (SDD change qa-usuarios-registro-inmutable, Phase 3)
+# =============================================================================
+
+
+class TestEliminarUsuario:
+    """Acceptance for `GestionUsuariosService.eliminar_usuario`:
+
+    - Happy path: user with no FK dependencies is removed from the table.
+    - With dependencies: raises `UsuarioConDependenciasError` carrying a dict
+      of FK counts (covered by Task 3.2, not this RED slice).
+    - Wrapped in `transaction.atomic` with `select_for_update` (covered by
+      Task 3.4 GREEN; this RED slice only drives the method into existence).
+    """
+
+    def setup_method(self):
+        self.service = GestionUsuariosService()
+
+    def test_eliminar_usuario_sin_dependencias_borra(self):
+        """RED → GREEN: deleting a user without FK refs removes the row."""
+        from apps.usuarios.infrastructure.models import Usuario
+
+        user = UsuarioFactory()
+        user_id = user.pk
+
+        self.service.eliminar_usuario(user_id)
+
+        assert not Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_con_matriculas_raises_y_no_borra(self):
+        """RED → GREEN: user with matrículas must raise + NOT be deleted.
+
+        Canonical FK-guard case: matrículas are the most critical dependency
+        because losing them silently (CASCADE) would destroy academic history.
+        """
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        user_id = estudiante.pk
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(user_id)
+
+        assert excinfo.value.dependencias.get("matriculas") == 3
+        # Row must survive — the guard runs BEFORE delete.
+        assert Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_con_calificaciones_raises(self):
+        """Triangulation: a different CASCADE FK (calificaciones) also blocks."""
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+        from apps.usuarios.infrastructure.models import Usuario
+
+        estudiante = EstudianteFactory()
+        CalificacionFactory(estudiante=estudiante)
+        user_id = estudiante.pk
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(user_id)
+
+        assert excinfo.value.dependencias.get("calificaciones") == 1
+        assert Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_reporta_todas_las_dependencias(self):
+        """Triangulation: the dict must enumerate EVERY CASCADE source,
+        not just the first one found. The secretaría needs the full picture
+        before deciding how to proceed.
+        """
+        from apps.usuarios.domain.exceptions import UsuarioConDependenciasError
+
+        estudiante = EstudianteFactory()
+        MatriculaFactory(estudiante=estudiante)
+        MatriculaFactory(estudiante=estudiante)
+        CalificacionFactory(estudiante=estudiante)
+
+        with pytest.raises(UsuarioConDependenciasError) as excinfo:
+            self.service.eliminar_usuario(estudiante.pk)
+
+        deps = excinfo.value.dependencias
+        assert deps.get("matriculas") == 2
+        assert deps.get("calificaciones") == 1
+
+    def test_eliminar_usuario_ignora_dependencias_set_null(self):
+        """Triangulation: SET_NULL relations must NOT block deletion.
+
+        E.g. `Matricula.matriculado_por` is SET_NULL — when a secretaría
+        registered enrollments and then leaves, her account must be removable
+        without dragging matrículas with her. Only CASCADE relations block.
+        """
+        from apps.usuarios.infrastructure.models import Usuario
+
+        secretaria = UsuarioFactory(rol="secretaria")
+        # MatriculaFactory's `matriculado_por` defaults to a different user.
+        # We attach our secretaria explicitly:
+        MatriculaFactory(matriculado_por=secretaria)
+        user_id = secretaria.pk
+
+        self.service.eliminar_usuario(user_id)
+
+        assert not Usuario.objects.filter(pk=user_id).exists()
+
+    def test_eliminar_usuario_usa_select_for_update(self):
+        """The SELECT that fetches the user must carry FOR UPDATE (row lock).
+
+        We capture the raw SQL executed during `eliminar_usuario` and assert
+        that at least one query contains 'FOR UPDATE'. This verifies the lock
+        is actually requested from the database (PG16 — no SQLite fallback).
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        user = UsuarioFactory()
+        user_id = user.pk
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.service.eliminar_usuario(user_id)
+
+        sqls = [q["sql"] for q in ctx.captured_queries]
+        assert any(
+            "FOR UPDATE" in sql.upper() for sql in sqls
+        ), "No SELECT FOR UPDATE found in queries:\n" + "\n".join(sqls)
 
 
 # =============================================================================

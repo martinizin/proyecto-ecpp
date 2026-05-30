@@ -168,6 +168,17 @@ class PerfilView(View):
 
     template_name = "usuarios/perfil.html"
 
+    def _profile_initial(self, user):
+        """Snapshot of editable fields used by the Alpine.js dirty-check
+        on the template (json_script-encoded to be XSS-safe).
+        """
+        return {
+            "firstName": user.first_name or "",
+            "lastName": user.last_name or "",
+            "telefono": user.telefono or "",
+            "direccion": user.direccion or "",
+        }
+
     def get(self, request):
         form = DatosPersonalesForm(
             initial={
@@ -177,12 +188,20 @@ class PerfilView(View):
                 "direccion": request.user.direccion,
             }
         )
-        return render(request, self.template_name, {"form": form})
+        return render(
+            request,
+            self.template_name,
+            {"form": form, "profile_initial": self._profile_initial(request.user)},
+        )
 
     def post(self, request):
         form = DatosPersonalesForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, {"form": form})
+            return render(
+                request,
+                self.template_name,
+                {"form": form, "profile_initial": self._profile_initial(request.user)},
+            )
 
         service = PerfilAppService()
         service.actualizar_datos(
@@ -204,11 +223,11 @@ class CambiarContrasenaView(View):
     template_name = "usuarios/cambiar_contrasena.html"
 
     def get(self, request):
-        form = CambiarContrasenaForm()
+        form = CambiarContrasenaForm(user=request.user)
         return render(request, self.template_name, {"form": form})
 
     def post(self, request):
-        form = CambiarContrasenaForm(request.POST)
+        form = CambiarContrasenaForm(request.POST, user=request.user)
         if not form.is_valid():
             return render(request, self.template_name, {"form": form})
 

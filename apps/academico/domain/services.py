@@ -1,20 +1,27 @@
 """
 Domain services for the Academico bounded context.
-Pure Python — NO Django imports allowed in this layer.
+Pure Python in spirit — `HorarioConflictoService` is the single intentional
+exception (queries Django ORM directly per design §3 to keep the budget under
+2 round-trips). All other services in this module stay framework-agnostic.
 
 Services encapsulate domain rules that don't belong to a single entity.
 """
 
-from datetime import date
-from typing import Optional
+from dataclasses import dataclass
+from datetime import date, time
+from typing import Iterable, Optional
 
 from .exceptions import (
     AsignaturaCodigoDuplicadoError,
+    CapacidadParaleloInvalidaError,
     CupoExcedidoError,
     DocenteInvalidoError,
+    DuracionPeriodoInvalidaError,
     EstadoMatriculaInvalidoError,
+    HorasLectivasInvalidasError,
     MatriculaAsignaturaDuplicadaError,
     MatriculaDuplicadaError,
+    MaxAsignaturasExcedidasError,
     ParaleloDuplicadoError,
     PeriodoActivoExistenteError,
     PeriodoInactivoError,
@@ -32,6 +39,24 @@ class PeriodoService:
         """Validate that fecha_inicio < fecha_fin."""
         if fecha_inicio >= fecha_fin:
             raise PeriodoSolapadoError("La fecha de inicio debe ser anterior a la fecha de fin.")
+
+    def validar_duracion(
+        self,
+        fecha_inicio: date,
+        fecha_fin: date,
+        minimo: int,
+        maximo: int,
+    ) -> None:
+        """Validate periodo duration in [minimo, maximo] months.
+
+        Lenient: any trailing days bump the month count up.
+        """
+        from dateutil.relativedelta import relativedelta
+
+        delta = relativedelta(fecha_fin, fecha_inicio)
+        meses = delta.years * 12 + delta.months + (1 if delta.days > 0 else 0)
+        if meses < minimo or meses > maximo:
+            raise DuracionPeriodoInvalidaError(meses=meses, minimo=minimo, maximo=maximo)
 
     def verificar_activacion(
         self,
@@ -70,6 +95,20 @@ class AsignaturaService:
     Domain rules for subjects.
     Validates codigo uniqueness, horas_lectivas per licencia > 0, at least one tipo_licencia.
     """
+
+    def validar_horas_lectivas(self, horas: int, maximo: int = 60) -> None:
+        """
+        Validate that horas_lectivas is within [1, maximo].
+
+        Args:
+            horas: Number of teaching hours.
+            maximo: Maximum allowed hours (default: 60 per settings).
+
+        Raises:
+            HorasLectivasInvalidasError: If horas < 1 or horas > maximo.
+        """
+        if horas < 1 or horas > maximo:
+            raise HorasLectivasInvalidasError(horas=horas, maximo=maximo)
 
     def validar_datos(
         self,
@@ -112,6 +151,20 @@ class ParaleloService:
         if docente_rol != "docente":
             raise DocenteInvalidoError("El usuario asignado debe tener el rol 'docente'.")
 
+    def validar_capacidad(self, capacidad: int, maximo: int) -> None:
+        """
+        Validate that capacidad is within [1, maximo].
+
+        Args:
+            capacidad: Maximum students for the paralelo.
+            maximo: Upper bound allowed (injected from settings).
+
+        Raises:
+            CapacidadParaleloInvalidaError: If capacidad < 1 or capacidad > maximo.
+        """
+        if capacidad < 1 or capacidad > maximo:
+            raise CapacidadParaleloInvalidaError(capacidad=capacidad, maximo=maximo)
+
     def validar_periodo_activo(self, periodo_activo: bool) -> None:
         """Validate that the associated period is active."""
         if not periodo_activo:
@@ -140,6 +193,40 @@ class ParaleloService:
         self.validar_docente(docente_rol)
         self.validar_periodo_activo(periodo_activo)
         self.validar_unicidad(combinacion_exists)
+
+    def validar_max_asignaturas_por_periodo(
+        self,
+        asignaturas_existentes_ids: Iterable[int],
+        asignaturas_nuevas_ids: Iterable[int],
+        limite: int,
+        tipo_licencia_codigo: str,
+    ) -> None:
+        """
+        Validate that the union of existing + new asignaturas for a (periodo, tipo_licencia)
+        does not exceed ``limite`` (tipo_licencia.num_asignaturas).
+
+        Pure function — no DB access. Adapters are responsible for building the
+        ``asignaturas_existentes_ids`` queryset, excluding ``self.instance.pk`` when
+        editing so the same asignatura is not double-counted.
+
+        Args:
+            asignaturas_existentes_ids: IDs of asignaturas already linked to the
+                (periodo, tipo_licencia) tuple (queryset / list of ints).
+            asignaturas_nuevas_ids: IDs of asignaturas about to be created (list of ints).
+            limite: Maximum unique asignaturas allowed (tipo_licencia.num_asignaturas).
+            tipo_licencia_codigo: Code (e.g. 'C', 'E', 'EC') for the error message.
+
+        Raises:
+            MaxAsignaturasExcedidasError: If union size > limite.
+        """
+        union = set(asignaturas_existentes_ids) | set(asignaturas_nuevas_ids)
+        actual = len(union)
+        if actual > limite:
+            raise MaxAsignaturasExcedidasError(
+                actual=actual,
+                limite=limite,
+                tipo_licencia_codigo=tipo_licencia_codigo,
+            )
 
 
 class MatriculaService:
@@ -218,3 +305,173 @@ class MatriculaService:
                 f"No se puede cambiar el estado de '{estado_actual}' "
                 f"a '{nuevo_estado}' con el rol '{rol}'."
             )
+
+
+# ---------------------------------------------------------------------------
+# HU21 V5 — Conflictos de horario (design §2.1)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Conflicto:
+    """
+    DTO inmutable que representa un conflicto de horario detectado.
+
+    Producido por `HorarioConflictoService` y consumido por la capa de
+    presentación (template `conflicto_horario_error.html`) y por
+    `exception_mapping.to_drf` (serializado a JSON vía `asdict()` +
+    `isoformat()` sobre los `time`).
+
+    Campos alineados 1:1 con design §2.1 (orden posicional estable).
+    """
+
+    paralelo_id: int
+    paralelo_nombre: str
+    asignatura_codigo: str
+    asignatura_nombre: str
+    dia_semana: str
+    dia_semana_label: str
+    hora_inicio: time
+    hora_fin: time
+
+
+def _overlap(
+    b_dia: str,
+    b_inicio: time,
+    b_fin: time,
+    p_dia: str,
+    p_inicio: time,
+    p_fin: time,
+) -> bool:
+    """Half-open overlap check (design §2.3).
+
+    Two time ranges on the same day overlap iff one starts before the other
+    ends. Back-to-back blocks (b_fin == p_inicio) are NOT a conflict.
+    """
+    return b_dia == p_dia and b_inicio < p_fin and p_inicio < b_fin
+
+
+class HorarioConflictoService:
+    """
+    Detecta conflictos de horario para docentes y estudiantes (design §2 + §3).
+
+    Algoritmo half-open (`hi1 < hf2 AND hi2 < hf1`): bloques back-to-back
+    (e.g. 08-10 vs 10-12) NO son conflicto. Ver design §2.3.
+
+    Excepción a la regla "domain sin Django": estos métodos consultan el ORM
+    directamente para mantener el budget en ≤ 2 queries (design §3.3) sin
+    forzar al adaptador a duplicar el armado del queryset.
+    """
+
+    @staticmethod
+    def detectar_conflicto_docente(
+        docente_id: int,
+        periodo_id: int,
+        bloques_propuestos: list[tuple[str, time, time]],
+        paralelo_id_excluir: int | None = None,
+    ) -> list["Conflicto"]:
+        """
+        Detecta solapes para todos los bloques que el docente ya dicta en el
+        mismo período, opcionalmente excluyendo un paralelo (modo edición).
+
+        Queryset per design §3.1: filter por `paralelo__docente_id` +
+        `paralelo__periodo_id`, `select_related("paralelo__asignatura")`,
+        `.exclude(paralelo_id=...)` para excluir self.
+        """
+        if not bloques_propuestos:
+            return []
+
+        from apps.academico.infrastructure.models import BloqueHorario
+
+        qs = BloqueHorario.objects.filter(
+            paralelo__docente_id=docente_id,
+            paralelo__periodo_id=periodo_id,
+        ).select_related("paralelo__asignatura")
+        if paralelo_id_excluir is not None:
+            qs = qs.exclude(paralelo_id=paralelo_id_excluir)
+
+        conflictos: list[Conflicto] = []
+        for bloque in qs:
+            for dia, hi, hf in bloques_propuestos:
+                if _overlap(
+                    bloque.dia_semana,
+                    bloque.hora_inicio,
+                    bloque.hora_fin,
+                    dia,
+                    hi,
+                    hf,
+                ):
+                    conflictos.append(
+                        Conflicto(
+                            paralelo_id=bloque.paralelo_id,
+                            paralelo_nombre=bloque.paralelo.nombre,
+                            asignatura_codigo=bloque.paralelo.asignatura.codigo,
+                            asignatura_nombre=bloque.paralelo.asignatura.nombre,
+                            dia_semana=bloque.dia_semana,
+                            dia_semana_label=bloque.get_dia_semana_display(),
+                            hora_inicio=bloque.hora_inicio,
+                            hora_fin=bloque.hora_fin,
+                        )
+                    )
+        return conflictos
+
+    @staticmethod
+    def detectar_conflicto_estudiante(
+        estudiante_id: int,
+        periodo_id: int,
+        bloques_propuestos: list[tuple[str, time, time]],
+        matricula_id_excluir: int | None = None,
+    ) -> list["Conflicto"]:
+        """
+        Detecta solapes para todos los bloques de paralelos donde el
+        estudiante tenga matrícula ACTIVA en el mismo período, opcionalmente
+        excluyendo una matrícula puntual (modo edición).
+
+        Queryset per design §3.2: filter por
+        `paralelo__matriculas__estudiante_id` con `estado=ACTIVA` y
+        `paralelo__periodo_id`, `select_related("paralelo__asignatura")`,
+        `.distinct()` para evitar duplicar bloques por la unión con
+        Matricula. Matrículas RETIRADA / SUSPENDIDA quedan filtradas
+        (design §7 R2.2 + R5.1).
+        """
+        if not bloques_propuestos:
+            return []
+
+        from apps.academico.infrastructure.models import BloqueHorario, Matricula
+
+        qs = (
+            BloqueHorario.objects.filter(
+                paralelo__matriculas__estudiante_id=estudiante_id,
+                paralelo__matriculas__estado=Matricula.Estado.ACTIVA,
+                paralelo__periodo_id=periodo_id,
+            )
+            .select_related("paralelo__asignatura")
+            .distinct()
+        )
+        if matricula_id_excluir is not None:
+            qs = qs.exclude(paralelo__matriculas__id=matricula_id_excluir)
+
+        conflictos: list[Conflicto] = []
+        for bloque in qs:
+            for dia, hi, hf in bloques_propuestos:
+                if _overlap(
+                    bloque.dia_semana,
+                    bloque.hora_inicio,
+                    bloque.hora_fin,
+                    dia,
+                    hi,
+                    hf,
+                ):
+                    conflictos.append(
+                        Conflicto(
+                            paralelo_id=bloque.paralelo_id,
+                            paralelo_nombre=bloque.paralelo.nombre,
+                            asignatura_codigo=bloque.paralelo.asignatura.codigo,
+                            asignatura_nombre=bloque.paralelo.asignatura.nombre,
+                            dia_semana=bloque.dia_semana,
+                            dia_semana_label=bloque.get_dia_semana_display(),
+                            hora_inicio=bloque.hora_inicio,
+                            hora_fin=bloque.hora_fin,
+                        )
+                    )
+        return conflictos

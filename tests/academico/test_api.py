@@ -35,6 +35,7 @@ def _make_inspector():
         first_name="Carlos",
         last_name="Lopez",
         rol="inspector",
+        cedula="1702000001",
     )
 
 
@@ -46,6 +47,7 @@ def _make_docente():
         first_name="Maria",
         last_name="Garcia",
         rol="docente",
+        cedula="1702000002",
     )
 
 
@@ -57,6 +59,7 @@ def _make_estudiante():
         first_name="Juan",
         last_name="Perez",
         rol="estudiante",
+        cedula="1702000003",
     )
 
 

@@ -45,3 +45,4 @@ pnpm-lock.yaml
 # Pi coding agent runtime
 .pi/
 .atl/.skill-registry.cache.json
+openspec/

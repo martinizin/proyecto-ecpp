@@ -7,7 +7,7 @@ All operations restricted to Secretaría role via RolRequeridoMixin.
 from collections import OrderedDict
 
 from django.contrib import messages
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.views import View
@@ -16,6 +16,7 @@ from apps.usuarios.infrastructure.models import Usuario
 from apps.usuarios.presentation.permissions import RolRequeridoMixin
 
 from apps.academico.domain.exceptions import (
+    ConflictoHorarioEstudianteError,
     CupoExcedidoError,
     EstadoMatriculaInvalidoError,
     MatriculaAsignaturaDuplicadaError,
@@ -23,8 +24,9 @@ from apps.academico.domain.exceptions import (
     PeriodoInactivoError,
 )
 from apps.academico.infrastructure.models import Matricula
+from apps.academico.presentation.exception_mapping import to_django
 
-from .forms import CrearMatriculaForm, CrearUsuarioForm, EditarUsuarioForm
+from .forms import CrearMatriculaForm, CrearUsuarioForm
 from .services import GestionMatriculasService, GestionUsuariosService
 
 
@@ -91,106 +93,40 @@ class UsuarioCreateView(RolRequeridoMixin, View):
             )
 
         service = GestionUsuariosService()
-        usuario, temp_password, email_sent = service.crear_usuario(
-            email=form.cleaned_data["email"],
-            first_name=form.cleaned_data["first_name"],
-            last_name=form.cleaned_data["last_name"],
-            rol=form.cleaned_data["rol"],
-            cedula=form.cleaned_data["cedula"],
-            telefono=form.cleaned_data.get("telefono", ""),
-        )
-
-        if email_sent:
-            messages.success(
-                request,
-                f"Usuario creado exitosamente. Las credenciales "
-                f"fueron enviadas a {usuario.email}.",
+        try:
+            usuario, _temp_password = service.crear_usuario(
+                email=form.cleaned_data["email"],
+                first_name=form.cleaned_data["first_name"],
+                last_name=form.cleaned_data["last_name"],
+                rol=form.cleaned_data["rol"],
+                cedula=form.cleaned_data["cedula"],
+                telefono=form.cleaned_data.get("telefono", ""),
             )
-        else:
-            messages.warning(
-                request,
-                f"Usuario creado, pero no se pudo enviar el correo. "
-                f"Contraseña temporal: {temp_password}",
+        except Exception:
+            form.add_error(
+                None,
+                "No se pudo enviar el correo de credenciales. "
+                "Verificá la configuración SMTP e intentá de nuevo.",
             )
-
-        return redirect("secretaria:usuario_list")
-
-
-class UsuarioEditView(RolRequeridoMixin, View):
-    """Edit an existing user — Secretaría only."""
-
-    rol_requerido = "secretaria"
-    template_name = "secretaria/usuario_form.html"
-
-    def get(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.obtener_usuario(pk)
-        form = EditarUsuarioForm(
-            initial={
-                "first_name": usuario.first_name,
-                "last_name": usuario.last_name,
-                "rol": usuario.rol,
-                "telefono": usuario.telefono,
-                "direccion": usuario.direccion,
-            }
-        )
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "editing": True,
-                "usuario": usuario,
-            },
-        )
-
-    def post(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.obtener_usuario(pk)
-        form = EditarUsuarioForm(request.POST)
-        if not form.is_valid():
             return render(
                 request,
                 self.template_name,
                 {
                     "form": form,
-                    "editing": True,
-                    "usuario": usuario,
+                    "editing": False,
                 },
             )
 
-        service.editar_usuario(
-            usuario_id=pk,
-            first_name=form.cleaned_data["first_name"],
-            last_name=form.cleaned_data["last_name"],
-            rol=form.cleaned_data["rol"],
-            telefono=form.cleaned_data["telefono"],
-            direccion=form.cleaned_data["direccion"],
-        )
-
-        messages.success(request, "Usuario actualizado exitosamente.")
-        return redirect("secretaria:usuario_list")
-
-
-class UsuarioToggleActivoView(RolRequeridoMixin, View):
-    """Toggle user active status — Secretaría only."""
-
-    rol_requerido = "secretaria"
-
-    def post(self, request, pk):
-        service = GestionUsuariosService()
-        usuario = service.toggle_activo(pk)
-
-        estado = "activado" if usuario.is_active else "desactivado"
         messages.success(
             request,
-            f"El usuario {usuario.get_full_name()} ha sido {estado}.",
+            f"Usuario creado exitosamente. Las credenciales "
+            f"fueron enviadas a {usuario.email}.",
         )
         return redirect("secretaria:usuario_list")
 
 
-class ResetearPasswordEstudianteView(RolRequeridoMixin, View):
-    """Reset a student's password to a temporary one — Secretaría only."""
+class ResetearPasswordUsuarioView(RolRequeridoMixin, View):
+    """Reset any user's password to a temporary one — Secretaría only."""
 
     rol_requerido = "secretaria"
     template_name = "secretaria/resetear_password.html"
@@ -198,27 +134,40 @@ class ResetearPasswordEstudianteView(RolRequeridoMixin, View):
     ALLOWED_CHARS = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
     def get(self, request, pk):
-        estudiante = get_object_or_404(Usuario, pk=pk)
-        if estudiante.rol != "estudiante":
-            return HttpResponseForbidden("Solo se puede resetear la contraseña de estudiantes.")
-        return render(request, self.template_name, {"estudiante": estudiante})
+        usuario = get_object_or_404(Usuario, pk=pk)
+        return render(request, self.template_name, {"estudiante": usuario})
 
     def post(self, request, pk):
-        estudiante = get_object_or_404(Usuario, pk=pk)
-        if estudiante.rol != "estudiante":
-            return HttpResponseForbidden("Solo se puede resetear la contraseña de estudiantes.")
+        usuario = get_object_or_404(Usuario, pk=pk)
 
         temp_password = get_random_string(length=8, allowed_chars=self.ALLOWED_CHARS)
-        estudiante.set_password(temp_password)
-        estudiante.debe_cambiar_password = True
-        estudiante.save()
+        usuario.set_password(temp_password)
+        usuario.debe_cambiar_password = True
+        usuario.save()
 
         messages.success(
             request,
             f"Contraseña temporal generada: {temp_password}. "
-            f"El estudiante deberá cambiarla en su próximo inicio de sesión.",
+            f"El usuario deberá cambiarla en su próximo inicio de sesión.",
         )
-        return redirect("secretaria:resetear_password_estudiante", pk=pk)
+        return redirect("secretaria:resetear_password", pk=pk)
+
+
+class UsuarioToggleActivoView(RolRequeridoMixin, View):
+    """Toggle user active status — Secretaría only."""
+
+    rol_requerido = "secretaria"
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        service = GestionUsuariosService()
+        usuario = service.toggle_activo(pk)
+        estado = "activado" if usuario.is_active else "desactivado"
+        messages.success(
+            request,
+            f"El usuario {usuario.get_full_name()} ha sido {estado}.",
+        )
+        return redirect("secretaria:usuario_list")
 
 
 # =============================================================================
@@ -320,6 +269,18 @@ class MatriculaCreateView(RolRequeridoMixin, View):
             )
             messages.success(request, "Matrícula registrada exitosamente.")
             return redirect("secretaria:matricula_list")
+        except ConflictoHorarioEstudianteError as e:
+            form.add_error(None, to_django(e))
+            return render(
+                request,
+                self.template_name,
+                {
+                    "form": form,
+                    "estudiantes": service.obtener_estudiantes_disponibles(),
+                    "periodos": service.obtener_periodos_activos(),
+                    "conflictos_horario": e.conflictos,
+                },
+            )
         except (
             CupoExcedidoError,
             MatriculaDuplicadaError,

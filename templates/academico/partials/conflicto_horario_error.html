@@ -1,0 +1,42 @@
+{# Partial: conflicto de horario (HU21 V5)
+   Server-side render puro, Tailwind 3.4.17 (sin Alpine, sin JS).
+   Espera en contexto:
+     - conflictos: list[Conflicto] (DTO de apps.academico.domain.services)
+     - mensaje:    str opcional con el resumen del exception (str(exc))
+   Accesibilidad: live region anunciada inmediatamente. #}
+{% if conflictos %}
+<div role="alert" aria-live="assertive"
+     class="mb-4 p-4 rounded-lg bg-red-50 border border-red-300 text-red-800 text-sm">
+    <p class="font-semibold mb-2">
+        Conflicto de horario detectado
+        {% if mensaje %}<span class="block text-xs font-normal mt-1 text-red-700">{{ mensaje }}</span>{% endif %}
+    </p>
+    <div class="overflow-x-auto mt-3">
+        <table class="min-w-full text-xs border border-red-200 rounded">
+            <thead class="bg-red-100 text-red-900">
+                <tr>
+                    <th scope="col" class="px-3 py-2 text-left font-semibold">Paralelo</th>
+                    <th scope="col" class="px-3 py-2 text-left font-semibold">Asignatura</th>
+                    <th scope="col" class="px-3 py-2 text-left font-semibold">Día</th>
+                    <th scope="col" class="px-3 py-2 text-left font-semibold">Horario</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white">
+                {% for c in conflictos %}
+                <tr class="border-t border-red-200">
+                    <td class="px-3 py-2">{{ c.paralelo_nombre }}</td>
+                    <td class="px-3 py-2">
+                        <span class="font-medium">{{ c.asignatura_codigo }}</span>
+                        <span class="text-gray-600"> — {{ c.asignatura_nombre }}</span>
+                    </td>
+                    <td class="px-3 py-2">{{ c.dia_semana_label }}</td>
+                    <td class="px-3 py-2 tabular-nums">
+                        {{ c.hora_inicio|time:"H:i" }} – {{ c.hora_fin|time:"H:i" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

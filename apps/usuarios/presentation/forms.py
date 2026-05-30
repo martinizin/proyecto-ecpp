@@ -110,7 +110,16 @@ class RegistroForm(forms.Form):
         cleaned_data = super().clean()
         password1 = cleaned_data.get("password1")
         if password1:
-            validate_password(password1)
+            # Build a transient user-like object so AUTH_PASSWORD_VALIDATORS
+            # that rely on user attributes (similarity, containment) can run
+            # before the Usuario is actually persisted.
+            transient_user = Usuario(
+                first_name=cleaned_data.get("first_name", "") or "",
+                last_name=cleaned_data.get("last_name", "") or "",
+                email=cleaned_data.get("email", "") or "",
+                rol=cleaned_data.get("rol", "") or "",
+            )
+            validate_password(password1, user=transient_user)
         return cleaned_data
 
 
@@ -231,6 +240,13 @@ class CambiarContrasenaForm(forms.Form):
         widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
 
+    def __init__(self, *args, user=None, **kwargs):
+        """Accept the authenticated user so password validators can run
+        attribute-containment / similarity checks against their own data.
+        """
+        super().__init__(*args, **kwargs)
+        self.user = user
+
     def clean_new_password2(self):
         password1 = self.cleaned_data.get("new_password1")
         password2 = self.cleaned_data.get("new_password2")
@@ -242,7 +258,7 @@ class CambiarContrasenaForm(forms.Form):
         cleaned_data = super().clean()
         new_password1 = cleaned_data.get("new_password1")
         if new_password1:
-            validate_password(new_password1)
+            validate_password(new_password1, user=self.user)
         return cleaned_data
 
 

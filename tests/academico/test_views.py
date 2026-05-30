@@ -42,6 +42,7 @@ def _create_inspector() -> Usuario:
         last_name="Lopez",
         rol="inspector",
         is_active=True,
+        cedula="1701000001",
     )
 
 
@@ -54,6 +55,7 @@ def _create_docente() -> Usuario:
         last_name="Garcia",
         rol="docente",
         is_active=True,
+        cedula="1701000002",
     )
 
 
@@ -66,6 +68,7 @@ def _create_estudiante() -> Usuario:
         last_name="Perez",
         rol="estudiante",
         is_active=True,
+        cedula="1701000003",
     )
 
 
@@ -78,6 +81,7 @@ def _create_secretaria() -> Usuario:
         last_name="Martinez",
         rol="secretaria",
         is_active=True,
+        cedula="1701000004",
     )
 
 
