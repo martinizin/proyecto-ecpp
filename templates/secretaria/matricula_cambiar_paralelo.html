@@ -61,7 +61,7 @@
             <div class="mb-4">
                 <label for="id_nuevo_paralelo" class="block text-sm font-medium text-gray-700 mb-1">Nuevo paralelo</label>
                 <p class="text-xs text-gray-500 mb-1.5">Seleccione el nuevo paralelo para esta asignatura.</p>
-                <select name="nuevo_paralelo" id="id_nuevo_paralelo" class="form-select w-full">
+                <select name="nuevo_paralelo" id="id_nuevo_paralelo" class="form-select w-full" data-ts-search>
                     <option value="">Seleccione el paralelo destino</option>
                     {% for p in paralelos %}
                         <option value="{{ p.id }}">{{ p.asignatura.nombre }} ({{ p.asignatura.codigo }}) — Paralelo {{ p.nombre }} — {{ p.periodo }}</option>

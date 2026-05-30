@@ -34,7 +34,7 @@
 
             <div class="mb-4">
                 <label for="id_estudiante" class="block text-sm font-medium text-gray-700 mb-1">Estudiante</label>
-                <select name="estudiante" id="id_estudiante" class="form-select w-full">
+                <select name="estudiante" id="id_estudiante" class="form-select w-full" data-ts-search>
                     <option value="">Seleccione un estudiante</option>
                     {% for est in estudiantes %}
                         <option value="{{ est.id }}" {% if form.estudiante.value|stringformat:"d" == est.id|stringformat:"d" %}selected{% endif %}>{{ est.last_name }} {{ est.first_name }} — {{ est.cedula }}</option>
@@ -75,7 +75,7 @@
             }">
                 <div class="mb-4">
                     <label for="id_periodo" class="block text-sm font-medium text-gray-700 mb-1">Periodo Académico</label>
-                    <select id="id_periodo" x-model="periodoId" @change="fetchParalelos()" class="form-select w-full">
+                    <select id="id_periodo" x-model="periodoId" @change="fetchParalelos()" class="form-select w-full" data-ts-skip>
                         <option value="">Seleccione un periodo</option>
                         {% for periodo in periodos %}
                             <option value="{{ periodo.id }}">{{ periodo }}</option>
@@ -86,7 +86,7 @@
 
                 <div class="mb-4">
                     <label for="id_asignatura" class="block text-sm font-medium text-gray-700 mb-1">Asignatura</label>
-                    <select id="id_asignatura" x-model="asignaturaId" @change="paraleloId = ''" :disabled="!periodoId || asignaturas.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed">
+                    <select id="id_asignatura" x-model="asignaturaId" @change="paraleloId = ''" :disabled="!periodoId || asignaturas.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed" data-ts-skip>
                         <option value="">Seleccione una asignatura</option>
                         <template x-for="a in asignaturas" :key="a.codigo">
                             <option :value="a.codigo" x-text="`${a.nombre} (${a.codigo})`"></option>
@@ -97,7 +97,7 @@
 
                 <div class="mb-4">
                     <label for="id_paralelo" class="block text-sm font-medium text-gray-700 mb-1">Paralelo</label>
-                    <select name="paralelo" id="id_paralelo" x-model="paraleloId" :disabled="!asignaturaId || paralelosFiltrados.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed">
+                    <select name="paralelo" id="id_paralelo" x-model="paraleloId" :disabled="!asignaturaId || paralelosFiltrados.length === 0" class="form-select w-full disabled:bg-gray-100 disabled:cursor-not-allowed" data-ts-skip>
                         <option value="">Seleccione un paralelo</option>
                         <template x-for="p in paralelosFiltrados" :key="p.id">
                             <option :value="p.id" x-text="`Paralelo ${p.nombre} — ${p.docente}`"></option>
