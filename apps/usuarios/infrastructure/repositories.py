@@ -129,9 +129,7 @@ class DjangoAuditoriaRepository(AuditoriaRepository):
             detalle=entry.detalle,
         )
 
-    def listar_por_usuario(
-        self, usuario_id: int, limit: int = 50
-    ) -> List[RegistroAuditoriaEntity]:
+    def listar_por_usuario(self, usuario_id: int, limit: int = 50) -> List[RegistroAuditoriaEntity]:
         records = RegistroAuditoria.objects.filter(usuario_id=usuario_id).order_by("-timestamp")[
             :limit
         ]

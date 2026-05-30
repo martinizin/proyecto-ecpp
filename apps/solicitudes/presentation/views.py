@@ -593,9 +593,7 @@ class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
         ctx["tipos_certificado"] = TipoCertificado.choices
         ctx["paralelos"] = (
             Paralelo.objects.filter(
-                asistencias__solicitudes_justificacion__tipo=(
-                    Solicitud.TipoSolicitud.JUSTIFICACION
-                )
+                asistencias__solicitudes_justificacion__tipo=(Solicitud.TipoSolicitud.JUSTIFICACION)
             )
             .select_related("asignatura")
             .distinct()

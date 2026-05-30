@@ -269,12 +269,7 @@ class ParaleloSerializer(serializers.ModelSerializer):
         # V5: docente schedule conflict (locked decision 2 — gate behind
         # `initial_data['bloques']`. No new writable field added).
         docente = attrs.get("docente") or getattr(self.instance, "docente", None)
-        if (
-            periodo
-            and docente
-            and hasattr(self, "initial_data")
-            and "bloques" in self.initial_data
-        ):
+        if periodo and docente and hasattr(self, "initial_data") and "bloques" in self.initial_data:
             raw = self.initial_data.get("bloques") or []
             from datetime import time as _time
 

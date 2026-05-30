@@ -41,9 +41,7 @@ class MultiRolRequeridoMixin(LoginRequiredMixin, UserPassesTestMixin):
     roles_permitidos: list = []
 
     def test_func(self) -> bool:
-        return (
-            self.request.user.is_authenticated and self.request.user.rol in self.roles_permitidos
-        )
+        return self.request.user.is_authenticated and self.request.user.rol in self.roles_permitidos
 
 
 # =============================================================================

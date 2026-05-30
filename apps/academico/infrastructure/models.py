@@ -204,6 +204,5 @@ class Matricula(models.Model):
 
     def __str__(self):
         return (
-            f"{self.estudiante.get_full_name()} — "
-            f"{self.paralelo} ({self.get_estado_display()})"
+            f"{self.estudiante.get_full_name()} — " f"{self.paralelo} ({self.get_estado_display()})"
         )
