@@ -11,10 +11,12 @@ import pytest
 
 from apps.usuarios.domain.exceptions import (
     CedulaDuplicadaError,
+    CedulaObligatoriaError,
     CorreoDuplicadoError,
     CuentaBloqueadaError,
     OTPExpiradoError,
     OTPInvalidoError,
+    UsuarioConDependenciasError,
 )
 from apps.usuarios.domain.services import LoginService, OTPService, RegistroService
 from apps.usuarios.domain.value_objects import Cedula, Email
@@ -324,3 +326,39 @@ class TestRegistroService:
                 email_exists=False,
                 cedula_exists=False,
             )
+
+
+# =============================================================================
+# Domain Exceptions (Inmutabilidad post-creación)
+# =============================================================================
+
+
+class TestUsuarioConDependenciasError:
+    """The exception that gates `eliminar_usuario` when FK dependencies exist."""
+
+    def test_carries_dependencias_dict(self):
+        """Exception must expose the per-entity counts on `.dependencias`."""
+        deps = {"matriculas": 3, "asistencias": 0, "solicitudes": 1}
+        exc = UsuarioConDependenciasError(deps)
+        assert exc.dependencias == deps
+
+    def test_message_includes_total(self):
+        """`str(exc)` must mention the total count (3+0+1 = 4) so messages stay friendly."""
+        deps = {"matriculas": 3, "asistencias": 0, "solicitudes": 1}
+        exc = UsuarioConDependenciasError(deps)
+        assert "4" in str(exc)
+
+    def test_message_total_zero(self):
+        """Edge: empty dict → total 0 still surfaces in the message (triangulation)."""
+        exc = UsuarioConDependenciasError({})
+        assert "0" in str(exc)
+
+
+class TestCedulaObligatoriaError:
+    """Sanity check for the new domain exception used by entities/services."""
+
+    def test_is_subclass_of_usuario_error(self):
+        """Keeps domain hierarchy consistent with the rest of the bounded context."""
+        from apps.usuarios.domain.exceptions import UsuarioError
+
+        assert issubclass(CedulaObligatoriaError, UsuarioError)
