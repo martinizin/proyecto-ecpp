@@ -142,13 +142,22 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
                 f"en {paralelo.asignatura.nombre}.",
             )
 
-        # Send email notifications to inspectors
-        if resultado["alertas"]:
-            from apps.asistencia.infrastructure.email_service import (
-                notificar_alertas_inasistencia,
-            )
+        # Notifications: students newly marked absent + inspectors on red-risk
+        from apps.asistencia.infrastructure.email_service import (
+            notificar_alertas_inasistencia,
+            notificar_estudiantes_ausencia,
+            notificar_estudiantes_riesgo_rojo,
+        )
 
+        # In-app notification to each student newly marked absent today
+        nuevas_ausencias_ids = resultado.get("nuevas_ausencias_ids", [])
+        if nuevas_ausencias_ids:
+            notificar_estudiantes_ausencia(nuevas_ausencias_ids, paralelo, fecha)
+
+        # On red-risk: notify inspectors (email + in-app) AND student (email + in-app)
+        if resultado["alertas"]:
             notificar_alertas_inasistencia(resultado["alertas"], paralelo)
+            notificar_estudiantes_riesgo_rojo(resultado["alertas"], paralelo)
 
         return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 

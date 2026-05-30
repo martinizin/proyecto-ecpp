@@ -129,6 +129,37 @@ class TestRegistrarAsistencia:
         alertas_ids = [a["estudiante_id"] for a in resultado["alertas"]]
         assert estudiante_ausente.pk in alertas_ids
 
+    def test_nuevas_ausencias_ids_first_take(self):
+        """First take: all absent students are newly absent."""
+        fecha = datetime.date(2026, 5, 10)
+        presentes_ids = [self.estudiantes[0].pk]  # 2 ausentes
+
+        resultado = self.service.registrar_asistencia(
+            paralelo_id=self.paralelo.pk,
+            fecha=fecha,
+            estudiantes_presentes_ids=presentes_ids,
+            registrado_por_id=self.docente.pk,
+        )
+
+        nuevas = set(resultado["nuevas_ausencias_ids"])
+        assert nuevas == {self.estudiantes[1].pk, self.estudiantes[2].pk}
+
+    def test_nuevas_ausencias_ids_retake_skips_already_absent(self):
+        """Re-take: students already AUSENTE don't appear in nuevas_ausencias_ids."""
+        fecha = datetime.date(2026, 5, 10)
+        # v1: estudiante[0] presente; [1] y [2] ausentes
+        self.service.registrar_asistencia(
+            self.paralelo.pk, fecha, [self.estudiantes[0].pk], self.docente.pk
+        )
+        # v2: ahora [1] también presente; [0] y [2] ausentes
+        # [2] ya estaba ausente → no es "nueva"; [0] cambia de PRESENTE a AUSENTE → SÍ es nueva
+        resultado = self.service.registrar_asistencia(
+            self.paralelo.pk, fecha, [self.estudiantes[1].pk], self.docente.pk
+        )
+
+        nuevas = set(resultado["nuevas_ausencias_ids"])
+        assert nuevas == {self.estudiantes[0].pk}
+
 
 class TestObtenerHistorial:
     """Tests for obtener_historial."""

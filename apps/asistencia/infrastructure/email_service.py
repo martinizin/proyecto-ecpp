@@ -4,6 +4,7 @@ Infrastructure layer — notifies inspectors when students exceed 5% absence.
 """
 
 import logging
+from datetime import date as date_cls
 
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.shared.email_utils import enviar_email_html
@@ -102,3 +103,89 @@ def notificar_alertas_inasistencia(alertas: list, paralelo) -> None:
 
     except Exception:
         logger.exception("Error al enviar alertas de inasistencia por email.")
+
+
+# --------------------------------------------------------------------------- #
+# Notificaciones para el ESTUDIANTE marcado ausente
+# --------------------------------------------------------------------------- #
+
+
+def notificar_estudiantes_ausencia(
+    estudiante_ids: list[int],
+    paralelo,
+    fecha: date_cls,
+) -> None:
+    """Create in-app notifications for students newly marked absent.
+
+    No email is sent here — daily-absence emails would be spam. Email is reserved
+    for the "entered red-risk" event (see :func:`notificar_estudiantes_riesgo_rojo`).
+    """
+    if not estudiante_ids:
+        return
+    try:
+        estudiantes = Usuario.objects.filter(pk__in=estudiante_ids, is_active=True)
+        asignatura_nombre = paralelo.asignatura.nombre
+        paralelo_nombre = paralelo.nombre
+        fecha_str = fecha.strftime("%d/%m/%Y")
+
+        notificaciones = [
+            Notificacion(
+                destinatario=estudiante,
+                tipo=Notificacion.Tipo.AUSENCIA_REGISTRADA,
+                titulo="Ausencia registrada",
+                mensaje=(
+                    f"Se registró tu ausencia en {asignatura_nombre} "
+                    f"(Paralelo {paralelo_nombre}) el {fecha_str}."
+                ),
+                url="/asistencia/mi-asistencia/",
+            )
+            for estudiante in estudiantes
+        ]
+        if notificaciones:
+            Notificacion.objects.bulk_create(notificaciones)
+            logger.info(
+                "Creadas %d notificaciones in-app de ausencia para estudiantes.",
+                len(notificaciones),
+            )
+    except Exception:
+        logger.exception("Error al crear notificaciones in-app de ausencia para estudiantes.")
+
+
+def notificar_estudiantes_riesgo_rojo(alertas: list, paralelo) -> None:
+    """Send red-risk alert email to each student in alertas.
+
+    Args:
+        alertas: List of dicts with estudiante_id, porcentaje_inasistencia.
+        paralelo: Paralelo model instance.
+    """
+    if not alertas:
+        return
+    try:
+        asignatura_nombre = paralelo.asignatura.nombre
+        paralelo_nombre = paralelo.nombre
+
+        for alerta in alertas:
+            try:
+                estudiante = Usuario.objects.get(pk=alerta["estudiante_id"])
+            except Usuario.DoesNotExist:
+                continue
+            if not estudiante.email:
+                continue
+            enviar_email_html(
+                destinatario=estudiante.email,
+                asunto="ECPP — Alerta: nivel crítico de inasistencia",
+                template="emails/alerta_inasistencia_estudiante.html",
+                contexto={
+                    "estudiante_nombre": estudiante.get_full_name() or estudiante.username,
+                    "asignatura_nombre": asignatura_nombre,
+                    "paralelo_nombre": paralelo_nombre,
+                    "porcentaje": alerta["porcentaje_inasistencia"],
+                },
+                fail_silently=True,
+            )
+        logger.info(
+            "Emails de riesgo rojo enviados a %d estudiante(s).",
+            len(alertas),
+        )
+    except Exception:
+        logger.exception("Error al enviar emails de riesgo rojo a estudiantes.")
