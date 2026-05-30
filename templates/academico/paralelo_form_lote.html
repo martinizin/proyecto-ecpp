@@ -44,13 +44,13 @@
                  delete this.horarios[id];
              }
          },
-         agregarBloque(asigId) {
-             if (!this.horarios[asigId]) this.horarios[asigId] = [];
-             this.horarios[asigId].push({ dia: '', inicio: '', fin: '' });
-         },
-         eliminarBloque(asigId, index) {
-             this.horarios[asigId].splice(index, 1);
-         },
+          agregarBloque(asigId) {
+              if (!this.horarios[asigId]) this.horarios[asigId] = [];
+              this.horarios[asigId].push({ dia: '', inicio: '', fin: '' });
+          },
+          eliminarBloque(asigId, index) {
+              this.horarios[asigId].splice(index, 1);
+          },
          getAsignaturaNombre(id) {
              const a = this.asignaturas.find(x => x.id == id);
              return a ? a.codigo + ' — ' + a.nombre : '';

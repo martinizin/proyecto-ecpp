@@ -68,6 +68,14 @@
                 ],
                 agregar() { this.bloques.push({ dia: '', inicio: '', fin: '' }); },
                 eliminar(index) { this.bloques.splice(index, 1); },
+                minutosBloque(b) {
+                    if (!b.inicio || !b.fin) return 0;
+                    const [ih, im] = b.inicio.split(':').map(Number);
+                    const [fh, fm] = b.fin.split(':').map(Number);
+                    return (fh * 60 + fm) - (ih * 60 + im);
+                },
+                bloqueValido(b) { return !b.inicio || !b.fin || this.minutosBloque(b) >= 60; },
+                todosValidos() { return this.bloques.length === 0 || this.bloques.every(b => this.bloqueValido(b)); },
                 async guardar() {
                     this.saving = true;
                     this.message = '';
@@ -138,21 +146,28 @@
 
                         <div class="space-y-2">
                             <template x-for="(bloque, index) in bloques" :key="index">
-                                <div class="flex flex-wrap items-center gap-2 p-2 bg-white rounded border border-gray-100">
-                                    <select x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
-                                        <option value="">Día…</option>
-                                        <option value="lunes">Lunes</option>
-                                        <option value="martes">Martes</option>
-                                        <option value="miercoles">Miércoles</option>
-                                        <option value="jueves">Jueves</option>
-                                        <option value="viernes">Viernes</option>
-                                        <option value="sabado">Sábado</option>
-                                    </select>
-                                    <input type="time" x-model="bloque.inicio" class="form-control text-sm w-32">
-                                    <span class="text-gray-400 text-sm">a</span>
-                                    <input type="time" x-model="bloque.fin" class="form-control text-sm w-32">
-                                    <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
-                                </div>
+                                 <div class="p-2 rounded border transition-colors"
+                                      :class="bloqueValido(bloque) ? 'bg-white border-gray-100' : 'bg-red-50/40 border-red-300'">
+                                     <div class="flex flex-wrap items-center gap-2">
+                                         <select x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
+                                             <option value="">Día…</option>
+                                             <option value="lunes">Lunes</option>
+                                             <option value="martes">Martes</option>
+                                             <option value="miercoles">Miércoles</option>
+                                             <option value="jueves">Jueves</option>
+                                             <option value="viernes">Viernes</option>
+                                             <option value="sabado">Sábado</option>
+                                         </select>
+                                         <input type="time" x-model="bloque.inicio" class="form-control text-sm w-32">
+                                         <span class="text-gray-400 text-sm">a</span>
+                                         <input type="time" x-model="bloque.fin" class="form-control text-sm w-32">
+                                         <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
+                                     </div>
+                                     <p x-show="bloque.inicio && bloque.fin && !bloqueValido(bloque)"
+                                        class="text-xs text-red-500 mt-1.5">
+                                         El bloque debe tener al menos 1 hora de duración.
+                                     </p>
+                                 </div>
                             </template>
                         </div>
 
@@ -163,7 +178,7 @@
                                 </svg>
                                 Agregar bloque
                             </button>
-                            <button type="button" @click="guardar()" :disabled="saving" class="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50">
+                            <button type="button" @click="guardar()" :disabled="saving || !todosValidos()" class="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                 <span x-text="saving ? 'Guardando…' : 'Guardar Horario'"></span>
                             </button>
                         </div>

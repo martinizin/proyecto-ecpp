@@ -5,7 +5,7 @@ All write operations restricted to Inspector role via MultiRolRequeridoMixin.
 """
 
 from collections import OrderedDict
-from datetime import time
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib import messages
@@ -35,7 +35,7 @@ from apps.academico.infrastructure.models import (
     TipoLicencia,
 )
 from apps.usuarios.infrastructure.models import Usuario
-from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
+from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin, RolRequeridoMixin
 
 from .forms import (
     AsignaturaForm,
@@ -510,7 +510,10 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
                 try:
                     h_inicio = time.fromisoformat(inicio_str)
                     h_fin = time.fromisoformat(fin_str)
-                    if h_inicio < h_fin:
+                    duracion = datetime.combine(datetime.today(), h_fin) - datetime.combine(
+                        datetime.today(), h_inicio
+                    )
+                    if h_inicio < h_fin and duracion >= timedelta(hours=1):
                         bloques_propuestos.append((dia, h_inicio, h_fin))
                 except ValueError:
                     pass
@@ -671,12 +674,16 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                         try:
                             h_inicio = time.fromisoformat(inicio_str)
                             h_fin = time.fromisoformat(fin_str)
-                            if h_inicio >= h_fin:
+                            duracion = datetime.combine(
+                                datetime.today(), h_fin
+                            ) - datetime.combine(datetime.today(), h_inicio)
+                            if h_inicio >= h_fin or duracion < timedelta(hours=1):
                                 dia_display = dict(BloqueHorario.DiaSemana.choices).get(dia, dia)
                                 horario_warnings.append(
                                     f"{asig.nombre}: hora de inicio "
                                     f"({h_inicio:%H:%M}) debe ser anterior a la "
-                                    f"hora de fin ({h_fin:%H:%M}) el {dia_display}."
+                                    f"hora de fin ({h_fin:%H:%M}) el {dia_display} "
+                                    f"y el bloque debe durar al menos 1 hora."
                                 )
                                 continue
                             bloques_data.append({"dia": dia, "inicio": h_inicio, "fin": h_fin})
@@ -834,12 +841,15 @@ class ParaleloUpdateView(MultiRolRequeridoMixin, View):
         # Validate blocks
         errores = []
         for b in bloques_data:
-            if b["inicio"] >= b["fin"]:
+            duracion = datetime.combine(datetime.today(), b["fin"]) - datetime.combine(
+                datetime.today(), b["inicio"]
+            )
+            if b["inicio"] >= b["fin"] or duracion < timedelta(hours=1):
                 dia_display = dict(BloqueHorario.DiaSemana.choices).get(b["dia"], b["dia"])
                 errores.append(
                     f"Horario inválido: la hora de inicio ({b['inicio']:%H:%M}) "
                     f"debe ser anterior a la hora de fin ({b['fin']:%H:%M}) "
-                    f"el {dia_display}."
+                    f"el {dia_display} y el bloque debe durar al menos 1 hora."
                 )
 
         # Conflict validation: check other paralelos in the same group
@@ -984,6 +994,16 @@ class ParaleloHorarioUpdateView(View):
                     f"Bloque {i + 1}: la hora de inicio ({inicio:%H:%M}) "
                     f"debe ser anterior a la hora de fin ({fin:%H:%M}) "
                     f"el {dia_display}."
+                )
+                continue
+
+            if (
+                datetime.combine(datetime.today(), fin)
+                - datetime.combine(datetime.today(), inicio)
+            ) < timedelta(hours=1):
+                errores.append(
+                    f"Bloque {i + 1}: el horario debe durar al menos 1 hora "
+                    f"({inicio:%H:%M} – {fin:%H:%M})."
                 )
                 continue
 
@@ -1219,3 +1239,109 @@ class ParaleloGrupoEditView(MultiRolRequeridoMixin, View):
 
         messages.success(request, f"Paralelo {nombre} actualizado exitosamente.")
         return redirect("academico:paralelo_list")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Horarios (vista provisional, solo lectura) — HU futuro
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _construir_grilla_horario(bloques):
+    """Build a weekly schedule grid from a list of BloqueHorario.
+
+    Returns a dict with:
+      - dias: list of (key, label) tuples in canonical order
+      - rows: list of {"hora": "HH:00", "celdas": [list_per_day]} where each
+              cell is a list of bloque dicts (asignatura, paralelo, docente, etc.)
+      - vacio: True if there are no blocks
+    """
+    dias = [
+        (BloqueHorario.DiaSemana.LUNES, "Lunes"),
+        (BloqueHorario.DiaSemana.MARTES, "Martes"),
+        (BloqueHorario.DiaSemana.MIERCOLES, "Miércoles"),
+        (BloqueHorario.DiaSemana.JUEVES, "Jueves"),
+        (BloqueHorario.DiaSemana.VIERNES, "Viernes"),
+        (BloqueHorario.DiaSemana.SABADO, "Sábado"),
+    ]
+    dia_keys = [d[0] for d in dias]
+
+    # Index: dict[(dia_key, hora_int)] -> list[bloque_dict]
+    index: dict = {}
+    horas_set: set = set()
+
+    for b in bloques:
+        hora_ini = b.hora_inicio.hour
+        # Only place the block in its START hour cell; duration shown in the card.
+        horas_set.add(hora_ini)
+        bloque_data = {
+            "asignatura": b.paralelo.asignatura.nombre,
+            "codigo": b.paralelo.asignatura.codigo,
+            "paralelo": b.paralelo.nombre,
+            "docente": b.paralelo.docente.get_full_name() if b.paralelo.docente else "—",
+            "hora_inicio": b.hora_inicio,
+            "hora_fin": b.hora_fin,
+        }
+        index.setdefault((b.dia_semana, hora_ini), []).append(bloque_data)
+
+    horas = sorted(horas_set) if horas_set else list(range(8, 18))
+
+    rows = []
+    for h in horas:
+        celdas = [index.get((dk, h), []) for dk in dia_keys]
+        rows.append({"hora": f"{h:02d}:00", "celdas": celdas})
+
+    return {"dias": dias, "rows": rows, "vacio": not bloques}
+
+
+class HorarioDocenteView(RolRequeridoMixin, View):
+    """Read-only weekly schedule for the logged-in docente (active period only)."""
+
+    rol_requerido = "docente"
+    template_name = "academico/horarios/mi_horario.html"
+
+    def get(self, request):
+        bloques = (
+            BloqueHorario.objects.filter(
+                paralelo__docente=request.user,
+                paralelo__periodo__activo=True,
+            )
+            .select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo",
+                "paralelo__docente",
+            )
+            .order_by("dia_semana", "hora_inicio")
+        )
+
+        contexto = _construir_grilla_horario(list(bloques))
+        contexto["titulo"] = "Mi Horario de Clases"
+        contexto["subtitulo"] = "Período académico vigente"
+        return render(request, self.template_name, contexto)
+
+
+class HorarioEstudianteView(RolRequeridoMixin, View):
+    """Read-only weekly schedule for the logged-in estudiante (active matrículas only)."""
+
+    rol_requerido = "estudiante"
+    template_name = "academico/horarios/mi_horario.html"
+
+    def get(self, request):
+        bloques = (
+            BloqueHorario.objects.filter(
+                paralelo__matriculas__estudiante=request.user,
+                paralelo__matriculas__estado=Matricula.Estado.ACTIVA,
+                paralelo__periodo__activo=True,
+            )
+            .select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo",
+                "paralelo__docente",
+            )
+            .order_by("dia_semana", "hora_inicio")
+            .distinct()
+        )
+
+        contexto = _construir_grilla_horario(list(bloques))
+        contexto["titulo"] = "Mi Horario de Clases"
+        contexto["subtitulo"] = "Período académico vigente"
+        return render(request, self.template_name, contexto)
