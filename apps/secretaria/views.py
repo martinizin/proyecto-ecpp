@@ -153,6 +153,23 @@ class ResetearPasswordUsuarioView(RolRequeridoMixin, View):
         return redirect("secretaria:resetear_password", pk=pk)
 
 
+class UsuarioToggleActivoView(RolRequeridoMixin, View):
+    """Toggle user active status — Secretaría only."""
+
+    rol_requerido = "secretaria"
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        service = GestionUsuariosService()
+        usuario = service.toggle_activo(pk)
+        estado = "activado" if usuario.is_active else "desactivado"
+        messages.success(
+            request,
+            f"El usuario {usuario.get_full_name()} ha sido {estado}.",
+        )
+        return redirect("secretaria:usuario_list")
+
+
 # =============================================================================
 # Matrícula Views
 # =============================================================================

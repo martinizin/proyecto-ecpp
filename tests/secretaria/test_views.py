@@ -186,6 +186,51 @@ class TestUsuarioCreateView:
 # =============================================================================
 
 
+class TestUsuarioToggleActivoView:
+    """Tests for UsuarioToggleActivoView."""
+
+    def _url(self, pk):
+        return reverse("secretaria:usuario_toggle_activo", kwargs={"pk": pk})
+
+    def test_get_returns_405(self, client):
+        """GET is not allowed — toggle is POST only."""
+        sec = make_secretaria()
+        target = _saved(UsuarioFactory())
+        client.force_login(sec)
+        response = client.get(self._url(target.pk))
+        assert response.status_code == 405
+
+    def test_post_sin_auth_redirige_login(self, client):
+        """Unauthenticated POST redirects to login."""
+        target = _saved(UsuarioFactory())
+        response = client.post(self._url(target.pk))
+        assert response.status_code == 302
+        assert "/login/" in response["Location"] or "/accounts/login/" in response["Location"]
+
+    def test_post_toggles_activo_y_redirige(self, client):
+        """Secretaria POST flips is_active and redirects to usuario_list."""
+        sec = make_secretaria()
+        target = _saved(UsuarioFactory(is_active=True))
+        client.force_login(sec)
+
+        response = client.post(self._url(target.pk))
+        assert response.status_code == 302
+        assert response["Location"].endswith(reverse("secretaria:usuario_list"))
+
+        target.refresh_from_db()
+        assert target.is_active is False
+
+    def test_post_activa_usuario_inactivo(self, client):
+        """Second POST re-activates the user."""
+        sec = make_secretaria()
+        target = _saved(UsuarioFactory(is_active=False))
+        client.force_login(sec)
+
+        client.post(self._url(target.pk))
+        target.refresh_from_db()
+        assert target.is_active is True
+
+
 class TestMatriculaListView:
     """Tests for MatriculaListView."""
 

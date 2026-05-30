@@ -86,6 +86,13 @@ class GestionUsuariosService:
         """Get a single user by ID."""
         return Usuario.objects.get(pk=usuario_id)
 
+    def toggle_activo(self, usuario_id) -> Usuario:
+        """Toggle user is_active status."""
+        usuario = Usuario.objects.get(pk=usuario_id)
+        usuario.is_active = not usuario.is_active
+        usuario.save(update_fields=["is_active"])
+        return usuario
+
     @transaction.atomic
     def eliminar_usuario(self, usuario_id) -> None:
         """Hard-delete a user, guarding against CASCADE-FK data loss.
