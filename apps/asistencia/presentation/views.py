@@ -101,12 +101,11 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             messages.error(request, "Fecha inválida.")
             return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
-        # Only allow attendance for today
-        if fecha != date.today():
+        # Only allow attendance for today or past dates — not future
+        if fecha > date.today():
             messages.error(
                 request,
-                "Solo se puede registrar asistencia para la fecha actual. "
-                "No está permitido registrar asistencia en fechas pasadas o futuras.",
+                "No está permitido registrar asistencia en fechas futuras.",
             )
             return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
