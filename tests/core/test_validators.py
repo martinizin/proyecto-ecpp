@@ -81,19 +81,24 @@ class TestValidateCedulaEcuatoriana:
 
 
 class TestValidateTelefono:
-    def test_telefono_10_digitos(self):
+    def test_telefono_10_digitos_valido(self):
         assert validate_telefono("0991234567") == "0991234567"
 
-    def test_telefono_7_digitos(self):
-        assert validate_telefono("1234567") == "1234567"
+    def test_telefono_menos_de_10_digitos_rechazado(self):
+        with pytest.raises(ValidationError, match="exactamente 10 dígitos"):
+            validate_telefono("123456789")
 
-    def test_telefono_muy_corto(self):
-        with pytest.raises(ValidationError, match="entre 7 y 15 dígitos"):
-            validate_telefono("123")
+    def test_telefono_mas_de_10_digitos_rechazado(self):
+        with pytest.raises(ValidationError, match="exactamente 10 dígitos"):
+            validate_telefono("09912345678")
 
-    def test_telefono_con_letras(self):
-        with pytest.raises(ValidationError, match="entre 7 y 15 dígitos"):
+    def test_telefono_con_letras_rechazado(self):
+        with pytest.raises(ValidationError, match="exactamente 10 dígitos"):
             validate_telefono("09912ABC67")
+
+    def test_telefono_con_guion_rechazado(self):
+        with pytest.raises(ValidationError, match="exactamente 10 dígitos"):
+            validate_telefono("0982525365-1")
 
     def test_telefono_vacio_permitido(self):
         assert validate_telefono("") == ""

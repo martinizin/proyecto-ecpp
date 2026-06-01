@@ -1,10 +1,11 @@
-{# confirm_create_modal.html — Alpine confirmation modal for user creation.
-   Must be included INSIDE a parent x-data scope that exposes:
-     - modalCrearAbierto (bool)
-     - resumen.nombre, resumen.cedula, resumen.email, resumen.rolLabel
-     - abrirModalCrear() function
-     - $refs.formCrear pointing to the <form> element
-#}
+{% comment %}
+confirm_create_modal.html — Alpine confirmation modal for user creation.
+Must be included INSIDE a parent x-data scope that exposes:
+  - modalCrearAbierto (bool)
+  - resumen.nombre, resumen.cedula, resumen.email, resumen.rolLabel
+  - abrirModalCrear() function
+  - $refs.formCrear pointing to the <form> element
+{% endcomment %}
 <div
     x-show="modalCrearAbierto"
     x-transition:enter="transition ease-out duration-200"

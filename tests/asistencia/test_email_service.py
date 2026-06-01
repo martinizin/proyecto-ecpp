@@ -7,8 +7,12 @@ from unittest.mock import patch
 import pytest
 from django.core import mail
 
+from datetime import date
+
 from apps.asistencia.infrastructure.email_service import (
     notificar_alertas_inasistencia,
+    notificar_estudiantes_ausencia,
+    notificar_estudiantes_riesgo_rojo,
     send_alerta_inasistencia,
 )
 from apps.notificaciones.infrastructure.models import Notificacion
@@ -127,3 +131,66 @@ class TestNotificarAlertasInasistencia:
         destinatarios = set(notifs.values_list("destinatario_id", flat=True))
         assert destinatarios == {inspector1.pk, inspector2.pk}
         assert notifs.first().url == "/asistencia/supervision/"
+
+
+@pytest.mark.django_db
+class TestNotificarEstudiantesAusencia:
+    """Tests for in-app absence notifications sent to students."""
+
+    def test_creates_in_app_notification_per_student(self):
+        est1 = EstudianteFactory()
+        est2 = EstudianteFactory()
+        paralelo = ParaleloFactory()
+
+        notificar_estudiantes_ausencia([est1.pk, est2.pk], paralelo, date(2026, 5, 30))
+
+        notifs = Notificacion.objects.filter(tipo="ausencia_registrada")
+        assert notifs.count() == 2
+        assert set(notifs.values_list("destinatario_id", flat=True)) == {est1.pk, est2.pk}
+        assert notifs.first().url == "/asistencia/mi-asistencia/"
+        assert "30/05/2026" in notifs.first().mensaje
+
+    def test_does_not_send_email(self):
+        est = EstudianteFactory()
+        paralelo = ParaleloFactory()
+
+        notificar_estudiantes_ausencia([est.pk], paralelo, date(2026, 5, 30))
+
+        # By design: per-absence is in-app ONLY (no email spam)
+        assert len(mail.outbox) == 0
+
+    def test_empty_list_is_noop(self):
+        paralelo = ParaleloFactory()
+        notificar_estudiantes_ausencia([], paralelo, date(2026, 5, 30))
+        assert Notificacion.objects.count() == 0
+        assert len(mail.outbox) == 0
+
+
+@pytest.mark.django_db
+class TestNotificarEstudiantesRiesgoRojo:
+    """Tests for red-risk email notifications to students."""
+
+    def test_sends_email_to_each_student_in_alertas(self):
+        est = EstudianteFactory(email="estudiante@test.com")
+        paralelo = ParaleloFactory()
+
+        alertas = [{"estudiante_id": est.pk, "porcentaje_inasistencia": 12.0}]
+        notificar_estudiantes_riesgo_rojo(alertas, paralelo)
+
+        assert len(mail.outbox) == 1
+        email = mail.outbox[0]
+        assert email.to == ["estudiante@test.com"]
+        assert "crítico" in email.subject.lower() or "critico" in email.subject.lower()
+
+    def test_skips_students_without_email(self):
+        est = EstudianteFactory(email="")
+        paralelo = ParaleloFactory()
+
+        alertas = [{"estudiante_id": est.pk, "porcentaje_inasistencia": 11.0}]
+        notificar_estudiantes_riesgo_rojo(alertas, paralelo)
+        assert len(mail.outbox) == 0
+
+    def test_empty_alertas_is_noop(self):
+        paralelo = ParaleloFactory()
+        notificar_estudiantes_riesgo_rojo([], paralelo)
+        assert len(mail.outbox) == 0

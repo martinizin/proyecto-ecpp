@@ -84,27 +84,42 @@
             <div class="mb-6" x-data="{
                 bloques: [],
                 agregar() { this.bloques.push({ dia: '', inicio: '', fin: '' }); },
-                eliminar(index) { this.bloques.splice(index, 1); }
+                eliminar(index) { this.bloques.splice(index, 1); },
+                minutosBloque(b) {
+                    if (!b.inicio || !b.fin) return 0;
+                    const [ih, im] = b.inicio.split(':').map(Number);
+                    const [fh, fm] = b.fin.split(':').map(Number);
+                    return (fh * 60 + fm) - (ih * 60 + im);
+                },
+                bloqueValido(b) { return !b.inicio || !b.fin || this.minutosBloque(b) >= 60; },
+                todosValidos() { return this.bloques.length === 0 || this.bloques.every(b => this.bloqueValido(b)); }
             }">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Horario</label>
                 <p class="text-xs text-gray-500 mb-3">Agregue los bloques horarios para este paralelo (opcional).</p>
 
                 <div class="space-y-3">
                     <template x-for="(bloque, index) in bloques" :key="index">
-                        <div class="flex flex-wrap items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <select :name="'bloque_dia_' + index" x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
-                                <option value="">Día…</option>
-                                <option value="lunes">Lunes</option>
-                                <option value="martes">Martes</option>
-                                <option value="miercoles">Miércoles</option>
-                                <option value="jueves">Jueves</option>
-                                <option value="viernes">Viernes</option>
-                                <option value="sabado">Sábado</option>
-                            </select>
-                            <input type="time" :name="'bloque_inicio_' + index" x-model="bloque.inicio" class="form-control text-sm w-32">
-                            <span class="text-gray-400 text-sm">a</span>
-                            <input type="time" :name="'bloque_fin_' + index" x-model="bloque.fin" class="form-control text-sm w-32">
-                            <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
+                        <div class="p-3 rounded-lg border transition-colors"
+                             :class="bloqueValido(bloque) ? 'bg-gray-50 border-gray-200' : 'bg-red-50/40 border-red-300'">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select :name="'bloque_dia_' + index" x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
+                                    <option value="">Día…</option>
+                                    <option value="lunes">Lunes</option>
+                                    <option value="martes">Martes</option>
+                                    <option value="miercoles">Miércoles</option>
+                                    <option value="jueves">Jueves</option>
+                                    <option value="viernes">Viernes</option>
+                                    <option value="sabado">Sábado</option>
+                                </select>
+                                <input type="time" :name="'bloque_inicio_' + index" x-model="bloque.inicio" class="form-control text-sm w-32">
+                                <span class="text-gray-400 text-sm">a</span>
+                                <input type="time" :name="'bloque_fin_' + index" x-model="bloque.fin" class="form-control text-sm w-32">
+                                <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
+                            </div>
+                            <p x-show="bloque.inicio && bloque.fin && !bloqueValido(bloque)"
+                               class="text-xs text-red-500 mt-1.5">
+                                El bloque debe tener al menos 1 hora de duración.
+                            </p>
                         </div>
                     </template>
                 </div>
@@ -121,7 +136,8 @@
             {% endif %}
 
             <div class="flex items-center gap-4 mt-6">
-                <button type="submit" class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                <button type="submit" :disabled="!todosValidos()"
+                        class="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     Guardar
                 </button>
                 <a href="{% url 'academico:paralelo_list' %}" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">Cancelar</a>

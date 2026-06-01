@@ -53,12 +53,15 @@ def validate_cedula_ecuatoriana(value):
 
 # === Phone validator ===
 def validate_telefono(value):
-    """Only digits, 7-15 characters."""
+    """
+    Validates phone numbers: exactly 10 digits, no letters or special characters.
+    Empty value is allowed when the field is not required.
+    """
     value = value.strip()
     if not value:
-        return value  # Allow empty if field is not required
-    if not re.match(r"^\d{7,15}$", value):
-        raise ValidationError("El teléfono debe contener entre 7 y 15 dígitos numéricos.")
+        return value
+    if not re.match(r"^\d{10}$", value):
+        raise ValidationError("El teléfono debe contener exactamente 10 dígitos numéricos.")
     return value
 
 

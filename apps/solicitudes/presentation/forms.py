@@ -121,7 +121,7 @@ class JustificacionCertificadoForm(forms.Form):
             max_mb = CertificadoValidationService.MAX_TAMANIO_TOTAL / (1024 * 1024)
             raise forms.ValidationError(
                 f"El peso total de los archivos ({total_mb:.2f} MB) supera el "
-                f"límite de {max_mb:.0f} MB. Quitá algunos archivos."
+                f"límite de {max_mb:.0f} MB. Elimine algunos archivos."
             )
         return archivos
 

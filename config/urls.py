@@ -6,7 +6,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView
 
 # Admin branding
 admin.site.site_header = "ECPPP - Plataforma Academica"
@@ -15,7 +15,7 @@ admin.site.index_title = "Panel de Administracion"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("", RedirectView.as_view(pattern_name="usuarios:login", permanent=False), name="home"),
     path("usuarios/", include("apps.usuarios.presentation.urls")),
     path("academico/", include("apps.academico.presentation.urls")),
     path("asistencia/", include("apps.asistencia.presentation.urls")),

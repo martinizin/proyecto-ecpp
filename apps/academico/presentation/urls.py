@@ -20,6 +20,8 @@ from .views import (
     AsignaturaListView,
     AsignaturaUpdateView,
     AsignaturasPorTipoLicenciaView,
+    HorarioDocenteView,
+    HorarioEstudianteView,
     ParaleloCreateLoteView,
     ParaleloCreateView,
     ParaleloDeleteView,
@@ -86,6 +88,9 @@ urlpatterns = [
     ),
     # Tipos de Licencia (read-only)
     path("tipos-licencia/", TipoLicenciaListView.as_view(), name="tipo_licencia_list"),
+    # Horarios (vista provisional, solo lectura)
+    path("mis-horarios/docente/", HorarioDocenteView.as_view(), name="horario_docente"),
+    path("mis-horarios/estudiante/", HorarioEstudianteView.as_view(), name="horario_estudiante"),
     # API
     path("api/", include(router.urls)),
 ]

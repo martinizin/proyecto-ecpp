@@ -685,14 +685,13 @@ class TestUsuarioListViewDependencias:
         assert sum(user_deps.values()) == 0
 
     def test_dependencias_por_usuario_json_en_contexto(self, client):
-        """Context also provides dependencias_por_usuario_json (pre-serialized)."""
-        import json
-
+        """Context provides dependencias_por_usuario_map (dict) for json_script."""
         sec = make_secretaria()
         client.force_login(sec)
         response = client.get(self.url)
 
-        assert "dependencias_por_usuario_json" in response.context
-        # Must be a valid JSON string
-        data = json.loads(response.context["dependencias_por_usuario_json"])
+        assert "dependencias_por_usuario_map" in response.context
+        data = response.context["dependencias_por_usuario_map"]
         assert isinstance(data, dict)
+        # All keys must be strings (json_script-safe)
+        assert all(isinstance(k, str) for k in data.keys())

@@ -178,38 +178,36 @@ class LoginForm(forms.Form):
 
 
 class DatosPersonalesForm(forms.Form):
-    """Profile form — update personal data (read-only: email, cedula, rol)."""
+    """Profile form — name, phone and address are editable.
+    Email, cédula and role are immutable (display-only in template).
+    """
 
     first_name = forms.CharField(
         max_length=150,
-        label="Nombres",
+        required=False,
+        label="Nombre",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     last_name = forms.CharField(
         max_length=150,
-        label="Apellidos",
+        required=False,
+        label="Apellido",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     telefono = forms.CharField(
         max_length=15,
         required=False,
         label="Teléfono",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.TextInput(attrs={"class": "form-control", "x-model": "current.telefono"}),
     )
     direccion = forms.CharField(
         max_length=500,
         required=False,
         label="Dirección",
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        widget=forms.Textarea(
+            attrs={"class": "form-control", "rows": 3, "x-model": "current.direccion"}
+        ),
     )
-
-    def clean_first_name(self):
-        value = self.cleaned_data["first_name"]
-        return validate_nombre(value)
-
-    def clean_last_name(self):
-        value = self.cleaned_data["last_name"]
-        return validate_nombre(value)
 
     def clean_telefono(self):
         value = self.cleaned_data.get("telefono", "")

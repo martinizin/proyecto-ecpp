@@ -13,7 +13,7 @@ from apps.academico.domain.exceptions import AcademicoError
 from apps.academico.domain.services import ParaleloService, PeriodoService
 from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo, TipoLicencia
 from apps.academico.presentation.exception_mapping import to_django
-from apps.core.validators import sanitize_text, validate_codigo
+from apps.core.validators import sanitize_text, validate_codigo, validate_nombre
 
 Usuario = get_user_model()
 
@@ -113,6 +113,10 @@ class AsignaturaForm(forms.ModelForm):
             ),
         }
 
+    def clean_nombre(self):
+        value = self.cleaned_data.get("nombre", "")
+        return validate_nombre(value)
+
     def clean_codigo(self):
         value = self.cleaned_data.get("codigo", "")
         return validate_codigo(value)
@@ -164,6 +168,9 @@ class ParaleloForm(forms.ModelForm):
             ),
             "capacidad_maxima": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
         }
+
+    def clean_nombre(self):
+        return self.cleaned_data.get("nombre", "").strip()
 
     def clean_capacidad_maxima(self):
         value = self.cleaned_data.get("capacidad_maxima")

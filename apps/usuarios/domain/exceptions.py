@@ -24,6 +24,10 @@ class CuentaBloqueadaError(UsuarioError):
     """Raised when a login attempt is made on a locked account."""
 
 
+class CuentaDesactivadaError(UsuarioError):
+    """Raised when a login attempt is made on an administratively deactivated account."""
+
+
 class OTPExpiradoError(UsuarioError):
     """Raised when an OTP code has expired."""
 

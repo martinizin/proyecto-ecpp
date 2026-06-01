@@ -56,18 +56,11 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             messages.error(request, "No tiene permiso para este paralelo.")
             return redirect("asistencia:seleccionar_paralelo")
 
+        # Attendance can only be taken for today — ignore any date override
+        fecha = date.today()
+
         service = RegistroAsistenciaAppService()
         matriculas = service.obtener_estudiantes_matriculados(paralelo_id)
-
-        # Get date from query param or default to today
-        fecha_str = request.GET.get("fecha")
-        if fecha_str:
-            try:
-                fecha = date.fromisoformat(fecha_str)
-            except ValueError:
-                fecha = date.today()
-        else:
-            fecha = date.today()
 
         # Check if attendance already exists for this date (for pre-filling)
         asistencia_existente = service.obtener_asistencia_existente(paralelo_id, fecha)
@@ -108,6 +101,14 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
             messages.error(request, "Fecha inválida.")
             return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 
+        # Only allow attendance for today or past dates — not future
+        if fecha > date.today():
+            messages.error(
+                request,
+                "No está permitido registrar asistencia en fechas futuras.",
+            )
+            return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
+
         # Get list of student IDs marked as present
         estudiantes_presentes_ids = [
             int(sid) for sid in request.POST.getlist("presentes") if sid.isdigit()
@@ -141,13 +142,22 @@ class RegistrarAsistenciaView(MultiRolRequeridoMixin, View):
                 f"en {paralelo.asignatura.nombre}.",
             )
 
-        # Send email notifications to inspectors
-        if resultado["alertas"]:
-            from apps.asistencia.infrastructure.email_service import (
-                notificar_alertas_inasistencia,
-            )
+        # Notifications: students newly marked absent + inspectors on red-risk
+        from apps.asistencia.infrastructure.email_service import (
+            notificar_alertas_inasistencia,
+            notificar_estudiantes_ausencia,
+            notificar_estudiantes_riesgo_rojo,
+        )
 
+        # In-app notification to each student newly marked absent today
+        nuevas_ausencias_ids = resultado.get("nuevas_ausencias_ids", [])
+        if nuevas_ausencias_ids:
+            notificar_estudiantes_ausencia(nuevas_ausencias_ids, paralelo, fecha)
+
+        # On red-risk: notify inspectors (email + in-app) AND student (email + in-app)
+        if resultado["alertas"]:
             notificar_alertas_inasistencia(resultado["alertas"], paralelo)
+            notificar_estudiantes_riesgo_rojo(resultado["alertas"], paralelo)
 
         return redirect("asistencia:registrar_asistencia", paralelo_id=paralelo_id)
 

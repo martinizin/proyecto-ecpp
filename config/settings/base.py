@@ -147,6 +147,7 @@ PARALELO_CAPACIDAD_MAXIMA = 50  # V3 — cupo máximo por paralelo
 PERIODO_DURACION_MIN_MESES = 4  # V4 — duración mínima de periodo
 PERIODO_DURACION_MAX_MESES = 7  # V4 — duración máxima de periodo
 HORAS_LECTIVAS_MAX = 60  # V2 — tope de horas lectivas por asignatura/licencia
+HORAS_LECTIVAS_MIN = 20  # V2b — mínimo de horas lectivas por asignatura/licencia
 
 # Internationalization
 LANGUAGE_CODE = "es-ec"

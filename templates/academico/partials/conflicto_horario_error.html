@@ -1,9 +1,11 @@
-{# Partial: conflicto de horario (HU21 V5)
-   Server-side render puro, Tailwind 3.4.17 (sin Alpine, sin JS).
-   Espera en contexto:
-     - conflictos: list[Conflicto] (DTO de apps.academico.domain.services)
-     - mensaje:    str opcional con el resumen del exception (str(exc))
-   Accesibilidad: live region anunciada inmediatamente. #}
+{% comment %}
+Partial: conflicto de horario (HU21 V5)
+Server-side render puro, Tailwind 3.4.17 (sin Alpine, sin JS).
+Espera en contexto:
+  - conflictos: list[Conflicto] (DTO de apps.academico.domain.services)
+  - mensaje:    str opcional con el resumen del exception (str(exc))
+Accesibilidad: live region anunciada inmediatamente.
+{% endcomment %}
 {% if conflictos %}
 <div role="alert" aria-live="assertive"
      class="mb-4 p-4 rounded-lg bg-red-50 border border-red-300 text-red-800 text-sm">

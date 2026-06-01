@@ -71,6 +71,16 @@ class RegistroAsistenciaAppService:
         paralelo = Paralelo.objects.select_related("periodo").get(pk=paralelo_id)
         matriculas = self.obtener_estudiantes_matriculados(paralelo_id)
 
+        # Capture which students were ALREADY marked AUSENTE for this date,
+        # so we can notify only "newly absent" students on re-takes.
+        ya_ausentes_ids = set(
+            Asistencia.objects.filter(
+                paralelo_id=paralelo_id,
+                fecha=fecha,
+                estado=Asistencia.Estado.AUSENTE,
+            ).values_list("estudiante_id", flat=True)
+        )
+
         # Delete existing records for this date (allows re-taking attendance)
         Asistencia.objects.filter(paralelo_id=paralelo_id, fecha=fecha).delete()
 
@@ -98,6 +108,11 @@ class RegistroAsistenciaAppService:
         estudiantes_ausentes_ids = [
             m.estudiante_id for m in matriculas if m.estudiante_id not in estudiantes_presentes_ids
         ]
+        # Students newly marked absent (didn't have an AUSENTE record before this call).
+        # Used by the view to avoid duplicating in-app notifications on re-takes.
+        nuevas_ausencias_ids = [
+            sid for sid in estudiantes_ausentes_ids if sid not in ya_ausentes_ids
+        ]
 
         for estudiante_id in estudiantes_ausentes_ids:
             datos = self._calcular_datos_estudiante(estudiante_id, paralelo_id)
@@ -117,6 +132,7 @@ class RegistroAsistenciaAppService:
         return {
             "registros_creados": len(registros),
             "alertas": alertas,
+            "nuevas_ausencias_ids": nuevas_ausencias_ids,
         }
 
     def _calcular_datos_estudiante(self, estudiante_id: int, paralelo_id: int) -> dict:

@@ -316,7 +316,7 @@ function certForm() {
             }
             const total = this.validFiles.reduce((s, f) => s + f.size, 0);
             if (total > this.MAX_SIZE) {
-                return `El peso total (${this.prettySize(total)}) supera el límite de ${this.prettySize(this.MAX_SIZE)}. Quitá algunos archivos.`;
+                return `El peso total (${this.prettySize(total)}) supera el límite de ${this.prettySize(this.MAX_SIZE)}. Elimine algunos archivos.`;
             }
             return null;
         },

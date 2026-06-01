@@ -60,14 +60,31 @@
             {% for paralelo in group.asignaturas %}
             <li x-data="{
                 open: false,
+                showSchedule: false,
                 saving: false,
                 message: '',
                 messageOk: true,
                 bloques: [
                     {% for b in paralelo.bloques_horario.all %}{ dia: '{{ b.dia_semana }}', inicio: '{{ b.hora_inicio|time:"H:i" }}', fin: '{{ b.hora_fin|time:"H:i" }}' },{% endfor %}
                 ],
+                diaLabel(dia) {
+                    const d = { lunes:'Lunes', martes:'Martes', miercoles:'Miércoles', jueves:'Jueves', viernes:'Viernes', sabado:'Sábado' };
+                    return d[dia] || dia;
+                },
+                horarioResumen() {
+                    if (this.bloques.length === 0) return 'Sin horario';
+                    return this.bloques.map(b => this.diaLabel(b.dia).substring(0, 3) + ' ' + b.inicio + '–' + b.fin).join(' · ');
+                },
                 agregar() { this.bloques.push({ dia: '', inicio: '', fin: '' }); },
                 eliminar(index) { this.bloques.splice(index, 1); },
+                minutosBloque(b) {
+                    if (!b.inicio || !b.fin) return 0;
+                    const [ih, im] = b.inicio.split(':').map(Number);
+                    const [fh, fm] = b.fin.split(':').map(Number);
+                    return (fh * 60 + fm) - (ih * 60 + im);
+                },
+                bloqueValido(b) { return !b.inicio || !b.fin || this.minutosBloque(b) >= 60; },
+                todosValidos() { return this.bloques.length === 0 || this.bloques.every(b => this.bloqueValido(b)); },
                 async guardar() {
                     this.saving = true;
                     this.message = '';
@@ -84,7 +101,6 @@
                         if (data.ok) {
                             this.messageOk = true;
                             this.message = data.message;
-                            this.$refs.horarioDisplay.textContent = data.bloques_display || 'Sin horario';
                             setTimeout(() => { this.open = false; this.message = ''; }, 1500);
                         } else {
                             this.messageOk = false;
@@ -107,10 +123,37 @@
                             {% if paralelo.docente %}
                             <span class="text-gray-500 text-sm ml-2">— {{ paralelo.docente.get_full_name }}</span>
                             {% endif %}
-                            <div class="mt-0.5">
-                                <span x-ref="horarioDisplay" class="text-xs text-gray-500">
-                                    {% if paralelo.bloques_horario.all %}{% for bloque in paralelo.bloques_horario.all %}{{ bloque.get_dia_semana_display|truncatechars:3 }} {{ bloque.hora_inicio|time:"H:i" }}-{{ bloque.hora_fin|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}{% else %}Sin horario{% endif %}
-                                </span>
+                            <div class="mt-1">
+                                <!-- Summary row with chevron toggle -->
+                                <button type="button"
+                                        @click="bloques.length > 0 && (showSchedule = !showSchedule)"
+                                        class="inline-flex items-center gap-1 text-xs transition-colors"
+                                        :class="bloques.length > 0 ? 'text-gray-500 hover:text-gray-700 cursor-pointer' : 'text-gray-400 cursor-default'">
+                                    <span x-text="horarioResumen()"></span>
+                                    <svg x-show="bloques.length > 0"
+                                         class="w-3 h-3 text-gray-400 shrink-0 transition-transform duration-200"
+                                         :class="showSchedule ? 'rotate-180' : ''"
+                                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                                    </svg>
+                                </button>
+                                <!-- Expanded schedule detail -->
+                                <div x-show="showSchedule"
+                                     x-transition:enter="transition ease-out duration-150"
+                                     x-transition:enter-start="opacity-0 -translate-y-1"
+                                     x-transition:enter-end="opacity-100 translate-y-0"
+                                     x-transition:leave="transition ease-in duration-100"
+                                     x-transition:leave-start="opacity-100 translate-y-0"
+                                     x-transition:leave-end="opacity-0 -translate-y-1"
+                                     x-cloak
+                                     class="mt-2 space-y-1 pl-2 border-l-2 border-gray-200">
+                                    <template x-for="(b, i) in bloques" :key="i">
+                                        <div class="flex items-center gap-3 py-0.5">
+                                            <span class="text-xs font-medium text-gray-700 w-20 shrink-0" x-text="diaLabel(b.dia)"></span>
+                                            <span class="text-xs text-gray-500 tabular-nums" x-text="b.inicio + ' – ' + b.fin"></span>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -138,21 +181,28 @@
 
                         <div class="space-y-2">
                             <template x-for="(bloque, index) in bloques" :key="index">
-                                <div class="flex flex-wrap items-center gap-2 p-2 bg-white rounded border border-gray-100">
-                                    <select x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
-                                        <option value="">Día…</option>
-                                        <option value="lunes">Lunes</option>
-                                        <option value="martes">Martes</option>
-                                        <option value="miercoles">Miércoles</option>
-                                        <option value="jueves">Jueves</option>
-                                        <option value="viernes">Viernes</option>
-                                        <option value="sabado">Sábado</option>
-                                    </select>
-                                    <input type="time" x-model="bloque.inicio" class="form-control text-sm w-32">
-                                    <span class="text-gray-400 text-sm">a</span>
-                                    <input type="time" x-model="bloque.fin" class="form-control text-sm w-32">
-                                    <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
-                                </div>
+                                 <div class="p-2 rounded border transition-colors"
+                                      :class="bloqueValido(bloque) ? 'bg-white border-gray-100' : 'bg-red-50/40 border-red-300'">
+                                     <div class="flex flex-wrap items-center gap-2">
+                                         <select x-model="bloque.dia" class="form-select text-sm min-w-[130px]">
+                                             <option value="">Día…</option>
+                                             <option value="lunes">Lunes</option>
+                                             <option value="martes">Martes</option>
+                                             <option value="miercoles">Miércoles</option>
+                                             <option value="jueves">Jueves</option>
+                                             <option value="viernes">Viernes</option>
+                                             <option value="sabado">Sábado</option>
+                                         </select>
+                                         <input type="time" x-model="bloque.inicio" class="form-control text-sm w-32">
+                                         <span class="text-gray-400 text-sm">a</span>
+                                         <input type="time" x-model="bloque.fin" class="form-control text-sm w-32">
+                                         <button type="button" @click="eliminar(index)" class="text-red-500 hover:text-red-700 text-sm font-medium ml-auto">Eliminar</button>
+                                     </div>
+                                     <p x-show="bloque.inicio && bloque.fin && !bloqueValido(bloque)"
+                                        class="text-xs text-red-500 mt-1.5">
+                                         El bloque debe tener al menos 1 hora de duración.
+                                     </p>
+                                 </div>
                             </template>
                         </div>
 
@@ -163,7 +213,7 @@
                                 </svg>
                                 Agregar bloque
                             </button>
-                            <button type="button" @click="guardar()" :disabled="saving" class="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50">
+                            <button type="button" @click="guardar()" :disabled="saving || !todosValidos()" class="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                 <span x-text="saving ? 'Guardando…' : 'Guardar Horario'"></span>
                             </button>
                         </div>

@@ -96,19 +96,21 @@ class AsignaturaService:
     Validates codigo uniqueness, horas_lectivas per licencia > 0, at least one tipo_licencia.
     """
 
-    def validar_horas_lectivas(self, horas: int, maximo: int = 60) -> None:
+    def validar_horas_lectivas(self, horas: int, maximo: int = 60, minimo: int = 1) -> None:
         """
-        Validate that horas_lectivas is within [1, maximo].
+        Validate that horas_lectivas is within [minimo, maximo].
 
         Args:
             horas: Number of teaching hours.
             maximo: Maximum allowed hours (default: 60 per settings).
+            minimo: Minimum allowed hours (default: 1; presentation layer
+                typically passes settings.HORAS_LECTIVAS_MIN).
 
         Raises:
-            HorasLectivasInvalidasError: If horas < 1 or horas > maximo.
+            HorasLectivasInvalidasError: If horas < minimo or horas > maximo.
         """
-        if horas < 1 or horas > maximo:
-            raise HorasLectivasInvalidasError(horas=horas, maximo=maximo)
+        if horas < minimo or horas > maximo:
+            raise HorasLectivasInvalidasError(horas=horas, maximo=maximo, minimo=minimo)
 
     def validar_datos(
         self,

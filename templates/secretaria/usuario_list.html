@@ -4,6 +4,7 @@
 {% block title %}Gestión de Usuarios{% endblock %}
 
 {% block content %}
+{{ dependencias_por_usuario_map|json_script:"deps-por-usuario" }}
 <div
     x-data="{
         modalAbierto: false,
@@ -11,7 +12,7 @@
         accionLabel: '',
         toggleUrl: '',
         dependencias: {},
-        allDeps: {{ dependencias_por_usuario_json|safe }},
+        allDeps: JSON.parse(document.getElementById('deps-por-usuario').textContent),
         abrirModal(btn) {
             this.nombreUsuario = btn.dataset.nombre;
             this.accionLabel   = btn.dataset.accion;
@@ -21,7 +22,7 @@
             this.modalAbierto  = true;
         },
         tieneDependencias() {
-            return Object.values(this.dependencias).some(v => v > 0);
+            return Object.values(this.dependencias).some(v => v &gt; 0);
         }
     }"
 >
