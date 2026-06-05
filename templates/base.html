@@ -447,6 +447,11 @@
         <footer class="bg-gray-100 text-gray-500 text-center py-4 text-xs border-t border-gray-200">
             <p>&copy; {% now "Y" %} ECPPP &mdash; Plataforma Académica</p>
         </footer>
+
+        {# Copilot floating widget — solo para estudiante y docente #}
+        {% if user.rol == "estudiante" or user.rol == "docente" %}
+            {% include "copilot/widget.html" %}
+        {% endif %}
         {% endif %}
 
     </main>

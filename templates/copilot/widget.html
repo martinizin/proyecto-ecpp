@@ -1,0 +1,194 @@
+{% comment %}
+  Floating chat widget — Copilot ECPP (HU22).
+
+  Usage: {% include "copilot/widget.html" %} from base.html for
+  estudiante / docente roles.
+
+  State is local Alpine.js. The endpoint integration (POST /copilot/chat/)
+  is wired in T5.1 — for now the widget posts no real data, so you can
+  see the layout and animations.
+{% endcomment %}
+<div x-data="copilotWidget()" x-cloak>
+
+    {# ─────── Floating button (collapsed) ─────── #}
+    <button x-show="!open" @click="openChat()"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-90"
+            x-transition:enter-end="opacity-100 scale-100"
+            class="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-primary text-white pl-4 pr-5 py-3 rounded-full shadow-xl hover:bg-primary-dark hover:shadow-2xl transition-all focus:outline-none focus:ring-4 focus:ring-primary/30"
+            aria-label="Abrir asistente académico">
+        <span class="relative flex items-center justify-center w-9 h-9 rounded-full bg-accent text-primary">
+            {# Chat bubble icon #}
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+            </svg>
+            {# Notification dot #}
+            <span x-show="unread" class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent border-2 border-primary"></span>
+        </span>
+        <span class="font-semibold text-sm tracking-wide">Asistente</span>
+    </button>
+
+    {# ─────── Chat panel (expanded) ─────── #}
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-250"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         @keydown.escape.window="open = false"
+         class="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-3rem)] flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+         role="dialog"
+         aria-label="Asistente académico">
+
+        {# Header #}
+        <header class="flex items-center gap-3 px-4 py-3 bg-primary text-white">
+            <span class="flex items-center justify-center w-9 h-9 rounded-full bg-accent text-primary shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+                </svg>
+            </span>
+            <div class="flex-1 min-w-0">
+                <h2 class="text-sm font-semibold truncate">Asistente Académico</h2>
+                <p class="text-xs text-accent-light/80 flex items-center gap-1.5">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                    ECPPP &middot; En línea
+                </p>
+            </div>
+            <button @click="nuevaConversacion()"
+                    class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    title="Nueva conversación"
+                    aria-label="Nueva conversación">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+                </svg>
+            </button>
+            <button @click="open = false"
+                    class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    title="Cerrar"
+                    aria-label="Cerrar chat">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </header>
+
+        {# Message list #}
+        <div x-ref="scroll" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50">
+
+            {# Welcome state — empty conversation #}
+            <template x-if="messages.length === 0">
+                <div class="flex flex-col items-center justify-center h-full text-center px-6 py-8 text-gray-500">
+                    <span class="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/>
+                        </svg>
+                    </span>
+                    <p class="text-sm font-medium text-gray-700">¡Hola! Soy tu asistente académico.</p>
+                    <p class="text-xs mt-1.5 leading-relaxed">Pregúntame sobre tus <strong class="text-primary">calificaciones</strong>, <strong class="text-primary">asistencia</strong> u <strong class="text-primary">horarios</strong>.</p>
+                    <div class="mt-4 flex flex-col gap-1.5 w-full">
+                        <button @click="input = '¿Cuál es mi promedio?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi promedio?
+                        </button>
+                        <button @click="input = '¿Cuántas faltas tengo?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;ntas faltas tengo?
+                        </button>
+                        <button @click="input = '¿Cuál es mi horario?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi horario?
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            {# Messages #}
+            <template x-for="(m, idx) in messages" :key="idx">
+                <div :class="m.rol === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="m.rol === 'user'
+                            ? 'bg-primary text-white rounded-2xl rounded-tr-md'
+                            : 'bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-md'"
+                         class="max-w-[85%] px-3.5 py-2 text-sm shadow-sm break-words"
+                         x-text="m.contenido">
+                    </div>
+                </div>
+            </template>
+
+            {# Typing indicator #}
+            <div x-show="typing" x-transition.opacity class="flex justify-start">
+                <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-1.5 shadow-sm">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0ms"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 150ms"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 300ms"></span>
+                </div>
+            </div>
+        </div>
+
+        {# Input bar #}
+        <form @submit.prevent="send()"
+              class="flex items-end gap-2 px-3 py-2.5 bg-white border-t border-gray-200">
+            <textarea x-model="input"
+                      @keydown.enter.prevent="if (!$event.shiftKey) send()"
+                      rows="1"
+                      placeholder="Escribí tu consulta…"
+                      class="form-control flex-1 resize-none !h-10 min-h-0 py-2"
+                      :disabled="typing"
+                      maxlength="1000"></textarea>
+            <button type="submit"
+                    :disabled="!input.trim() || typing"
+                    class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-white hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Enviar mensaje">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
+                </svg>
+            </button>
+        </form>
+
+        {# Footer #}
+        <p class="text-[10px] text-gray-400 text-center py-1.5 bg-white border-t border-gray-100">
+            El asistente solo consulta tus propios datos académicos.
+        </p>
+    </div>
+</div>
+
+<script>
+    function copilotWidget() {
+        return {
+            open: false,
+            unread: false,
+            typing: false,
+            input: '',
+            messages: [],
+            openChat() {
+                this.open = true;
+                this.unread = false;
+            },
+            nuevaConversacion() {
+                this.messages = [];
+            },
+            send() {
+                const text = this.input.trim();
+                if (!text || this.typing) return;
+                this.messages.push({ rol: 'user', contenido: text });
+                this.input = '';
+                this.typing = true;
+                this.$nextTick(() => this._scrollDown());
+                // Placeholder: real POST /copilot/chat/ se conecta en T5.1
+                setTimeout(() => {
+                    this.messages.push({
+                        rol: 'assistant',
+                        contenido: '[Vista previa] Recibí: "' + text + '". El endpoint se conecta en T5.1.',
+                    });
+                    this.typing = false;
+                    this.$nextTick(() => this._scrollDown());
+                }, 900);
+            },
+            _scrollDown() {
+                if (this.$refs.scroll) {
+                    this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight;
+                }
+            },
+        };
+    }
+</script>
