@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "apps.solicitudes",
     "apps.secretaria",
     "apps.notificaciones",
+    "apps.copilot",
 ]
 
 MIDDLEWARE = [
@@ -183,6 +184,10 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@ecppp.edu.ec"
 
 # Logo URL for email templates
 LOGO_URL = os.environ.get("LOGO_URL", "https://i.imgur.com/EPsrSix.png")
+
+# Copilot / OpenAI settings
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
 
 # Django REST Framework
 REST_FRAMEWORK = {
