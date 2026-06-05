@@ -1,12 +1,13 @@
 {% comment %}
-  Floating chat widget — Copilot ECPP (HU22).
+  Floating chat widget — Copilot ECPP (HU22, T5.2 final).
 
   Usage: {% include "copilot/widget.html" %} from base.html for
   estudiante / docente roles.
 
-  State is local Alpine.js. The endpoint integration (POST /copilot/chat/)
-  is wired in T5.1 — for now the widget posts no real data, so you can
-  see the layout and animations.
+  Wired to the real backend:
+  - GET  /copilot/chat/                  → load history on open
+  - POST /copilot/chat/                  → send message
+  - POST /copilot/nueva-conversacion/    → close + start fresh
 {% endcomment %}
 <div x-data="copilotWidget()" x-cloak>
 
@@ -18,11 +19,9 @@
             class="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-primary text-white pl-4 pr-5 py-3 rounded-full shadow-xl hover:bg-primary-dark hover:shadow-2xl transition-all focus:outline-none focus:ring-4 focus:ring-primary/30"
             aria-label="Abrir asistente académico">
         <span class="relative flex items-center justify-center w-9 h-9 rounded-full bg-accent text-primary">
-            {# Chat bubble icon #}
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
             </svg>
-            {# Notification dot #}
             <span x-show="unread" class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent border-2 border-primary"></span>
         </span>
         <span class="font-semibold text-sm tracking-wide">Asistente</span>
@@ -73,11 +72,26 @@
             </button>
         </header>
 
+        {# Error banner #}
+        <div x-show="error" x-transition.opacity
+             class="bg-red-50 text-red-800 border-b border-red-200 px-4 py-2 text-xs flex items-start gap-2"
+             role="alert">
+            <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+            </svg>
+            <span class="flex-1" x-text="error"></span>
+            <button @click="error = ''" class="shrink-0 p-0.5 rounded hover:bg-red-100" aria-label="Cerrar error">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
         {# Message list #}
         <div x-ref="scroll" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50">
 
-            {# Welcome state — empty conversation #}
-            <template x-if="messages.length === 0">
+            {# Welcome state #}
+            <template x-if="messages.length === 0 && !loadingHistory">
                 <div class="flex flex-col items-center justify-center h-full text-center px-6 py-8 text-gray-500">
                     <span class="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
                         <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -100,6 +114,16 @@
                             &iquest;Cu&aacute;l es mi horario?
                         </button>
                     </div>
+                </div>
+            </template>
+
+            {# Loading history state #}
+            <template x-if="loadingHistory">
+                <div class="flex items-center justify-center h-full text-gray-400 text-xs">
+                    <svg class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M5.41 20.97l-1.474-1.473M2.985 19.644l1.473-1.473M21 12a9 9 0 1 1-9-9"/>
+                    </svg>
+                    Cargando conversación…
                 </div>
             </template>
 
@@ -158,31 +182,91 @@
             open: false,
             unread: false,
             typing: false,
+            loadingHistory: false,
+            error: '',
             input: '',
             messages: [],
             openChat() {
                 this.open = true;
                 this.unread = false;
+                if (this.messages.length === 0) {
+                    this.loadHistory();
+                }
             },
-            nuevaConversacion() {
-                this.messages = [];
+            async loadHistory() {
+                this.loadingHistory = true;
+                this.error = '';
+                try {
+                    const res = await fetch('{% url "copilot:chat" %}', {
+                        method: 'GET',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) throw new Error('No se pudo cargar el historial.');
+                    const data = await res.json();
+                    this.messages = data.mensajes || [];
+                } catch (e) {
+                    this.error = e.message || 'Error de red al cargar el historial.';
+                } finally {
+                    this.loadingHistory = false;
+                    this.$nextTick(() => this._scrollDown());
+                }
             },
-            send() {
+            async nuevaConversacion() {
+                if (!confirm('¿Iniciar una nueva conversación? Se cerrará la actual.')) return;
+                this.error = '';
+                try {
+                    const res = await fetch('{% url "copilot:nueva_conversacion" %}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': this._csrf(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) throw new Error('No se pudo crear una nueva conversación.');
+                    this.messages = [];
+                } catch (e) {
+                    this.error = e.message || 'Error al crear nueva conversación.';
+                }
+            },
+            async send() {
                 const text = this.input.trim();
                 if (!text || this.typing) return;
                 this.messages.push({ rol: 'user', contenido: text });
                 this.input = '';
                 this.typing = true;
+                this.error = '';
                 this.$nextTick(() => this._scrollDown());
-                // Placeholder: real POST /copilot/chat/ se conecta en T5.1
-                setTimeout(() => {
+                try {
+                    const res = await fetch('{% url "copilot:chat" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this._csrf(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ mensaje: text }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.error || 'Error al procesar el mensaje.');
+                    }
+                    this.messages.push({ rol: 'assistant', contenido: data.respuesta });
+                } catch (e) {
                     this.messages.push({
                         rol: 'assistant',
-                        contenido: '[Vista previa] Recibí: "' + text + '". El endpoint se conecta en T5.1.',
+                        contenido: '⚠️ ' + (e.message || 'No pude responder en este momento.'),
                     });
+                } finally {
                     this.typing = false;
                     this.$nextTick(() => this._scrollDown());
-                }, 900);
+                }
+            },
+            _csrf() {
+                const m = document.cookie.match(/csrftoken=([^;]+)/);
+                return m ? m[1] : '';
             },
             _scrollDown() {
                 if (this.$refs.scroll) {
