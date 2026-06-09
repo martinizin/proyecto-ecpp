@@ -33,6 +33,27 @@ class TestClasificarCalificaciones:
 
 
 # --------------------------------------------------------------------------- #
+# Clasificar — solicitudes (rectificaciones + justificaciones)
+# --------------------------------------------------------------------------- #
+class TestClasificarSolicitudes:
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "¿Cómo va mi solicitud de rectificación?",
+            "Quiero hacer una rectificación de mi nota",
+            "Estado de mi reclamo de calificación",
+            "Necesito rectificar mi calificación del parcial",
+            "Hice una solicitud de recalificación",
+            "Apelación de mi nota del examen final",
+        ],
+    )
+    def test_keywords_solicitudes(self, query):
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "solicitudes"
+        assert resultado.query_original == query
+
+
+# --------------------------------------------------------------------------- #
 # Clasificar — asistencia
 # --------------------------------------------------------------------------- #
 class TestClasificarAsistencia:
@@ -67,6 +88,28 @@ class TestClasificarHorario:
     def test_keywords_horario(self, query):
         resultado = QueryClassifierService.clasificar(query)
         assert resultado.tipo == "horario"
+
+
+# --------------------------------------------------------------------------- #
+# Clasificar — informacion (datos generales del usuario)
+# --------------------------------------------------------------------------- #
+class TestClasificarInformacion:
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "¿Qué materias estoy cursando?",
+            "Quiero ver mis asignaturas",
+            "En qué paralelo estoy",
+            "Quién es mi profesor de matemáticas",
+            "Cuáles son mis módulos este período",
+            "Qué módulos tengo este ciclo",
+            "Quiero ver mi matrícula",
+            "Qué materias tengo este periodo",
+        ],
+    )
+    def test_keywords_informacion(self, query):
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "informacion"
 
 
 # --------------------------------------------------------------------------- #
@@ -108,6 +151,30 @@ class TestClasificarPrioridad:
         query = "Mi inasistencia afectó la clase de ayer"
         resultado = QueryClassifierService.clasificar(query)
         assert resultado.tipo == "asistencia"
+
+    def test_solicitudes_tiene_prioridad_sobre_asistencia(self):
+        # "rectificación" gana sobre "falta"
+        query = "Rectificación de falta en asistencia"
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "solicitudes"
+
+    def test_solicitudes_tiene_prioridad_sobre_calificaciones(self):
+        # "reclamo" gana sobre "nota"
+        query = "Reclamo de mi nota del parcial"
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "solicitudes"
+
+    def test_horario_tiene_prioridad_sobre_informacion(self):
+        # "horario" gana sobre "materias"
+        query = "Qué materias tengo y cuál es mi horario"
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "horario"
+
+    def test_informacion_cuando_no_hay_otro_match(self):
+        # "materias" sin horario/notas/faltas → informacion
+        query = "Qué materias me asignaron este periodo"
+        resultado = QueryClassifierService.clasificar(query)
+        assert resultado.tipo == "informacion"
 
 
 # --------------------------------------------------------------------------- #

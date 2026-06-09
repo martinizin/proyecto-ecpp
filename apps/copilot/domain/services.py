@@ -21,6 +21,20 @@ class QueryClassifierService:
         "puntaje",
         "rendimiento",
     ]
+    KEYWORDS_SOLICITUDES = [
+        "solicitud",
+        "solicitudes",
+        "rectificación",
+        "rectificacion",
+        "rectificar",
+        "recalificación",
+        "recalificacion",
+        "recalificar",
+        "reclamo",
+        "reclamos",
+        "apelación",
+        "apelacion",
+    ]
     KEYWORDS_ASISTENCIA = [
         "asistencia",
         "falta",
@@ -47,23 +61,47 @@ class QueryClassifierService:
         "cuando",
         "schedule",
     ]
+    KEYWORDS_INFORMACION = [
+        "materia",
+        "materias",
+        "asignatura",
+        "asignaturas",
+        "módulo",
+        "módulos",
+        "modulo",
+        "modulos",
+        "paralelo",
+        "paralelos",
+        "profesor",
+        "docente",
+        "matrícula",
+        "matricula",
+        "matriculado",
+        "mis cursos",
+        "mis materias",
+        "qué estoy cursando",
+    ]
 
     @classmethod
     def clasificar(cls, query: str) -> ConsultaAcademica:
         """
         Classify a free-text query and return a ConsultaAcademica value object.
 
-        Priority order: calificaciones > asistencia > horario > general.
+        Priority order: solicitudes > calificaciones > asistencia > horario > informacion > general.
         Returns a ConsultaAcademica with the detected type and the original query.
         """
         query_lower = query.lower()
 
-        if any(kw in query_lower for kw in cls.KEYWORDS_CALIFICACIONES):
+        if any(kw in query_lower for kw in cls.KEYWORDS_SOLICITUDES):
+            tipo = "solicitudes"
+        elif any(kw in query_lower for kw in cls.KEYWORDS_CALIFICACIONES):
             tipo = "calificaciones"
         elif any(kw in query_lower for kw in cls.KEYWORDS_ASISTENCIA):
             tipo = "asistencia"
         elif any(kw in query_lower for kw in cls.KEYWORDS_HORARIO):
             tipo = "horario"
+        elif any(kw in query_lower for kw in cls.KEYWORDS_INFORMACION):
+            tipo = "informacion"
         else:
             tipo = "general"
 
