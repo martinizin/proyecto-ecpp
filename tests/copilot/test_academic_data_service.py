@@ -22,6 +22,7 @@ from tests.factories import (
     MatriculaFactory,
     ParaleloFactory,
     PeriodoFactory,
+    RegistroCalificacionParaleloFactory,
     SolicitudFactory,
     TipoLicenciaFactory,
 )
@@ -85,13 +86,13 @@ class TestObtenerCalificaciones:
     def test_con_calificaciones_agrupadas_por_asignatura(self):
         estudiante = EstudianteFactory()
         tipo_licencia = TipoLicenciaFactory()
-        periodo = PeriodoFactory(tipo_licencia=tipo_licencia)
+        periodo = PeriodoFactory(tipo_licencia=tipo_licencia, activo=True)
         asig_a = AsignaturaFactory(codigo="MAT-01", nombre="Matematicas")
-        asig_b = AsignaturaFactory(codigo="FIS-01", nombre="Fisica")
         AsignaturaLicenciaFactory(asignatura=asig_a, tipo_licencia=tipo_licencia)
-        AsignaturaLicenciaFactory(asignatura=asig_b, tipo_licencia=tipo_licencia)
 
         paralelo = ParaleloFactory(asignatura=asig_a, periodo=periodo, tipo_licencia=tipo_licencia)
+        MatriculaFactory(estudiante=estudiante, paralelo=paralelo, estado="activa")
+        RegistroCalificacionParaleloFactory(paralelo=paralelo, estado="completo")
         evaluacion = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("25.00"))
         CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante, nota=Decimal("15.00"))
 
@@ -100,7 +101,8 @@ class TestObtenerCalificaciones:
         assert "MAT-01" in result
         assert "Matematicas" in result
         assert "Parcial 1" in result
-        assert "15.0" in result or "15.00" in result
+        assert "15.00" in result
+        assert "Promedio" in result
 
 
 # =========================================================================== #
@@ -159,8 +161,8 @@ class TestObtenerAsistencia:
         svc = AcademicDataService()
         result = svc._obtener_asistencia(estudiante)
         assert "MAT-01" in result
-        assert "1 presentes" in result
-        assert "1 ausentes" in result
+        assert "1/2 clases" in result
+        assert "1 ausencia" in result
 
 
 # =========================================================================== #

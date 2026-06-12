@@ -62,30 +62,36 @@ class AcademicDataService:
     # Calificaciones
     # ------------------------------------------------------------------ #
     def _obtener_calificaciones(self, usuario) -> str:
-        from apps.calificaciones.infrastructure.models import Calificacion
+        from apps.calificaciones.application.services import LibretaCalificacionesAppService
 
-        qs = (
-            Calificacion.objects.filter(estudiante=usuario)
-            .select_related("evaluacion__paralelo__asignatura")
-            .order_by("evaluacion__paralelo__asignatura__codigo", "evaluacion__tipo")
-        )
-        if not qs.exists():
+        libreta = LibretaCalificacionesAppService.obtener_libreta(usuario)
+        materias = libreta.get("materias", [])
+
+        if not materias:
             return "No hay calificaciones registradas para este usuario."
 
         lines: list[str] = []
-        current_asig: str | None = None
-        for c in qs:
-            asig = (
-                f"{c.evaluacion.paralelo.asignatura.codigo} — "
-                f"{c.evaluacion.paralelo.asignatura.nombre}"
-            )
-            if asig != current_asig:
-                lines.append(f"\n### {asig}")
-                current_asig = asig
-            lines.append(
-                f"- {c.evaluacion.get_tipo_display()}: {c.nota}/20"
-                f"{' — ' + c.observaciones if c.observaciones else ''}"
-            )
+
+        for materia in materias:
+            paralelo = materia["paralelo"]
+            asig = paralelo.asignatura
+            lines.append(f"\n### {asig.codigo} — {asig.nombre}")
+
+            if not materia["notas_visibles"]:
+                lines.append("_(Notas aún no publicadas por el docente)_")
+                continue
+
+            for ev in materia["evaluaciones"]:
+                nota_str = f"{ev['nota']}/20" if ev["nota"] is not None else "—"
+                lines.append(f"- {ev['tipo']} ({ev['peso']}%): {nota_str}")
+
+            if materia["promedio"] is not None:
+                lines.append(f"**Promedio ponderado: {materia['promedio']}/20**")
+
+        promedio_general = libreta.get("promedio_general")
+        if promedio_general is not None:
+            lines.append(f"\n---\n**Promedio general: {promedio_general}/20**")
+
         return "\n".join(lines)
 
     # ------------------------------------------------------------------ #
@@ -532,8 +538,10 @@ class CopilotAppService:
             "- No inventes datos ni asumas información que no esté en el contexto.\n"
             "- Para solicitudes/reclamos: indica el estado actual pero deriva al usuario a "
             "secretaría para gestiones que requieran acción.\n"
-            "- Para calificaciones: muestra las notas pero no hagas cálculos que no estén "
-            "explícitos en los datos.\n"
+            "- Para calificaciones: muestra las notas y reportá el promedio ponderado por "
+            "materia y el promedio general tal como aparecen en los datos. Podés responder "
+            "directamente cuando el usuario pregunta '¿cuál es mi promedio?'. NO realices "
+            "cálculos hipotéticos como '¿qué pasaría si cambiara la nota X a Y?'.\n"
             "- Para consultas de navegación: usa ÚNICA Y EXCLUSIVAMENTE los pasos de la "
             "guía de navegación provista en los datos del usuario. NUNCA inventes pasos, "
             "secciones ni rutas que no aparezcan en esa guía. Si el usuario pregunta por "
