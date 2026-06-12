@@ -321,12 +321,12 @@
                     const line = raw.trimEnd();
                     if (line.startsWith('### ')) {
                         if (inList) { html += '</ul>'; inList = false; }
-                        html += `<p class="text-[11px] font-semibold text-primary uppercase tracking-wide mt-2 mb-0.5">${inline(line.slice(4))}</p>`;
+                        html += `<p class="text-sm font-semibold text-primary uppercase tracking-wide mt-2 mb-0.5">${inline(line.slice(4))}</p>`;
                     } else if (line.startsWith('## ')) {
                         if (inList) { html += '</ul>'; inList = false; }
-                        html += `<p class="text-xs font-bold text-gray-700 mt-2 mb-0.5">${inline(line.slice(3))}</p>`;
+                        html += `<p class="text-sm font-bold text-gray-700 mt-2 mb-0.5">${inline(line.slice(3))}</p>`;
                     } else if (line.startsWith('- ')) {
-                        if (!inList) { html += '<ul class="list-disc list-inside space-y-0.5 my-1 text-xs text-gray-700">'; inList = true; }
+                        if (!inList) { html += '<ul class="list-disc list-inside space-y-0.5 my-1 text-gray-700">'; inList = true; }
                         html += `<li>${inline(line.slice(2))}</li>`;
                     } else if (line === '') {
                         if (inList) { html += '</ul>'; inList = false; }
