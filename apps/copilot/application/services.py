@@ -54,6 +54,8 @@ class AcademicDataService:
             return self._obtener_horario(usuario)
         elif tipo in ("informacion", "general"):
             return self._obtener_informacion(usuario)
+        elif tipo == "navegacion":
+            return self._obtener_navegacion(usuario)
         return "No hay datos disponibles para esta consulta."
 
     # ------------------------------------------------------------------ #
@@ -210,6 +212,93 @@ class AcademicDataService:
                     f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
                 )
         return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Navegación — instrucciones de uso del sistema por rol
+    # ------------------------------------------------------------------ #
+    def _obtener_navegacion(self, usuario) -> str:
+        rol = getattr(usuario, "rol", "desconocido")
+
+        guia_comun = """
+### Acciones disponibles en la plataforma para todos los usuarios
+
+**Cambiar contraseña**
+1. En el menú lateral izquierdo, hacé clic en **Mi Perfil** (sección "Mi Cuenta").
+2. En la página de perfil, seleccioná el botón **Cambiar Contraseña**.
+3. Completá los campos: contraseña actual, nueva contraseña y confirmación.
+4. Hacé clic en **Guardar** para aplicar el cambio.
+
+**Ver tu perfil**
+1. En el menú lateral izquierdo, hacé clic en **Mi Perfil** (sección "Mi Cuenta").
+2. Verás tu información personal registrada en la plataforma.
+
+**Recuperar contraseña olvidada**
+1. En la pantalla de inicio de sesión, hacé clic en **¿Olvidaste tu contraseña?**
+2. Ingresá tu correo electrónico institucional registrado.
+3. Revisá tu correo: recibirás un enlace para restablecer la contraseña.
+4. Hacé clic en el enlace y establecé una nueva contraseña."""
+
+        if rol == "estudiante":
+            return guia_comun + """
+
+### Acciones específicas para estudiantes
+
+**Ver mis calificaciones (Mi Libreta)**
+1. En el menú lateral izquierdo, hacé clic en **Mi Libreta**.
+2. Verás todas tus notas organizadas por asignatura y tipo de evaluación.
+
+**Ver mi asistencia**
+1. En el menú lateral izquierdo, hacé clic en **Mi Asistencia**.
+2. Verás el porcentaje de asistencia, las ausencias y el estado de justificaciones por materia.
+
+**Ver mi horario de clases**
+1. En el menú lateral izquierdo, hacé clic en **Mi Horario**.
+2. Verás los días y franjas horarias de cada asignatura en la que estás matriculado.
+
+**Justificar una inasistencia desde la plataforma**
+1. En el menú lateral izquierdo, hacé clic en **Justificación** (sección Solicitudes).
+2. Se mostrará la lista de tus inasistencias pendientes de justificar.
+3. Seleccioná la inasistencia que querés justificar.
+4. Adjuntá el certificado o documento de respaldo (médico, laboral, etc.).
+5. Hacé clic en **Enviar solicitud**.
+6. Podés revisar el estado de la solicitud en **Mis Solicitudes**.
+
+**Solicitar recalificación de una nota**
+1. En el menú lateral izquierdo, hacé clic en **Recalificación** (sección Solicitudes).
+2. Seleccioná la asignatura y la evaluación cuya nota querés impugnar.
+3. Escribí el motivo de la solicitud en el campo correspondiente.
+4. Hacé clic en **Enviar solicitud**.
+5. Podés revisar el estado en **Mis Solicitudes**.
+
+**Ver el estado de mis solicitudes**
+1. En el menú lateral izquierdo, hacé clic en **Mis Solicitudes**.
+2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) y la fecha de resolución."""
+
+        elif rol == "docente":
+            return guia_comun + """
+
+### Acciones específicas para docentes
+
+**Registrar asistencia de un paralelo**
+1. En el menú lateral izquierdo, hacé clic en **Registro de Asistencia**.
+2. Seleccioná el paralelo para el que querés registrar asistencia.
+3. Marcá el estado de cada estudiante (presente, ausente) y hacé clic en **Guardar**.
+
+**Registrar calificaciones**
+1. En el menú lateral izquierdo, hacé clic en **Registro de Calificaciones**.
+2. Seleccioná el paralelo correspondiente.
+3. Elegí la evaluación, ingresá las notas de cada estudiante y hacé clic en **Guardar**.
+
+**Ver mi horario de clases**
+1. En el menú lateral izquierdo, hacé clic en **Mi Horario**.
+2. Verás los horarios de todos los paralelos que tenés asignados.
+
+**Gestionar solicitudes de recalificación**
+1. En el menú lateral izquierdo, hacé clic en **Solicitudes Pendientes**.
+2. Verás las solicitudes de recalificación enviadas por tus estudiantes.
+3. Revisá cada solicitud y seleccioná **Aprobar** o **Rechazar** con tu justificación."""
+
+        return guia_comun + f"\n\nNota: guía de navegación no disponible para el rol '{rol}'."
 
     # ------------------------------------------------------------------ #
     # Información general del usuario
@@ -445,4 +534,10 @@ class CopilotAppService:
             "secretaría para gestiones que requieran acción.\n"
             "- Para calificaciones: muestra las notas pero no hagas cálculos que no estén "
             "explícitos en los datos.\n"
+            "- Para consultas de navegación: usa ÚNICA Y EXCLUSIVAMENTE los pasos de la "
+            "guía de navegación provista en los datos del usuario. NUNCA inventes pasos, "
+            "secciones ni rutas que no aparezcan en esa guía. Si el usuario pregunta por "
+            "una acción específica, respondé SOLO con esa sección de la guía. No menciones "
+            "secretarías presenciales, soporte técnico ni ningún canal externo a la "
+            "plataforma — todas las instrucciones son dentro del sistema web.\n"
         )

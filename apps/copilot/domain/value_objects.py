@@ -6,7 +6,7 @@ class ConsultaAcademica:
     """Value object representing a classified academic query."""
 
     # Possible values: "calificaciones", "solicitudes", "asistencia",
-    #                  "horario", "informacion", "general"
+    #                  "horario", "informacion", "navegacion", "general"
     tipo: str
     query_original: str
     parametros: dict = field(default_factory=dict)
@@ -18,6 +18,7 @@ class ConsultaAcademica:
             "asistencia",
             "horario",
             "informacion",
+            "navegacion",
             "general",
         }
         if self.tipo not in tipos_validos:
