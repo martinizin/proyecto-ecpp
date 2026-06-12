@@ -12,10 +12,13 @@ from the base template, so no HTML view is needed here.
 """
 
 import json
+import logging
 
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.views import View
+
+logger = logging.getLogger(__name__)
 
 from apps.copilot.application.services import CopilotAppService
 from apps.copilot.domain.exceptions import (
@@ -91,6 +94,65 @@ class CopilotChatView(MultiRolRequeridoMixin, View):
                 "timestamp": timezone.now().isoformat(),
             }
         )
+
+
+class CopilotChatStreamView(MultiRolRequeridoMixin, View):
+    """SSE endpoint — streams the assistant reply chunk by chunk."""
+
+    roles_permitidos = ["estudiante", "docente"]
+    MAX_LONGITUD_MENSAJE = 1000
+
+    def post(self, request):
+        try:
+            body = json.loads(request.body or b"{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        mensaje = (body.get("mensaje") or "").strip()
+        if not mensaje:
+            return JsonResponse({"error": "El mensaje no puede estar vacío."}, status=400)
+        if len(mensaje) > self.MAX_LONGITUD_MENSAJE:
+            return JsonResponse(
+                {"error": f"El mensaje supera el límite de {self.MAX_LONGITUD_MENSAJE} caracteres."},
+                status=400,
+            )
+
+        service = CopilotAppService()
+        try:
+            stream = service.procesar_mensaje_stream(request.user, mensaje)
+        except RateLimitExcedidoError as e:
+            return JsonResponse(
+                {"error": f"Has excedido el límite de mensajes ({e.limite}/hora). Intenta más tarde."},
+                status=429,
+            )
+        except SesionLlenaError as e:
+            return JsonResponse(
+                {"error": f"Sesión llena ({e.maximo} mensajes). Inicia una nueva conversación."},
+                status=400,
+            )
+        except (MensajeVacioError, MensajeDemaisiadoLargoError) as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        def sse_generator():
+            # Comentario SSE de relleno: fuerza al browser a superar su buffer
+            # inicial (~1 KB en Chrome) para que entregue los chunks de inmediato.
+            yield ": " + ("x" * 1024) + "\n\n"
+            try:
+                for chunk in stream:
+                    payload = json.dumps({"delta": chunk}, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+            except Exception:
+                logger.exception("Error durante el streaming SSE del copilot")
+                yield f"data: {json.dumps({'error': 'Error generando la respuesta.'})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        response = StreamingHttpResponse(
+            sse_generator(),
+            content_type="text/event-stream; charset=utf-8",
+        )
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
 
 class CopilotNuevaConversacionView(MultiRolRequeridoMixin, View):

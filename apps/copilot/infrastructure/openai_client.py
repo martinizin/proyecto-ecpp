@@ -31,6 +31,30 @@ class OpenAIClient:
             self._client = OpenAI(api_key=self._api_key)
         return self._client
 
+    def chat_completion_stream(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+        max_tokens: int = 500,
+        temperature: float = 0.3,
+    ):
+        """Stream chat completion deltas. Yields non-empty text chunks as they arrive."""
+        formatted = [{"role": "system", "content": system_prompt}]
+        for msg in messages:
+            formatted.append({"role": msg["rol"], "content": msg["contenido"]})
+
+        stream = self.client.chat.completions.create(
+            model=self._model,
+            messages=formatted,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
     def chat_completion(
         self,
         system_prompt: str,

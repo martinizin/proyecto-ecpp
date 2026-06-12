@@ -162,9 +162,9 @@
                 <div :class="m.rol === 'user' ? 'flex justify-end' : 'flex justify-start'">
                     <div class="max-w-[85%]">
                         <div :class="m.rol === 'user'
-                                ? 'bg-primary text-white rounded-2xl rounded-tr-md'
-                                : 'bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-md'"
-                             class="px-3.5 py-2 text-sm shadow-sm break-words">
+                                ? 'bg-primary text-white rounded-2xl rounded-tr-md px-3.5 py-2 shadow-sm'
+                                : 'bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-md px-3.5 py-2 shadow-sm'"
+                             class="text-sm break-words">
                             <template x-if="m.rol === 'user'">
                                 <span x-text="m.contenido"></span>
                             </template>
@@ -180,7 +180,7 @@
                                         :title="copiedIdx === idx ? 'Copiado' : 'Copiar respuesta'">
                                     <template x-if="copiedIdx !== idx">
                                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.466 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/>
                                         </svg>
                                     </template>
                                     <template x-if="copiedIdx === idx">
@@ -196,12 +196,12 @@
                 </div>
             </template>
 
-            {# Typing indicator #}
-            <div x-show="typing" x-transition.opacity class="flex justify-start">
-                <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-1.5 shadow-sm">
-                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0ms"></span>
-                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 150ms"></span>
-                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 300ms"></span>
+            {# Streaming indicator — x-show (siempre en el DOM), reactivo a isStreaming #}
+            <div x-show="isStreaming" class="flex justify-start">
+                <div class="max-w-[85%] px-1 py-1">
+                    <span class="text-sm whitespace-pre-wrap leading-relaxed block" style="color: #374151;">
+                        <span x-text="streamingContent"></span><span class="animate-pulse" style="color: #9ca3af;">▋</span>
+                    </span>
                 </div>
             </div>
         </div>
@@ -214,10 +214,10 @@
                       rows="1"
                       placeholder="Escribí tu consulta…"
                       class="form-control flex-1 resize-none !h-10 min-h-0 py-2"
-                      :disabled="typing"
+                      :disabled="isStreaming"
                       maxlength="1000"></textarea>
             <button type="submit"
-                    :disabled="!input.trim() || typing"
+                    :disabled="!input.trim() || isStreaming"
                     class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-white hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                     aria-label="Enviar mensaje">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
@@ -238,12 +238,13 @@
         return {
             open: false,
             unread: false,
-            typing: false,
             showConfirmModal: false,
             copiedIdx: null,
             error: '',
             input: '',
             messages: [],
+            isStreaming: false,
+            streamingContent: '',
             async init() {
                 // Reset backend session on every page load so conversation never persists across reloads
                 try {
@@ -284,14 +285,16 @@
             },
             async send() {
                 const text = this.input.trim();
-                if (!text || this.typing) return;
+                if (!text || this.isStreaming) return;
                 this.messages.push({ rol: 'user', contenido: text });
                 this.input = '';
-                this.typing = true;
                 this.error = '';
+                this.streamingContent = '';
+                this.isStreaming = true;  // activa x-show antes del fetch
                 this.$nextTick(() => this._scrollDown());
+
                 try {
-                    const res = await fetch('{% url "copilot:chat" %}', {
+                    const res = await fetch('{% url "copilot:chat_stream" %}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -301,18 +304,57 @@
                         credentials: 'same-origin',
                         body: JSON.stringify({ mensaje: text }),
                     });
-                    const data = await res.json();
+
                     if (!res.ok) {
+                        const data = await res.json();
                         throw new Error(data.error || 'Error al procesar el mensaje.');
                     }
-                    this.messages.push({ rol: 'assistant', contenido: data.respuesta });
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const events = buffer.split('\n\n');
+                        buffer = events.pop();
+
+                        for (const event of events) {
+                            for (const line of event.split('\n')) {
+                                if (!line.startsWith('data: ')) continue;
+                                const raw = line.slice(6);
+                                if (raw === '[DONE]') break;
+                                let parsed;
+                                try { parsed = JSON.parse(raw); } catch (_) { continue; }
+                                if (parsed.error) throw new Error(parsed.error);
+                                if (parsed.delta) {
+                                    this.streamingContent += parsed.delta;
+                                    // Cede al event loop para que el browser pinte el nuevo texto
+                                    await new Promise(r => setTimeout(r, 0));
+                                    this._scrollDown();
+                                }
+                            }
+                        }
+                    }
+
+                    const finalContent = this.streamingContent;
+                    this.isStreaming = false;
+                    this.streamingContent = '';
+                    if (finalContent) {
+                        this.messages.push({ rol: 'assistant', contenido: finalContent });
+                    }
+
                 } catch (e) {
+                    this.isStreaming = false;
+                    this.streamingContent = '';
                     this.messages.push({
                         rol: 'assistant',
                         contenido: '⚠️ ' + (e.message || 'No pude responder en este momento.'),
                     });
                 } finally {
-                    this.typing = false;
                     this.$nextTick(() => this._scrollDown());
                 }
             },

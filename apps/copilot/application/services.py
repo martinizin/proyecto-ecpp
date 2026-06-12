@@ -364,6 +364,60 @@ class CopilotAppService:
 
         return respuesta
 
+    def procesar_mensaje_stream(self, usuario, contenido: str):
+        """Validate, persist, and return a generator that streams OpenAI deltas.
+
+        Unlike ``procesar_mensaje``, this is a regular function (not a
+        generator), so domain exceptions are raised synchronously. The returned
+        generator yields text chunks and saves the assembled response to the DB
+        once all chunks have been consumed.
+        """
+        if self._excede_rate_limit(usuario):
+            raise RateLimitExcedidoError(limite=self.MAX_MENSAJES_POR_HORA)
+
+        conversacion = self.obtener_o_crear_conversacion(usuario)
+
+        msg_count = conversacion.mensajes.count()
+        if msg_count >= self.MAX_MENSAJES_POR_SESION:
+            raise SesionLlenaError(maximo=self.MAX_MENSAJES_POR_SESION)
+
+        MensajeCopilot.objects.create(
+            conversacion=conversacion,
+            rol=MensajeCopilot.Rol.USER,
+            contenido=contenido,
+        )
+
+        consulta = QueryClassifierService.clasificar(contenido)
+        datos_academicos = self.academic_data_service.obtener_datos(
+            usuario=usuario, tipo=consulta.tipo
+        )
+        system_prompt = self._construir_system_prompt(usuario, datos_academicos)
+        historial = list(
+            conversacion.mensajes.order_by("timestamp").values("rol", "contenido")[:20]
+        )
+
+        return self._stream_openai(conversacion, system_prompt, historial)
+
+    def _stream_openai(self, conversacion, system_prompt: str, historial: list[dict]):
+        """Generator: yield text deltas from OpenAI, save full reply when done."""
+        full_response = ""
+        for delta in self.openai_client.chat_completion_stream(
+            system_prompt=system_prompt,
+            messages=historial,
+            max_tokens=self.MAX_TOKENS_RESPUESTA,
+        ):
+            full_response += delta
+            yield delta
+
+        if full_response:
+            MensajeCopilot.objects.create(
+                conversacion=conversacion,
+                rol=MensajeCopilot.Rol.ASSISTANT,
+                contenido=full_response,
+                tokens_usados=0,
+            )
+            conversacion.save(update_fields=["ultima_actividad"])
+
     def obtener_historial(self, usuario) -> tuple[str, list[dict]]:
         """Return the active conversation id and its messages."""
         conversacion = self.obtener_o_crear_conversacion(usuario)
