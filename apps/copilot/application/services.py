@@ -92,16 +92,35 @@ class AcademicDataService:
     def _obtener_solicitudes(self, usuario) -> str:
         from apps.solicitudes.infrastructure.models import Solicitud
 
-        qs = Solicitud.objects.filter(estudiante=usuario).order_by("-fecha_creacion")[:10]
+        qs = (
+            Solicitud.objects.filter(estudiante=usuario)
+            .select_related("asistencia__paralelo__asignatura", "calificacion__evaluacion__paralelo__asignatura")
+            .order_by("-fecha_creacion")[:10]
+        )
 
         if not qs.exists():
             return "No hay solicitudes registradas para este usuario."
 
         lines = ["Últimas solicitudes:"]
         for s in qs:
+            referencia = ""
+            if s.tipo == "justificacion" and s.asistencia:
+                a = s.asistencia
+                referencia = (
+                    f" · Inasistencia del {a.fecha:%d/%m/%Y}"
+                    f" en {a.paralelo.asignatura.codigo}"
+                )
+            elif s.tipo == "rectificacion" and s.calificacion:
+                c = s.calificacion
+                referencia = (
+                    f" · {c.evaluacion.paralelo.asignatura.codigo}"
+                    f" — {c.evaluacion.get_tipo_display()}"
+                )
+            estado = s.get_estado_display()
+            resolucion = f" (resuelta {s.fecha_resolucion:%d/%m/%Y})" if s.fecha_resolucion else ""
             lines.append(
-                f"- [{s.get_tipo_display()}] {s.get_estado_display()} — "
-                f"{s.fecha_creacion:%d/%m/%Y}\n"
+                f"- [{s.get_tipo_display()}] {estado}{resolucion} — "
+                f"creada {s.fecha_creacion:%d/%m/%Y}{referencia}\n"
                 f"  Motivo: {s.descripcion[:200]}"
             )
         return "\n".join(lines)
@@ -112,18 +131,21 @@ class AcademicDataService:
     def _obtener_asistencia(self, usuario) -> str:
         from apps.asistencia.infrastructure.models import Asistencia
 
-        qs = Asistencia.objects.filter(estudiante=usuario).select_related(
-            "paralelo__asignatura",
+        qs = (
+            Asistencia.objects.filter(estudiante=usuario)
+            .select_related("paralelo__asignatura")
+            .prefetch_related("solicitudes_justificacion")
+            .order_by("paralelo__asignatura__codigo", "fecha")
         )
         if not qs.exists():
             return "No hay registros de asistencia para este usuario."
 
-        lines: list[str] = []
         por_asig: dict[str, list] = defaultdict(list)
         for a in qs:
             key = f"{a.paralelo.asignatura.codigo} — {a.paralelo.asignatura.nombre}"
             por_asig[key].append(a)
 
+        lines: list[str] = []
         for asig, registros in por_asig.items():
             total = len(registros)
             conteo = Counter(r.estado for r in registros)
@@ -131,11 +153,29 @@ class AcademicDataService:
             ausentes = conteo.get("ausente", 0)
             justificados = conteo.get("justificado", 0)
             pct = round(presentes / total * 100, 1) if total else 0
+
+            lines.append(f"\n### {asig}")
             lines.append(
-                f"- {asig}: {presentes} presentes, {ausentes} ausentes"
-                f"{f', {justificados} justificados' if justificados else ''}"
-                f" ({pct}% asistencia)"
+                f"Asistencia general: {presentes}/{total} clases ({pct}%)"
+                + (f" · {ausentes} ausencia(s)" if ausentes else "")
+                + (f" · {justificados} justificada(s)" if justificados else "")
             )
+
+            inasistencias = [r for r in registros if r.estado != "presente"]
+            if inasistencias:
+                lines.append("Fechas de inasistencia:")
+                for r in inasistencias:
+                    sol = r.solicitudes_justificacion.first()
+                    if r.estado == "justificado":
+                        detalle = "Justificada"
+                        if sol:
+                            detalle += f" (solicitud {sol.get_estado_display().lower()})"
+                    elif sol:
+                        detalle = f"Sin justificar · solicitud {sol.get_estado_display().lower()}"
+                    else:
+                        detalle = "Sin justificar · sin solicitud"
+                    lines.append(f"- {r.fecha:%d/%m/%Y}: {detalle}")
+
         return "\n".join(lines)
 
     # ------------------------------------------------------------------ #
