@@ -138,6 +138,23 @@
                         </svg>
                     </span>
                     <p class="text-sm font-medium text-gray-700">¡Hola! Soy tu asistente académico.</p>
+                    {% if request.user.rol == "docente" %}
+                    <p class="text-xs mt-1.5 leading-relaxed">Pregúntame sobre tus <strong class="text-primary">paralelos</strong>, <strong class="text-primary">horarios</strong> o <strong class="text-primary">solicitudes de estudiantes</strong>.</p>
+                    <div class="mt-4 flex flex-col gap-1.5 w-full">
+                        <button @click="input = '¿Cuáles son mis paralelos?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;les son mis paralelos?
+                        </button>
+                        <button @click="input = '¿Cuál es mi horario?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi horario?
+                        </button>
+                        <button @click="input = '¿Cómo gestiono las solicitudes de recalificación?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;C&oacute;mo gestiono las solicitudes de recalificaci&oacute;n?
+                        </button>
+                    </div>
+                    {% else %}
                     <p class="text-xs mt-1.5 leading-relaxed">Pregúntame sobre tus <strong class="text-primary">calificaciones</strong>, <strong class="text-primary">asistencia</strong> u <strong class="text-primary">horarios</strong>.</p>
                     <div class="mt-4 flex flex-col gap-1.5 w-full">
                         <button @click="input = '¿Cuál es mi promedio?'; send()"
@@ -153,6 +170,7 @@
                             &iquest;Cu&aacute;l es mi horario?
                         </button>
                     </div>
+                    {% endif %}
                 </div>
             </template>
 
