@@ -6,6 +6,7 @@ query classification, academic data fetch, and the call to OpenAI.
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from datetime import timedelta
 from typing import Protocol
 
@@ -33,19 +34,189 @@ class AcademicDataServiceProtocol(Protocol):
     def obtener_datos(self, usuario, tipo: str) -> str: ...
 
 
-class AcademicDataServiceStub:
-    """Temporary stub implementation.
+class AcademicDataService:
+    """Queries actual DB data to build academic context for the copilot.
 
-    Returns a deterministic placeholder string so the copilot can run
-    end-to-end during HU22. HU24 will replace this via DI with the real
-    service that joins calificaciones / asistencia / horario data.
+    Each ``obtener_datos(tipo)`` method returns a Markdown-formatted string
+    that gets injected into the system prompt so the LLM can answer with
+    real user data.
     """
 
     def obtener_datos(self, usuario, tipo: str) -> str:
-        return (
-            f"[Datos académicos del usuario {getattr(usuario, 'username', usuario)} "
-            f"para la consulta tipo '{tipo}' no están disponibles en esta versión.]"
+        """Return formatted academic data for the given user and query type."""
+        if tipo == "calificaciones":
+            return self._obtener_calificaciones(usuario)
+        elif tipo == "solicitudes":
+            return self._obtener_solicitudes(usuario)
+        elif tipo == "asistencia":
+            return self._obtener_asistencia(usuario)
+        elif tipo == "horario":
+            return self._obtener_horario(usuario)
+        elif tipo in ("informacion", "general"):
+            return self._obtener_informacion(usuario)
+        return "No hay datos disponibles para esta consulta."
+
+    # ------------------------------------------------------------------ #
+    # Calificaciones
+    # ------------------------------------------------------------------ #
+    def _obtener_calificaciones(self, usuario) -> str:
+        from apps.calificaciones.infrastructure.models import Calificacion
+
+        qs = (
+            Calificacion.objects.filter(estudiante=usuario)
+            .select_related("evaluacion__paralelo__asignatura")
+            .order_by("evaluacion__paralelo__asignatura__codigo", "evaluacion__tipo")
         )
+        if not qs.exists():
+            return "No hay calificaciones registradas para este usuario."
+
+        lines: list[str] = []
+        current_asig: str | None = None
+        for c in qs:
+            asig = (
+                f"{c.evaluacion.paralelo.asignatura.codigo} — "
+                f"{c.evaluacion.paralelo.asignatura.nombre}"
+            )
+            if asig != current_asig:
+                lines.append(f"\n### {asig}")
+                current_asig = asig
+            lines.append(
+                f"- {c.evaluacion.get_tipo_display()}: {c.nota}/20"
+                f"{' — ' + c.observaciones if c.observaciones else ''}"
+            )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Solicitudes (rectificaciones + justificaciones)
+    # ------------------------------------------------------------------ #
+    def _obtener_solicitudes(self, usuario) -> str:
+        from apps.solicitudes.infrastructure.models import Solicitud
+
+        qs = Solicitud.objects.filter(estudiante=usuario).order_by("-fecha_creacion")[:10]
+
+        if not qs.exists():
+            return "No hay solicitudes registradas para este usuario."
+
+        lines = ["Últimas solicitudes:"]
+        for s in qs:
+            lines.append(
+                f"- [{s.get_tipo_display()}] {s.get_estado_display()} — "
+                f"{s.fecha_creacion:%d/%m/%Y}\n"
+                f"  Motivo: {s.descripcion[:200]}"
+            )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Asistencia
+    # ------------------------------------------------------------------ #
+    def _obtener_asistencia(self, usuario) -> str:
+        from apps.asistencia.infrastructure.models import Asistencia
+
+        qs = Asistencia.objects.filter(estudiante=usuario).select_related(
+            "paralelo__asignatura",
+        )
+        if not qs.exists():
+            return "No hay registros de asistencia para este usuario."
+
+        lines: list[str] = []
+        por_asig: dict[str, list] = defaultdict(list)
+        for a in qs:
+            key = f"{a.paralelo.asignatura.codigo} — {a.paralelo.asignatura.nombre}"
+            por_asig[key].append(a)
+
+        for asig, registros in por_asig.items():
+            total = len(registros)
+            conteo = Counter(r.estado for r in registros)
+            presentes = conteo.get("presente", 0)
+            ausentes = conteo.get("ausente", 0)
+            justificados = conteo.get("justificado", 0)
+            pct = round(presentes / total * 100, 1) if total else 0
+            lines.append(
+                f"- {asig}: {presentes} presentes, {ausentes} ausentes"
+                f"{f', {justificados} justificados' if justificados else ''}"
+                f" ({pct}% asistencia)"
+            )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Horario
+    # ------------------------------------------------------------------ #
+    def _obtener_horario(self, usuario) -> str:
+        from apps.academico.infrastructure.models import Matricula
+
+        matriculas = (
+            Matricula.objects.filter(estudiante=usuario, estado="activa")
+            .select_related("paralelo__asignatura", "paralelo__docente")
+            .prefetch_related("paralelo__bloques_horario")
+        )
+        if not matriculas.exists():
+            return "No tienes paralelos activos este período."
+
+        DIA_ORDEN = {
+            "lunes": 1, "martes": 2, "miercoles": 3,
+            "jueves": 4, "viernes": 5, "sabado": 6,
+        }
+        lines: list[str] = []
+        for m in matriculas:
+            p = m.paralelo
+            lines.append(f"\n### {p.asignatura.codigo} — {p.asignatura.nombre}")
+            if p.docente:
+                lines.append(f"Docente: {p.docente.get_full_name()}")
+            lines.append(f"Paralelo: {p.nombre}")
+            bloques = list(p.bloques_horario.all())
+            bloques.sort(key=lambda b: (DIA_ORDEN.get(b.dia_semana, 99), b.hora_inicio))
+            for b in bloques:
+                lines.append(
+                    f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
+                )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Información general del usuario
+    # ------------------------------------------------------------------ #
+    def _obtener_informacion(self, usuario) -> str:
+        from apps.academico.infrastructure.models import Matricula
+
+        rol = getattr(usuario, "rol", "desconocido")
+        info = [f"Rol: {rol}", f"Nombre: {usuario.get_full_name()}"]
+
+        if rol == "estudiante":
+            matriculas = (
+                Matricula.objects.filter(estudiante=usuario, estado="activa")
+                .select_related(
+                    "paralelo__asignatura",
+                    "paralelo__periodo__tipo_licencia",
+                    "paralelo__docente",
+                )
+            )
+            if matriculas.exists():
+                info.append("\n### Matrícula activa")
+                for m in matriculas:
+                    p = m.paralelo
+                    info.append(f"- {p.asignatura.codigo} — {p.asignatura.nombre}")
+                    info.append(f"  Paralelo: {p.nombre}")
+                    info.append(
+                        f"  Periodo: {p.periodo.nombre} ({p.periodo.tipo_licencia.codigo})"
+                    )
+                    if p.docente:
+                        info.append(f"  Docente: {p.docente.get_full_name()}")
+            else:
+                info.append("\nSin matrícula activa este período.")
+        elif rol == "docente":
+            paralelos = usuario.paralelos_asignados.select_related(
+                "asignatura", "periodo__tipo_licencia",
+            ).all()
+            if paralelos.exists():
+                info.append("\n### Paralelos asignados")
+                for p in paralelos:
+                    info.append(
+                        f"- {p.asignatura.codigo} — {p.asignatura.nombre} "
+                        f"({p.nombre}) — {p.periodo.nombre}"
+                    )
+            else:
+                info.append("\nSin paralelos asignados.")
+
+        return "\n".join(info)
 
 
 class CopilotAppService:
@@ -62,7 +233,7 @@ class CopilotAppService:
         academic_data_service: AcademicDataServiceProtocol | None = None,
     ):
         self.openai_client = openai_client or OpenAIClient()
-        self.academic_data_service = academic_data_service or AcademicDataServiceStub()
+        self.academic_data_service = academic_data_service or AcademicDataService()
 
     # ------------------------------------------------------------------ #
     # Sesión
@@ -165,16 +336,19 @@ class CopilotAppService:
     # System prompt
     # ------------------------------------------------------------------ #
     def _construir_system_prompt(self, usuario, datos_academicos: str) -> str:
-        rol = getattr(usuario, "rol", "desconocido")
         return (
-            "Eres el asistente académico de la ECPPP (Escuela de Capacitación de Policía).\n"
-            f"Rol del usuario: {rol}\n"
-            "Datos académicos del usuario:\n"
+            "Eres un asistente académico de la ECPPP "
+            "(Escuela de Capacitación de Conductores Profesionales).\n\n"
+            "## Datos del usuario\n"
             f"{datos_academicos}\n\n"
-            "Reglas:\n"
-            "- Responde SOLO con información del usuario autenticado.\n"
-            "- NO puedes modificar datos, solo consultar.\n"
-            "- Responde en español, de forma concisa y amable.\n"
-            "- Si no tienes la información, indícalo claramente.\n"
-            "- No inventes datos.\n"
+            "## Reglas\n"
+            "- Responde SOLO con información del usuario autenticado que se te ha proporcionado.\n"
+            "- NO puedes modificar datos del sistema, solo consultar.\n"
+            "- Responde SIEMPRE en español, de forma clara, concisa y amable.\n"
+            "- Si el usuario pregunta sobre algo que no está en los datos, indícalo claramente.\n"
+            "- No inventes datos ni asumas información que no esté en el contexto.\n"
+            "- Para solicitudes/reclamos: indica el estado actual pero deriva al usuario a "
+            "secretaría para gestiones que requieran acción.\n"
+            "- Para calificaciones: muestra las notas pero no hagas cálculos que no estén "
+            "explícitos en los datos.\n"
         )
