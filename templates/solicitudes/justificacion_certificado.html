@@ -101,7 +101,7 @@
             -->
             <template x-if="tipo === 'medico'">
                 <div class="space-y-4" data-testid="fields-medico">
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="flex flex-col gap-1.5">
                             <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
                             <input type="date" name="fecha_certificado"
@@ -123,7 +123,7 @@
             <!-- ── Campos por tipo: LABORAL ─────────────────────── -->
             <template x-if="tipo === 'laboral'">
                 <div class="space-y-4" data-testid="fields-laboral">
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="flex flex-col gap-1.5">
                             <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
                             <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"
@@ -146,7 +146,7 @@
                         <textarea name="descripcion_evento" rows="3"
                                   class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm resize-y">{{ form.descripcion_evento.value|default:'' }}</textarea>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="flex flex-col gap-1.5">
                             <label class="text-sm font-medium text-gray-700">Fecha del certificado <span class="text-red-500">*</span></label>
                             <input type="date" name="fecha_certificado" value="{{ form.fecha_certificado.value|default:'' }}"

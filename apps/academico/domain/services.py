@@ -9,7 +9,8 @@ Services encapsulate domain rules that don't belong to a single entity.
 
 from dataclasses import dataclass
 from datetime import date, time
-from typing import Iterable, Optional
+from decimal import Decimal
+from typing import Iterable, List, Optional, Tuple
 
 from .exceptions import (
     AsignaturaCodigoDuplicadoError,
@@ -477,3 +478,63 @@ class HorarioConflictoService:
                         )
                     )
         return conflictos
+
+
+class RendimientoAcademicoService:
+    """
+    Pure domain service for academic performance calculations.
+    No ORM dependency — receives plain Python values.
+    """
+
+    NOTA_APROBACION = Decimal("16")
+
+    @staticmethod
+    def calcular_promedio_paralelo(notas: List[Decimal]) -> Decimal:
+        """Average of all student grades in a paralelo. Returns 0 if empty."""
+        if not notas:
+            return Decimal("0.00")
+        return (sum(notas) / Decimal(len(notas))).quantize(Decimal("0.01"))
+
+    @staticmethod
+    def calcular_tasa_aprobacion(aprobados: int, total: int) -> Decimal:
+        """Percentage of students with final grade >= 16."""
+        if total == 0:
+            return Decimal("0.0")
+        return (Decimal(aprobados) / Decimal(total) * 100).quantize(Decimal("0.1"))
+
+    @staticmethod
+    def calcular_porcentaje_asistencia(presentes: int, total_registros: int) -> Decimal:
+        """Overall attendance percentage for a paralelo."""
+        if total_registros == 0:
+            return Decimal("0.0")
+        return (Decimal(presentes) / Decimal(total_registros) * 100).quantize(Decimal("0.1"))
+
+    @classmethod
+    def clasificar_estudiante(cls, promedio: Decimal) -> str:
+        """Returns aprobado or reprobado based on grade."""
+        if promedio >= cls.NOTA_APROBACION:
+            return "aprobado"
+        return "reprobado"
+
+    @classmethod
+    def calcular_promedios_por_estudiante(
+        cls,
+        notas_por_estudiante: List[Tuple[int, List[Tuple[Decimal, Decimal]]]],
+    ) -> List[Tuple[int, Decimal]]:
+        """
+        Calculates weighted average per student.
+
+        Args:
+            notas_por_estudiante: List of (estudiante_id, [(nota, peso), ...])
+
+        Returns:
+            List of (estudiante_id, promedio_ponderado)
+        """
+        resultados = []
+        for estudiante_id, notas_pesos in notas_por_estudiante:
+            if not notas_pesos:
+                resultados.append((estudiante_id, Decimal("0.00")))
+                continue
+            total = sum(nota * peso / 100 for nota, peso in notas_pesos)
+            resultados.append((estudiante_id, total.quantize(Decimal("0.01"))))
+        return resultados

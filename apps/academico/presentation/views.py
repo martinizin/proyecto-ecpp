@@ -1368,6 +1368,210 @@ def _construir_grilla_horario(bloques):
     return {"dias": dias, "rows": rows, "vacio": not bloques}
 
 
+class DashboardRendimientoView(MultiRolRequeridoMixin, View):
+    """Performance dashboard — aggregated metrics per paralelo. Inspector/Secretaria only."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+    template_name = "academico/dashboard_rendimiento.html"
+
+    UMBRALES_INASISTENCIA = [
+        ("", "— Todos —"),
+        ("5", "≥ 5 %"),
+        ("10", "≥ 10 %"),
+        ("15", "≥ 15 %"),
+        ("20", "≥ 20 %"),
+    ]
+
+    def get(self, request):
+        import json
+        from decimal import Decimal
+
+        from apps.academico.application.services import DashboardRendimientoAppService
+
+        service = DashboardRendimientoAppService()
+
+        _tipo_licencia_raw  = request.GET.get("tipo_licencia", "")
+        _periodo_raw        = request.GET.get("periodo", "")
+        _asignatura_raw     = request.GET.get("asignatura", "")
+        _paralelo_raw       = request.GET.get("paralelo", "")
+        umbral_inasistencia = request.GET.get("inasistencia", "")
+
+        tipos_licencia = TipoLicencia.objects.filter(activo=True).order_by("codigo")
+
+        # ── Validar tipo_licencia ──────────────────────────────────────────
+        tipo_licencia_id  = None
+        tipo_licencia_obj = None
+        if _tipo_licencia_raw:
+            try:
+                tipo_licencia_id = int(_tipo_licencia_raw)
+            except (ValueError, TypeError):
+                return redirect("academico:dashboard_rendimiento")
+            try:
+                tipo_licencia_obj = tipos_licencia.get(id=tipo_licencia_id)
+            except TipoLicencia.DoesNotExist:
+                return redirect("academico:dashboard_rendimiento")
+
+        # ── Estado de bienvenida: sin licencia seleccionada ───────────────
+        if not tipo_licencia_obj:
+            bienvenida_cards = [
+                {
+                    "obj": tl,
+                    "num_asignaturas": tl.asignaturas.count(),
+                    "num_paralelos_activos": tl.paralelos.filter(periodo__activo=True).count(),
+                }
+                for tl in tipos_licencia
+            ]
+            return render(request, self.template_name, {
+                "bienvenida": True,
+                "tipos_licencia": tipos_licencia,
+                "bienvenida_cards": bienvenida_cards,
+            })
+
+        # ── Con tipo_licencia seleccionado ─────────────────────────────────
+        try:
+            periodo_id    = int(_periodo_raw)    if _periodo_raw    else None
+            asignatura_id = int(_asignatura_raw) if _asignatura_raw else None
+            paralelo_id   = int(_paralelo_raw)   if _paralelo_raw   else None
+        except (ValueError, TypeError):
+            return redirect("academico:dashboard_rendimiento")
+
+        valores_inasistencia_validos = {v for v, _ in self.UMBRALES_INASISTENCIA if v}
+        if umbral_inasistencia and umbral_inasistencia not in valores_inasistencia_validos:
+            umbral_inasistencia = ""
+
+        # Si no se pasó período, usar el activo de esta licencia
+        if not periodo_id:
+            periodo_activo = Periodo.objects.filter(
+                tipo_licencia=tipo_licencia_obj, activo=True
+            ).first()
+            periodo_id = periodo_activo.id if periodo_activo else None
+
+        # Validar que el paralelo pertenezca al período seleccionado
+        if paralelo_id and periodo_id:
+            if not Paralelo.objects.filter(id=paralelo_id, periodo_id=periodo_id).exists():
+                paralelo_id = None
+
+        total_paralelos_periodo = (
+            Paralelo.objects.filter(periodo_id=periodo_id).count() if periodo_id else 0
+        )
+
+        metricas = []
+        if periodo_id:
+            metricas = service.obtener_metricas_por_periodo(
+                periodo_id=periodo_id,
+                asignatura_id=asignatura_id,
+                paralelo_id=paralelo_id,
+            )
+
+        if umbral_inasistencia:
+            umbral = Decimal(umbral_inasistencia)
+            metricas = [
+                m for m in metricas
+                if (Decimal("100") - m.porcentaje_asistencia) >= umbral
+            ]
+
+        total_aprobados  = sum(m.estudiantes_aprobados  for m in metricas)
+        total_reprobados = sum(m.estudiantes_reprobados for m in metricas)
+        total_en_curso   = sum(m.estudiantes_en_curso   for m in metricas)
+        promedio_global = (
+            sum(m.promedio_general for m in metricas) / len(metricas) if metricas else 0
+        )
+        asistencia_global = (
+            sum(m.porcentaje_asistencia for m in metricas) / len(metricas) if metricas else 0
+        )
+
+        paralelos_data = json.dumps([
+            {
+                "id": p.id,
+                "nombre": str(p),
+                "periodo_id": p.periodo_id,
+                "asignatura_id": p.asignatura_id,
+                "tipo_licencia_id": p.tipo_licencia_id,
+            }
+            for p in Paralelo.objects.select_related("asignatura", "periodo").filter(
+                tipo_licencia=tipo_licencia_obj
+            ).order_by("periodo__fecha_inicio", "asignatura__codigo", "nombre")
+        ])
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "bienvenida": False,
+                "tipos_licencia": tipos_licencia,
+                "tipo_licencia_seleccionado": tipo_licencia_obj,
+                "metricas": metricas,
+                "periodos": Periodo.objects.filter(
+                    tipo_licencia=tipo_licencia_obj
+                ).order_by("-fecha_inicio"),
+                "asignaturas": Asignatura.objects.filter(
+                    tipos_licencia=tipo_licencia_obj
+                ).order_by("codigo"),
+                "paralelos_json": paralelos_data,
+                "periodo_seleccionado":      periodo_id,
+                "asignatura_seleccionada":   asignatura_id,
+                "paralelo_seleccionado":     paralelo_id,
+                "inasistencia_seleccionada": umbral_inasistencia,
+                "umbrales_inasistencia":     self.UMBRALES_INASISTENCIA,
+                "resumen": {
+                    "total_paralelos":         len(metricas),
+                    "total_paralelos_periodo": total_paralelos_periodo,
+                    "promedio_global":   round(float(promedio_global), 2),
+                    "asistencia_global": round(float(asistencia_global), 1),
+                    "total_aprobados":  total_aprobados,
+                    "total_reprobados": total_reprobados,
+                    "total_en_curso":   total_en_curso,
+                },
+            },
+        )
+
+
+class DashboardRendimientoAPIView(MultiRolRequeridoMixin, View):
+    """JSON endpoint consumed by Chart.js for performance dashboard charts."""
+
+    roles_permitidos = ["inspector", "secretaria"]
+
+    def get(self, request):
+        from decimal import Decimal
+
+        from apps.academico.application.services import DashboardRendimientoAppService
+
+        service = DashboardRendimientoAppService()
+        periodo_id = request.GET.get("periodo")
+        asignatura_id = request.GET.get("asignatura")
+        paralelo_id = request.GET.get("paralelo")
+        umbral_inasistencia = request.GET.get("inasistencia", "")
+
+        if paralelo_id:
+            tendencia = service.obtener_tendencia_parciales(int(paralelo_id))
+            return JsonResponse({"tendencia": tendencia})
+
+        if not periodo_id:
+            return JsonResponse({"error": "Período requerido"}, status=400)
+
+        metricas = service.obtener_metricas_por_periodo(
+            periodo_id=int(periodo_id),
+            asignatura_id=int(asignatura_id) if asignatura_id else None,
+        )
+
+        if umbral_inasistencia:
+            umbral = Decimal(umbral_inasistencia)
+            metricas = [
+                m for m in metricas
+                if (Decimal("100") - m.porcentaje_asistencia) >= umbral
+            ]
+
+        return JsonResponse(
+            {
+                "labels": [m.paralelo_nombre for m in metricas],
+                "promedios": [float(m.promedio_general) for m in metricas],
+                "asistencia": [float(m.porcentaje_asistencia) for m in metricas],
+                "aprobacion": [float(m.tasa_aprobacion) for m in metricas],
+                "reprobacion": [float(m.tasa_reprobacion) for m in metricas],
+            }
+        )
+
+
 class HorarioDocenteView(RolRequeridoMixin, View):
     """Read-only weekly schedule for the logged-in docente (active period only)."""
 

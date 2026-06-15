@@ -20,6 +20,8 @@ from .views import (
     AsignaturaListView,
     AsignaturaUpdateView,
     AsignaturasPorTipoLicenciaView,
+    DashboardRendimientoAPIView,
+    DashboardRendimientoView,
     HorarioDocenteView,
     HorarioEstudianteView,
     ParaleloCreateLoteView,
@@ -91,6 +93,17 @@ urlpatterns = [
     # Horarios (vista provisional, solo lectura)
     path("mis-horarios/docente/", HorarioDocenteView.as_view(), name="horario_docente"),
     path("mis-horarios/estudiante/", HorarioEstudianteView.as_view(), name="horario_estudiante"),
+    # Dashboard de rendimiento (HU23)
+    path(
+        "dashboard-rendimiento/",
+        DashboardRendimientoView.as_view(),
+        name="dashboard_rendimiento",
+    ),
+    path(
+        "dashboard-rendimiento/api/",
+        DashboardRendimientoAPIView.as_view(),
+        name="dashboard_rendimiento_api",
+    ),
     # API
     path("api/", include(router.urls)),
 ]
