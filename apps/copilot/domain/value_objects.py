@@ -22,6 +22,4 @@ class ConsultaAcademica:
             "general",
         }
         if self.tipo not in tipos_validos:
-            raise ValueError(
-                f"Tipo de consulta inválido: '{self.tipo}'. Válidos: {tipos_validos}"
-            )
+            raise ValueError(f"Tipo de consulta inválido: '{self.tipo}'. Válidos: {tipos_validos}")

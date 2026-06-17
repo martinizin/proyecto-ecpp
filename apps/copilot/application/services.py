@@ -1,27 +1,36 @@
 """Application service (use case) for the Copilot bounded context.
 
 Orchestrates: session lifecycle, message persistence, rate limiting,
-query classification, academic data fetch, and the call to OpenAI.
+query classification, academic data fetch, content moderation (input +
+output), and the call to OpenAI.
 """
 
 from __future__ import annotations
 
+import logging
+import uuid
 from collections import Counter, defaultdict
 from datetime import timedelta
 from typing import Protocol
 
+import openai
 from django.utils import timezone
 
 from apps.copilot.domain.exceptions import (
+    ContenidoBloqueadoError,
     RateLimitExcedidoError,
     SesionLlenaError,
 )
+from apps.copilot.domain.moderation import CANNED_REFUSAL
 from apps.copilot.domain.services import QueryClassifierService
 from apps.copilot.infrastructure.models import (
     ConversacionCopilot,
     MensajeCopilot,
 )
 from apps.copilot.infrastructure.openai_client import OpenAIClient
+
+
+logger = logging.getLogger("apps.copilot.moderation")
 
 
 class AcademicDataServiceProtocol(Protocol):
@@ -102,7 +111,10 @@ class AcademicDataService:
 
         qs = (
             Solicitud.objects.filter(estudiante=usuario)
-            .select_related("asistencia__paralelo__asignatura", "calificacion__evaluacion__paralelo__asignatura")
+            .select_related(
+                "asistencia__paralelo__asignatura",
+                "calificacion__evaluacion__paralelo__asignatura",
+            )
             .order_by("-fecha_creacion")[:10]
         )
 
@@ -115,8 +127,7 @@ class AcademicDataService:
             if s.tipo == "justificacion" and s.asistencia:
                 a = s.asistencia
                 referencia = (
-                    f" · Inasistencia del {a.fecha:%d/%m/%Y}"
-                    f" en {a.paralelo.asignatura.codigo}"
+                    f" · Inasistencia del {a.fecha:%d/%m/%Y}" f" en {a.paralelo.asignatura.codigo}"
                 )
             elif s.tipo == "rectificacion" and s.calificacion:
                 c = s.calificacion
@@ -201,8 +212,12 @@ class AcademicDataService:
             return "No tienes paralelos activos este período."
 
         DIA_ORDEN = {
-            "lunes": 1, "martes": 2, "miercoles": 3,
-            "jueves": 4, "viernes": 5, "sabado": 6,
+            "lunes": 1,
+            "martes": 2,
+            "miercoles": 3,
+            "jueves": 4,
+            "viernes": 5,
+            "sabado": 6,
         }
         lines: list[str] = []
         for m in matriculas:
@@ -245,7 +260,9 @@ class AcademicDataService:
 4. Hacé clic en el enlace y establecé una nueva contraseña."""
 
         if rol == "estudiante":
-            return guia_comun + """
+            return (
+                guia_comun
+                + """
 
 ### Acciones específicas para estudiantes
 
@@ -278,10 +295,14 @@ class AcademicDataService:
 
 **Ver el estado de mis solicitudes**
 1. En el menú lateral izquierdo, hacé clic en **Mis Solicitudes**.
-2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) y la fecha de resolución."""
+2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) \
+y la fecha de resolución."""
+            )
 
         elif rol == "docente":
-            return guia_comun + """
+            return (
+                guia_comun
+                + """
 
 ### Acciones específicas para docentes
 
@@ -303,6 +324,7 @@ class AcademicDataService:
 1. En el menú lateral izquierdo, hacé clic en **Solicitudes Pendientes**.
 2. Verás las solicitudes de recalificación enviadas por tus estudiantes.
 3. Revisá cada solicitud y seleccioná **Aprobar** o **Rechazar** con tu justificación."""
+            )
 
         return guia_comun + f"\n\nNota: guía de navegación no disponible para el rol '{rol}'."
 
@@ -316,13 +338,12 @@ class AcademicDataService:
         info = [f"Rol: {rol}", f"Nombre: {usuario.get_full_name()}"]
 
         if rol == "estudiante":
-            matriculas = (
-                Matricula.objects.filter(estudiante=usuario, estado="activa")
-                .select_related(
-                    "paralelo__asignatura",
-                    "paralelo__periodo__tipo_licencia",
-                    "paralelo__docente",
-                )
+            matriculas = Matricula.objects.filter(
+                estudiante=usuario, estado="activa"
+            ).select_related(
+                "paralelo__asignatura",
+                "paralelo__periodo__tipo_licencia",
+                "paralelo__docente",
             )
             if matriculas.exists():
                 info.append("\n### Matrícula activa")
@@ -339,7 +360,8 @@ class AcademicDataService:
                 info.append("\nSin matrícula activa este período.")
         elif rol == "docente":
             paralelos = usuario.paralelos_asignados.select_related(
-                "asignatura", "periodo__tipo_licencia",
+                "asignatura",
+                "periodo__tipo_licencia",
             ).all()
             if paralelos.exists():
                 info.append("\n### Paralelos asignados")
@@ -366,9 +388,92 @@ class CopilotAppService:
         self,
         openai_client: OpenAIClient | None = None,
         academic_data_service: AcademicDataServiceProtocol | None = None,
+        moderation_service=None,
     ):
         self.openai_client = openai_client or OpenAIClient()
         self.academic_data_service = academic_data_service or AcademicDataService()
+        # El ``moderation_service`` opcional permite a los tests inyectar un
+        # ``ModeracionServicio`` con providers fakeados. La producción usa
+        # ``_build_default_moderation_service()`` que cablea los providers de
+        # PR 1b (``HardcodedWordListProvider`` + ``OpenAIModerationClient``)
+        # leyendo la configuración de Django.
+        if moderation_service is None:
+            moderation_service = self._build_default_moderation_service()
+        self.moderation_service = moderation_service
+
+    @staticmethod
+    def _build_default_moderation_service():
+        """Construye un ``ModeracionServicio`` de producción con los providers
+        de PR 1b y la configuración de Django.
+
+        Importaciones diferidas para evitar acoplar el módulo a Django
+        settings al momento de import (tests con ``settings`` no inicializado).
+        """
+        from django.conf import settings
+
+        from apps.copilot.data.palabras_censuradas import (
+            DEFAULT_PROFANITY_LIGHT,
+            DEFAULT_PROFANITY_STRONG,
+        )
+        from apps.copilot.domain.moderation import ModeracionServicio
+        from apps.copilot.infrastructure.hardcoded_wordlist import (
+            HardcodedWordListProvider,
+        )
+        from apps.copilot.infrastructure.openai_moderation_client import (
+            OpenAIModerationClient,
+        )
+
+        provider_lista = HardcodedWordListProvider(
+            lista_light=list(DEFAULT_PROFANITY_LIGHT),
+            lista_strong=list(DEFAULT_PROFANITY_STRONG),
+            allowlist=HardcodedWordListProvider.cargar_allowlist_desde_json(
+                settings.COPILOT_MODERATION_ALLOWLIST_PATH
+            ),
+        )
+        provider_openai = OpenAIModerationClient()
+        return ModeracionServicio(
+            proveedor_lista_dura=provider_lista,
+            proveedor_moderacion_externo=provider_openai,
+            habilitado=settings.COPILOT_MODERATION_ENABLED,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Moderación de salida (helper de orquestación)
+    # ------------------------------------------------------------------ #
+    def _moderar_salida(self, texto: str) -> str:
+        """Aplica la moderación de salida sobre el texto del LLM.
+
+        Comportamiento:
+            - Si el feature flag está apagado: retorna el texto sin tocar.
+            - Si el provider externo lanza ``openai.APIError`` (REQ-009): fail-SKIP
+              en salida — retorna el texto del LLM sin modificar y loggea ERROR.
+            - Si la API responde ``flagged=True``: levanta
+              ``ContenidoBloqueadoError(razon="openai_output")``.
+            - Caso contrario: retorna el texto tal cual.
+
+        El servicio de dominio (``ModeracionServicio``) sólo expone
+        ``evaluar_input`` + ``sanitizar`` (PR 1a); el check de salida lo
+        hace el orquestador de aplicación directamente sobre el provider
+        para no contaminar la capa de dominio con dependencias de streaming.
+        """
+        if not self.moderation_service._habilitado:
+            return texto
+        try:
+            flagged = self.moderation_service._proveedor_externo.clasificar(texto)
+        except openai.APIError as exc:
+            # REQ-009 — fail-SKIP en output: la respuesta del LLM se devuelve
+            # tal cual y se loggea ERROR con la categoría de error.
+            logger.error(
+                "copilot.moderation.api.error",
+                extra={
+                    "fase": "output",
+                    "error_class": type(exc).__name__,
+                },
+            )
+            return texto
+        if flagged:
+            raise ContenidoBloqueadoError(razon="openai_output")
+        return texto
 
     # ------------------------------------------------------------------ #
     # Sesión
@@ -407,7 +512,7 @@ class CopilotAppService:
     # ------------------------------------------------------------------ #
     # Mensaje
     # ------------------------------------------------------------------ #
-    def procesar_mensaje(self, usuario, contenido: str) -> str:
+    def procesar_mensaje(self, usuario, contenido: str, *, request_id: str = "") -> str:
         """Process a user message end-to-end and return the assistant's reply."""
         if self._excede_rate_limit(usuario):
             raise RateLimitExcedidoError(limite=self.MAX_MENSAJES_POR_HORA)
@@ -418,15 +523,29 @@ class CopilotAppService:
         if msg_count >= self.MAX_MENSAJES_POR_SESION:
             raise SesionLlenaError(maximo=self.MAX_MENSAJES_POR_SESION)
 
-        # Guardar mensaje del usuario
+        # ---- Moderación de entrada (PR 2) ---------------------------------
+        # El ``evaluar_input`` puede levantar ``ContenidoBloqueadoError``
+        # (Tier 3a/3b) ANTES de que se cree la fila del user, NO se llame al
+        # LLM y NO se consuman créditos. Para CLEAN/LIGHT retorna un
+        # ``ResultadoModeracion`` que ``sanitizar`` traduce al texto que se
+        # debe enviar al LLM / persistir (censurado para LIGHT, original
+        # para CLEAN).
+        if not request_id:
+            request_id = uuid.uuid4().hex
+        resultado_input = self.moderation_service.evaluar_input(contenido, request_id=request_id)
+        contenido_a_persistir_y_llm = self.moderation_service.sanitizar(contenido, resultado_input)
+
+        # Guardar mensaje del usuario (versión censurada para LIGHT; original
+        # para CLEAN). El ``sanitizar`` ya garantiza que para STRONG no
+        # llegamos aquí (la excepción burbujea desde ``evaluar_input``).
         MensajeCopilot.objects.create(
             conversacion=conversacion,
             rol=MensajeCopilot.Rol.USER,
-            contenido=contenido,
+            contenido=contenido_a_persistir_y_llm,
         )
 
         # Clasificar y traer datos académicos
-        consulta = QueryClassifierService.clasificar(contenido)
+        consulta = QueryClassifierService.clasificar(contenido_a_persistir_y_llm)
         datos_academicos = self.academic_data_service.obtener_datos(
             usuario=usuario, tipo=consulta.tipo
         )
@@ -446,26 +565,42 @@ class CopilotAppService:
             max_tokens=self.MAX_TOKENS_RESPUESTA,
         )
 
+        # ---- Moderación de salida (PR 2) ----------------------------------
+        # Si la respuesta del LLM es flagged: persistimos CANNED_REFUSAL
+        # (NO la respuesta cruda) y retornamos CANNED_REFUSAL. Si está
+        # clean: persistimos y retornamos la respuesta del LLM.
+        try:
+            respuesta_final = self._moderar_salida(respuesta)
+        except ContenidoBloqueadoError:
+            respuesta_final = CANNED_REFUSAL
+
         # Guardar respuesta del asistente
         MensajeCopilot.objects.create(
             conversacion=conversacion,
             rol=MensajeCopilot.Rol.ASSISTANT,
-            contenido=respuesta,
+            contenido=respuesta_final,
             tokens_usados=tokens,
         )
 
         # Refrescar ultima_actividad
         conversacion.save(update_fields=["ultima_actividad"])
 
-        return respuesta
+        return respuesta_final
 
-    def procesar_mensaje_stream(self, usuario, contenido: str):
+    def procesar_mensaje_stream(self, usuario, contenido: str, *, request_id: str = ""):
         """Validate, persist, and return a generator that streams OpenAI deltas.
 
         Unlike ``procesar_mensaje``, this is a regular function (not a
         generator), so domain exceptions are raised synchronously. The returned
         generator yields text chunks and saves the assembled response to the DB
         once all chunks have been consumed.
+
+        El generador retornado emite:
+            - ``str`` (un chunk de texto) — forwarded al cliente como ``delta``.
+            - ``{"type": "replacement", "text": CANNED_REFUSAL}`` — cuando el
+              hook D (primer chunk) o el hook B (respuesta ensamblada) detecta
+              contenido flagged. La vista traduce este marker a un evento SSE
+              ``replacement`` (PR 2, design §B+D hooks).
         """
         if self._excede_rate_limit(usuario):
             raise RateLimitExcedidoError(limite=self.MAX_MENSAJES_POR_HORA)
@@ -476,13 +611,22 @@ class CopilotAppService:
         if msg_count >= self.MAX_MENSAJES_POR_SESION:
             raise SesionLlenaError(maximo=self.MAX_MENSAJES_POR_SESION)
 
+        # ---- Moderación de entrada (PR 2) — mismo path que blocking -------
+        # El ``evaluar_input`` puede levantar ``ContenidoBloqueadoError``
+        # (Tier 3a/3b) ANTES de retornar el generator. La vista captura la
+        # excepción sincrónicamente y devuelve JSON 200 con CANNED_REFUSAL.
+        if not request_id:
+            request_id = uuid.uuid4().hex
+        resultado_input = self.moderation_service.evaluar_input(contenido, request_id=request_id)
+        contenido_a_persistir_y_llm = self.moderation_service.sanitizar(contenido, resultado_input)
+
         MensajeCopilot.objects.create(
             conversacion=conversacion,
             rol=MensajeCopilot.Rol.USER,
-            contenido=contenido,
+            contenido=contenido_a_persistir_y_llm,
         )
 
-        consulta = QueryClassifierService.clasificar(contenido)
+        consulta = QueryClassifierService.clasificar(contenido_a_persistir_y_llm)
         datos_academicos = self.academic_data_service.obtener_datos(
             usuario=usuario, tipo=consulta.tipo
         )
@@ -494,24 +638,75 @@ class CopilotAppService:
         return self._stream_openai(conversacion, system_prompt, historial)
 
     def _stream_openai(self, conversacion, system_prompt: str, historial: list[dict]):
-        """Generator: yield text deltas from OpenAI, save full reply when done."""
+        """Generator: yield text deltas from OpenAI, save full reply when done.
+
+        PR 2 — implementa los hooks B (post-stream) y D (first-chunk) de
+        moderación de salida (design §B+D hooks). El generador puede emitir:
+            - ``str`` — un delta del LLM (forwarded al cliente).
+            - ``{"type": "replacement", "text": CANNED_REFUSAL}`` — cuando
+              D aborta o cuando B detecta la respuesta ensamblada flagged.
+        """
         full_response = ""
-        for delta in self.openai_client.chat_completion_stream(
+        inner_stream = self.openai_client.chat_completion_stream(
             system_prompt=system_prompt,
             messages=historial,
             max_tokens=self.MAX_TOKENS_RESPUESTA,
-        ):
+        )
+
+        for i, delta in enumerate(inner_stream):
+            # ---- Hook D: first-chunk pre-check (defence in depth) --------
+            # Si el PRIMER chunk del LLM es flagged por el provider de
+            # moderación, abortamos el stream sin reenviar el chunk al
+            # cliente, drenamos el resto silenciosamente, persistimos
+            # CANNED_REFUSAL, y emitimos el marker de replacement.
+            if i == 0:
+                try:
+                    self._moderar_salida(delta)
+                except ContenidoBloqueadoError:
+                    # Cierra el stream del SDK de OpenAI para liberar la
+                    # conexión HTTP subyacente. La API puede ser un iterador
+                    # de Python plano (tests) que no expone ``close``; en ese
+                    # caso el GC cierra el generator al retornar.
+                    close = getattr(inner_stream, "close", None)
+                    if close is not None:
+                        close()
+                    MensajeCopilot.objects.create(
+                        conversacion=conversacion,
+                        rol=MensajeCopilot.Rol.ASSISTANT,
+                        contenido=CANNED_REFUSAL,
+                        tokens_usados=0,
+                    )
+                    conversacion.save(update_fields=["ultima_actividad"])
+                    yield {"type": "replacement", "text": CANNED_REFUSAL}
+                    return
+
             full_response += delta
             yield delta
 
+        # ---- Hook B: post-stream replacement -----------------------------
+        # Una vez ensamblada la respuesta completa, la moderamos. Si está
+        # flagged: persistimos CANNED_REFUSAL y emitimos el marker para
+        # que el cliente reemplace el texto streameado. Si está clean:
+        # persistimos la respuesta completa tal cual (sin marker).
         if full_response:
+            try:
+                self._moderar_salida(full_response)
+                contenido_a_persistir = full_response
+                replacement_marker = None
+            except ContenidoBloqueadoError:
+                contenido_a_persistir = CANNED_REFUSAL
+                replacement_marker = {"type": "replacement", "text": CANNED_REFUSAL}
+
             MensajeCopilot.objects.create(
                 conversacion=conversacion,
                 rol=MensajeCopilot.Rol.ASSISTANT,
-                contenido=full_response,
+                contenido=contenido_a_persistir,
                 tokens_usados=0,
             )
             conversacion.save(update_fields=["ultima_actividad"])
+
+            if replacement_marker is not None:
+                yield replacement_marker
 
     def obtener_historial(self, usuario) -> tuple[str, list[dict]]:
         """Return the active conversation id and its messages."""

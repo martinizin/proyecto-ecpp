@@ -161,7 +161,8 @@ class QueryClassifierService:
         """
         Classify a free-text query and return a ConsultaAcademica value object.
 
-        Priority order: navegacion > solicitudes > calificaciones > asistencia > horario > informacion > general.
+        Priority order: navegacion > solicitudes > calificaciones > asistencia > horario >
+        informacion > general.
         Returns a ConsultaAcademica with the detected type and the original query.
         """
         query_lower = query.lower()

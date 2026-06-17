@@ -46,11 +46,32 @@ def _mock_openai(monkeypatch):
     fake.chat_completion.return_value = ("respuesta mock", 10)
     mock_data = mock.MagicMock()
     mock_data.obtener_datos.return_value = "datos mock"
+    # PR 2 — mock del moderation service: bypass total (CLEAN en input y output).
+    # Construimos un ModeracionServicio con providers que devuelven ``False``
+    # siempre, así los tests legacy del view no se ven afectados por la
+    # lógica de moderación.
+    from apps.copilot.domain.moderation import ModeracionServicio
+
+    class _NoopProvider:
+        def escanear(self, texto):
+            return None  # CLEAN
+
+        def clasificar(self, texto):
+            return False  # CLEAN
+
+    mock_moderation = ModeracionServicio(
+        proveedor_lista_dura=_NoopProvider(),
+        proveedor_moderacion_externo=_NoopProvider(),
+        habilitado=True,
+    )
     monkeypatch.setattr(
         CopilotAppService,
         "__init__",
-        lambda self, **kw: setattr(self, "openai_client", fake)
-        or setattr(self, "academic_data_service", mock_data),
+        lambda self, **kw: (
+            setattr(self, "openai_client", fake),
+            setattr(self, "academic_data_service", mock_data),
+            setattr(self, "moderation_service", mock_moderation),
+        )[-1],
     )
 
 
