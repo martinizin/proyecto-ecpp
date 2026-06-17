@@ -348,7 +348,13 @@
                                 let parsed;
                                 try { parsed = JSON.parse(raw); } catch (_) { continue; }
                                 if (parsed.error) throw new Error(parsed.error);
-                                if (parsed.delta) {
+                                if (parsed.replacement !== undefined) {
+                                    // PR 2 — el servidor emite ``replacement`` cuando la moderación
+                                    // de salida (hook D primer chunk o hook B respuesta
+                                    // ensamblada) detecta contenido flagged. Sobreescribimos
+                                    // el texto streameado con la canned refusal.
+                                    this.streamingContent = parsed.replacement;
+                                } else if (parsed.delta) {
                                     this.streamingContent += parsed.delta;
                                     // Cede al event loop para que el browser pinte el nuevo texto
                                     await new Promise(r => setTimeout(r, 0));
