@@ -150,11 +150,15 @@ class TestObtenerAsistencia:
         )
 
         AsistenciaFactory(
-            estudiante=estudiante, paralelo=paralelo, estado="presente",
+            estudiante=estudiante,
+            paralelo=paralelo,
+            estado="presente",
             fecha=datetime.date(2026, 4, 1),
         )
         AsistenciaFactory(
-            estudiante=estudiante, paralelo=paralelo, estado="ausente",
+            estudiante=estudiante,
+            paralelo=paralelo,
+            estado="ausente",
             fecha=datetime.date(2026, 4, 2),
         )
 
@@ -189,7 +193,9 @@ class TestObtenerHorario:
             nombre="A",
         )
         BloqueHorarioFactory(
-            paralelo=paralelo, dia_semana="lunes", hora_inicio=datetime.time(8, 0),
+            paralelo=paralelo,
+            dia_semana="lunes",
+            hora_inicio=datetime.time(8, 0),
             hora_fin=datetime.time(10, 0),
         )
         MatriculaFactory(estudiante=estudiante, paralelo=paralelo, estado="activa")
