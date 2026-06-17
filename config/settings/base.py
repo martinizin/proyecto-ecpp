@@ -189,6 +189,23 @@ LOGO_URL = os.environ.get("LOGO_URL", "https://i.imgur.com/EPsrSix.png")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
 
+# Copilot content moderation (HU22 + copilot-content-moderation, PR 1a)
+# Feature flag maestro: cuando es False, todo el pipeline de moderación
+# (input lista + input OpenAI fallback + output OpenAI check) se bypasea.
+# Default True: salimos defendidos, no indefensos.
+COPILOT_MODERATION_ENABLED = os.environ.get("COPILOT_MODERATION_ENABLED", "True") == "True"
+# Ruta al JSON de allow-list (frases académicas que relajan la severidad strong).
+# Si el archivo no existe o tiene JSON inválido, el loader loggea WARNING y
+# opera con la lista curada únicamente.
+COPILOT_MODERATION_ALLOWLIST_PATH = (
+    BASE_DIR / "apps" / "copilot" / "data" / "copilot_moderation_allowlist.json"
+)
+# Modos de fallo (hard-coded en el servicio, no se exponen como setting aún):
+# - input  → "OPEN"  (REQ-009: preferimos falsos negativos sobre falsos positivos)
+# - output → "SKIP"  (REQ-009: la respuesta del LLM se devuelve tal cual)
+COPILOT_MODERATION_INPUT_FAIL_MODE = os.environ.get("COPILOT_MODERATION_INPUT_FAIL_MODE", "OPEN")
+COPILOT_MODERATION_OUTPUT_FAIL_MODE = os.environ.get("COPILOT_MODERATION_OUTPUT_FAIL_MODE", "SKIP")
+
 # Django REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
