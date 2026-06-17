@@ -197,8 +197,20 @@ COPILOT_MODERATION_ENABLED = os.environ.get("COPILOT_MODERATION_ENABLED", "True"
 # Ruta al JSON de allow-list (frases académicas que relajan la severidad strong).
 # Si el archivo no existe o tiene JSON inválido, el loader loggea WARNING y
 # opera con la lista curada únicamente.
-COPILOT_MODERATION_ALLOWLIST_PATH = (
-    BASE_DIR / "apps" / "copilot" / "data" / "copilot_moderation_allowlist.json"
+# PR 1b: el archivo se renombró a ``allowlist_es.json`` (más descriptivo que
+# el placeholder ``copilot_moderation_allowlist.json`` de PR 1a). El default
+# apunta al archivo que PR 1b crea en ``apps/copilot/data/``.
+COPILOT_MODERATION_ALLOWLIST_PATH = BASE_DIR / "apps" / "copilot" / "data" / "allowlist_es.json"
+# OpenAI Moderation API — model y timeout (PR 1b).
+# ``omni-moderation-latest`` es el modelo multilingüe más reciente y el default
+# locked por design.md §Configuration.
+COPILOT_MODERATION_MODEL = os.environ.get("COPILOT_MODERATION_MODEL", "omni-moderation-latest")
+# Timeout para llamadas a la API de moderación, en milisegundos. El default
+# 1500 ms (1.5 s) balancea latencia vs disponibilidad — la OpenAI Moderation
+# API tiene p50 ~200 ms; 1.5 s deja margen para redes lentas sin penalizar
+# la UX. El constructor de ``OpenAIModerationClient`` convierte a segundos.
+COPILOT_MODERATION_OPENAI_TIMEOUT_MS = int(
+    os.environ.get("COPILOT_MODERATION_OPENAI_TIMEOUT_MS", "1500")
 )
 # Modos de fallo (hard-coded en el servicio, no se exponen como setting aún):
 # - input  → "OPEN"  (REQ-009: preferimos falsos negativos sobre falsos positivos)

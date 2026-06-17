@@ -529,3 +529,18 @@ class TestSettingsModeracion:
         assert hasattr(settings, "COPILOT_MODERATION_OUTPUT_FAIL_MODE")
         # Default bloqueado por la spec a "SKIP" (REQ-009)
         assert settings.COPILOT_MODERATION_OUTPUT_FAIL_MODE == "SKIP"
+
+    def test_setting_model_esta_presente(self):
+        """PR 1b: model de OpenAI Moderation (locked omni-moderation-latest)."""
+        from django.conf import settings
+
+        assert hasattr(settings, "COPILOT_MODERATION_MODEL")
+        assert settings.COPILOT_MODERATION_MODEL == "omni-moderation-latest"
+
+    def test_setting_openai_timeout_ms_esta_presente(self):
+        """PR 1b: timeout del API en ms (default 1500 per design.md)."""
+        from django.conf import settings
+
+        assert hasattr(settings, "COPILOT_MODERATION_OPENAI_TIMEOUT_MS")
+        assert isinstance(settings.COPILOT_MODERATION_OPENAI_TIMEOUT_MS, int)
+        assert settings.COPILOT_MODERATION_OPENAI_TIMEOUT_MS == 1500
