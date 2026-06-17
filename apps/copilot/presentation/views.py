@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 
 from apps.copilot.application.services import CopilotAppService
 from apps.copilot.domain.exceptions import (
+    ContenidoBloqueadoError,
     MensajeDemaisiadoLargoError,
     MensajeVacioError,
     RateLimitExcedidoError,
     SesionLlenaError,
 )
+from apps.copilot.domain.moderation import CANNED_REFUSAL
 from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
 
 
@@ -87,6 +89,18 @@ class CopilotChatView(MultiRolRequeridoMixin, View):
             )
         except (MensajeVacioError, MensajeDemaisiadoLargoError) as e:
             return JsonResponse({"error": str(e)}, status=400)
+        except ContenidoBloqueadoError:
+            # PR 2 — cualquier rechazo de moderación (input STRONG, input
+            # OpenAI-flagged, output OpenAI-flagged) retorna HTTP 200 con
+            # ``CANNED_REFUSAL``. NO es un 4xx: para el cliente es una
+            # respuesta exitosa del copilot con un mensaje de cortesía.
+            return JsonResponse(
+                {
+                    "respuesta": CANNED_REFUSAL,
+                    "timestamp": timezone.now().isoformat(),
+                },
+                status=200,
+            )
 
         return JsonResponse(
             {
@@ -113,7 +127,9 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
             return JsonResponse({"error": "El mensaje no puede estar vacío."}, status=400)
         if len(mensaje) > self.MAX_LONGITUD_MENSAJE:
             return JsonResponse(
-                {"error": f"El mensaje supera el límite de {self.MAX_LONGITUD_MENSAJE} caracteres."},
+                {
+                    "error": f"El mensaje supera el límite de {self.MAX_LONGITUD_MENSAJE} caracteres."
+                },
                 status=400,
             )
 
@@ -122,7 +138,9 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
             stream = service.procesar_mensaje_stream(request.user, mensaje)
         except RateLimitExcedidoError as e:
             return JsonResponse(
-                {"error": f"Has excedido el límite de mensajes ({e.limite}/hora). Intenta más tarde."},
+                {
+                    "error": f"Has excedido el límite de mensajes ({e.limite}/hora). Intenta más tarde."
+                },
                 status=429,
             )
         except SesionLlenaError as e:
@@ -132,6 +150,18 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
             )
         except (MensajeVacioError, MensajeDemaisiadoLargoError) as e:
             return JsonResponse({"error": str(e)}, status=400)
+        except ContenidoBloqueadoError:
+            # PR 2 — input STRONG o OpenAI-flagged. Como el raise es
+            # sincrónico (antes de que se cree el generator), no podemos
+            # emitir un evento SSE: retornamos JSON 200 con la canned
+            # refusal, igual que el endpoint bloqueante.
+            return JsonResponse(
+                {
+                    "respuesta": CANNED_REFUSAL,
+                    "timestamp": timezone.now().isoformat(),
+                },
+                status=200,
+            )
 
         def sse_generator():
             # Comentario SSE de relleno: fuerza al browser a superar su buffer
@@ -139,7 +169,17 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
             yield ": " + ("x" * 1024) + "\n\n"
             try:
                 for chunk in stream:
-                    payload = json.dumps({"delta": chunk}, ensure_ascii=False)
+                    # PR 2 — el servicio puede emitir:
+                    #   - ``str`` → delta de texto normal (forwarded al cliente).
+                    #   - ``{"type": "replacement", "text": CANNED_REFUSAL}``
+                    #     → cuando el hook D (primer chunk) o el hook B
+                    #     (respuesta ensamblada) detectó contenido flagged
+                    #     en la salida. El widget usa este evento para
+                    #     sobrescribir el texto streameado.
+                    if isinstance(chunk, dict) and chunk.get("type") == "replacement":
+                        payload = json.dumps({"replacement": chunk["text"]}, ensure_ascii=False)
+                    else:
+                        payload = json.dumps({"delta": chunk}, ensure_ascii=False)
                     yield f"data: {payload}\n\n"
             except Exception:
                 logger.exception("Error durante el streaming SSE del copilot")
