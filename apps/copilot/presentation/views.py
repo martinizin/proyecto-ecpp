@@ -18,8 +18,6 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.views import View
 
-logger = logging.getLogger(__name__)
-
 from apps.copilot.application.services import CopilotAppService
 from apps.copilot.domain.exceptions import (
     ContenidoBloqueadoError,
@@ -30,6 +28,8 @@ from apps.copilot.domain.exceptions import (
 )
 from apps.copilot.domain.moderation import CANNED_REFUSAL
 from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
+
+logger = logging.getLogger(__name__)
 
 
 class CopilotChatView(MultiRolRequeridoMixin, View):
@@ -128,7 +128,10 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
         if len(mensaje) > self.MAX_LONGITUD_MENSAJE:
             return JsonResponse(
                 {
-                    "error": f"El mensaje supera el límite de {self.MAX_LONGITUD_MENSAJE} caracteres."
+                    "error": (
+                        f"El mensaje supera el límite de {self.MAX_LONGITUD_MENSAJE} "
+                        "caracteres."
+                    ),
                 },
                 status=400,
             )
@@ -139,7 +142,10 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
         except RateLimitExcedidoError as e:
             return JsonResponse(
                 {
-                    "error": f"Has excedido el límite de mensajes ({e.limite}/hora). Intenta más tarde."
+                    "error": (
+                        f"Has excedido el límite de mensajes ({e.limite}/hora). "
+                        "Intenta más tarde."
+                    ),
                 },
                 status=429,
             )

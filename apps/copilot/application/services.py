@@ -295,7 +295,8 @@ class AcademicDataService:
 
 **Ver el estado de mis solicitudes**
 1. En el menú lateral izquierdo, hacé clic en **Mis Solicitudes**.
-2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) y la fecha de resolución."""
+2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) \
+y la fecha de resolución."""
             )
 
         elif rol == "docente":
