@@ -73,13 +73,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database — PostgreSQL only, no SQLite fallback
+# Database — PostgreSQL only, no SQLite fallback.
+# Defaults razonables para CI/dev local; producción debe setear los env vars
+# explícitamente. Mantenemos DJANGO_SECRET_KEY estricto (línea 17) porque ahí
+# un default sería un agujero de seguridad.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ["DATABASE_NAME"],
-        "USER": os.environ["DATABASE_USER"],
-        "PASSWORD": os.environ["DATABASE_PASSWORD"],
+        "NAME": os.environ.get("DATABASE_NAME", "ecppp_test"),
+        "USER": os.environ.get("DATABASE_USER", "test_user"),
+        "PASSWORD": os.environ.get("DATABASE_PASSWORD", "test_pass"),
         "HOST": os.environ.get("DATABASE_HOST", "localhost"),
         "PORT": os.environ.get("DATABASE_PORT", "5432"),
     }

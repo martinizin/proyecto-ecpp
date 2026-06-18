@@ -157,7 +157,7 @@ class ParaleloFactory(factory.django.DjangoModelFactory):
     periodo = factory.SubFactory(PeriodoFactory)
     tipo_licencia = factory.SubFactory(TipoLicenciaFactory)
     docente = factory.SubFactory(DocenteFactory)
-    nombre = factory.Sequence(lambda n: chr(65 + (n % 26)))  # A, B, C, ...
+    nombre = factory.Sequence(lambda n: f"PL-{n:04d}")
     capacidad_maxima = 30
 
 
