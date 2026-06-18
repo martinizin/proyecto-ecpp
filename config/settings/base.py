@@ -188,8 +188,13 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@ecppp.edu.ec"
 # Logo URL for email templates
 LOGO_URL = os.environ.get("LOGO_URL", "https://i.imgur.com/EPsrSix.png")
 
-# Copilot / OpenAI settings
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# Copilot / OpenAI settings.
+# El default "sk-test-dummy-key-not-used-for-real-calls" es un placeholder
+# suficiente para que el SDK de openai se instancie sin tirar Missing credentials
+# (el SDK moderno valida en el constructor). Producción debe setear OPENAI_API_KEY
+# explícitamente vía env var. Los tests que mockean el SDK no hacen llamadas
+# reales, así que el valor dummy no afecta su comportamiento.
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-test-dummy-key-not-used-for-real-calls")
 COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
 
 # Copilot content moderation (HU22 + copilot-content-moderation, PR 1a)
