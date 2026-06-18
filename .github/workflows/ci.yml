@@ -29,6 +29,9 @@ jobs:
       DATABASE_PORT: 5432
       DJANGO_SECRET_KEY: test-secret-key-ci-only
       DJANGO_SETTINGS_MODULE: config.settings.development
+      # Dummy key para que el SDK de openai se instancie sin Missing credentials
+      # en tests. Los tests que mockean el SDK no usan esta key.
+      OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
 
     steps:
       - uses: actions/checkout@v4

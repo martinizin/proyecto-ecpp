@@ -1,0 +1,448 @@
+{% comment %}
+  Floating chat widget — Copilot ECPP (HU22, T5.2 final).
+
+  Usage: {% include "copilot/widget.html" %} from base.html for
+  estudiante / docente roles.
+
+  Wired to the real backend:
+  - GET  /copilot/chat/                  → load history on open
+  - POST /copilot/chat/                  → send message
+  - POST /copilot/nueva-conversacion/    → close + start fresh
+{% endcomment %}
+{% load static %}
+<div x-data="copilotWidget()" x-cloak>
+
+    {# ─────── Floating button (collapsed) ─────── #}
+    <button x-show="!open" @click="openChat()"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-90"
+            x-transition:enter-end="opacity-100 scale-100"
+            class="fixed bottom-[50px] right-6 z-50 w-20 h-20 rounded-full overflow-hidden hover:scale-115 transition-transform duration-200 ease-out focus:outline-none"
+            aria-label="Abrir asistente académico">
+        <img src="{% static 'img/logoCopilotEcppp.png' %}"
+             alt="Copilot ECPPP"
+             class="w-full h-full object-cover">
+        <span x-show="unread"
+              class="absolute top-1 right-1 w-3 h-3 rounded-full bg-green-400 border-2 border-white shadow-sm">
+        </span>
+    </button>
+
+    {# ─────── Chat panel (expanded) ─────── #}
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-250"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         @keydown.escape.window="showConfirmModal ? showConfirmModal = false : open = false"
+         class="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-3rem)] flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+         role="dialog"
+         aria-label="Asistente académico">
+
+        {# ── Confirm modal (nueva conversación) ── #}
+        <div x-show="showConfirmModal"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-100"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="absolute inset-0 z-20 flex items-center justify-center bg-black/40 rounded-2xl p-4">
+            <div x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 class="bg-white rounded-xl shadow-xl w-full max-w-[280px] p-5">
+                <div class="flex items-start gap-3 mb-4">
+                    <span class="flex items-center justify-center w-9 h-9 rounded-full bg-amber-100 text-amber-600 shrink-0 mt-0.5">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Nueva conversación</h3>
+                        <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                            Esto cerrará la conversación actual y empezará una nueva. ¿Querés continuar?
+                        </p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="showConfirmModal = false"
+                            class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                        Cancelar
+                    </button>
+                    <button @click="confirmarNuevaConversacion()"
+                            class="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-primary text-white hover:bg-primary-dark transition-colors">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# Header #}
+        <header class="flex items-center gap-3 px-4 py-3 bg-primary text-white">
+            <span class="flex items-center justify-center w-9 h-9 rounded-full bg-accent text-primary shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+                </svg>
+            </span>
+            <div class="flex-1 min-w-0">
+                <h2 class="text-sm font-semibold truncate">Asistente Académico</h2>
+                <p class="text-xs text-accent-light/80 flex items-center gap-1.5">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                    ECPPP &middot; En línea
+                </p>
+            </div>
+            <button @click="nuevaConversacion()"
+                    class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    title="Nueva conversación"
+                    aria-label="Nueva conversación">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+                </svg>
+            </button>
+            <button @click="open = false"
+                    class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    title="Cerrar"
+                    aria-label="Cerrar chat">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </header>
+
+        {# Error banner #}
+        <div x-show="error" x-transition.opacity
+             class="bg-red-50 text-red-800 border-b border-red-200 px-4 py-2 text-xs flex items-start gap-2"
+             role="alert">
+            <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+            </svg>
+            <span class="flex-1" x-text="error"></span>
+            <button @click="error = ''" class="shrink-0 p-0.5 rounded hover:bg-red-100" aria-label="Cerrar error">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {# Message list #}
+        <div x-ref="scroll" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50">
+
+            {# Welcome state #}
+            <template x-if="messages.length === 0">
+                <div class="flex flex-col items-center justify-center h-full text-center px-6 py-8 text-gray-500">
+                    <span class="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/>
+                        </svg>
+                    </span>
+                    <p class="text-sm font-medium text-gray-700">¡Hola! Soy tu asistente académico.</p>
+                    {% if request.user.rol == "docente" %}
+                    <p class="text-xs mt-1.5 leading-relaxed">Pregúntame sobre tus <strong class="text-primary">paralelos</strong>, <strong class="text-primary">horarios</strong> o <strong class="text-primary">solicitudes de estudiantes</strong>.</p>
+                    <div class="mt-4 flex flex-col gap-1.5 w-full">
+                        <button @click="input = '¿Cuáles son mis paralelos?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;les son mis paralelos?
+                        </button>
+                        <button @click="input = '¿Cuál es mi horario?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi horario?
+                        </button>
+                        <button @click="input = '¿Cómo gestiono las solicitudes de recalificación?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;C&oacute;mo gestiono las solicitudes de recalificaci&oacute;n?
+                        </button>
+                    </div>
+                    {% else %}
+                    <p class="text-xs mt-1.5 leading-relaxed">Pregúntame sobre tus <strong class="text-primary">calificaciones</strong>, <strong class="text-primary">asistencia</strong> u <strong class="text-primary">horarios</strong>.</p>
+                    <div class="mt-4 flex flex-col gap-1.5 w-full">
+                        <button @click="input = '¿Cuál es mi promedio?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi promedio?
+                        </button>
+                        <button @click="input = '¿Cuántas faltas tengo?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;ntas faltas tengo?
+                        </button>
+                        <button @click="input = '¿Cuál es mi horario?'; send()"
+                                class="text-left text-xs px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors">
+                            &iquest;Cu&aacute;l es mi horario?
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </template>
+
+
+            {# Messages #}
+            <template x-for="(m, idx) in messages" :key="idx">
+                <div :class="m.rol === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div class="max-w-[85%]">
+                        <div :class="m.rol === 'user'
+                                ? 'bg-primary text-white rounded-2xl rounded-tr-md px-3.5 py-2 shadow-sm'
+                                : 'bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-md px-3.5 py-2 shadow-sm'"
+                             class="text-sm break-words">
+                            <template x-if="m.rol === 'user'">
+                                <span x-text="m.contenido"></span>
+                            </template>
+                            <template x-if="m.rol !== 'user'">
+                                <div class="space-y-0.5 leading-relaxed" x-html="renderMd(m.contenido)"></div>
+                            </template>
+                        </div>
+                        <template x-if="m.rol !== 'user'">
+                            <div class="flex justify-start mt-1">
+                                <button @click="copyMsg(m.contenido, idx)"
+                                        class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover:bg-gray-100 transition-colors"
+                                        :class="copiedIdx === idx ? 'text-green-600' : 'text-gray-400 hover:text-gray-600'"
+                                        :title="copiedIdx === idx ? 'Copiado' : 'Copiar respuesta'">
+                                    <template x-if="copiedIdx !== idx">
+                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.466 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/>
+                                        </svg>
+                                    </template>
+                                    <template x-if="copiedIdx === idx">
+                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                                        </svg>
+                                    </template>
+                                    <span x-text="copiedIdx === idx ? 'Copiado' : 'Copiar'"></span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            {# Streaming indicator — x-show (siempre en el DOM), reactivo a isStreaming #}
+            <div x-show="isStreaming" class="flex justify-start">
+                <div class="max-w-[85%] px-1 py-1">
+                    <span class="text-sm whitespace-pre-wrap leading-relaxed block" style="color: #374151;">
+                        <span x-text="streamingContent"></span><span class="animate-pulse" style="color: #9ca3af;">▋</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {# Input bar #}
+        <form @submit.prevent="send()"
+              class="flex items-end gap-2 px-3 py-2.5 bg-white border-t border-gray-200">
+            <textarea x-model="input"
+                      @keydown.enter.prevent="if (!$event.shiftKey) send()"
+                      rows="1"
+                      placeholder="Escribí tu consulta…"
+                      class="form-control flex-1 resize-none !h-10 min-h-0 py-2"
+                      :disabled="isStreaming"
+                      maxlength="1000"></textarea>
+            <button type="submit"
+                    :disabled="!input.trim() || isStreaming"
+                    class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-white hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Enviar mensaje">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
+                </svg>
+            </button>
+        </form>
+
+        {# Footer #}
+        <p class="text-[10px] text-gray-400 text-center py-1.5 bg-white border-t border-gray-100">
+            El asistente solo consulta tus propios datos académicos.
+        </p>
+    </div>
+</div>
+
+<script>
+    function copilotWidget() {
+        return {
+            open: false,
+            unread: false,
+            showConfirmModal: false,
+            copiedIdx: null,
+            error: '',
+            input: '',
+            messages: [],
+            isStreaming: false,
+            streamingContent: '',
+            async init() {
+                // Reset backend session on every page load so conversation never persists across reloads
+                try {
+                    await fetch('{% url "copilot:nueva_conversacion" %}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': this._csrf(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+                } catch (_) { /* non-critical */ }
+            },
+            openChat() {
+                this.open = true;
+                this.unread = false;
+            },
+            nuevaConversacion() {
+                this.showConfirmModal = true;
+            },
+            async confirmarNuevaConversacion() {
+                this.showConfirmModal = false;
+                this.error = '';
+                try {
+                    const res = await fetch('{% url "copilot:nueva_conversacion" %}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': this._csrf(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) throw new Error('No se pudo crear una nueva conversación.');
+                    this.messages = [];
+                } catch (e) {
+                    this.error = e.message || 'Error al crear nueva conversación.';
+                }
+            },
+            async send() {
+                const text = this.input.trim();
+                if (!text || this.isStreaming) return;
+                this.messages.push({ rol: 'user', contenido: text });
+                this.input = '';
+                this.error = '';
+                this.streamingContent = '';
+                this.isStreaming = true;  // activa x-show antes del fetch
+                this.$nextTick(() => this._scrollDown());
+
+                try {
+                    const res = await fetch('{% url "copilot:chat_stream" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this._csrf(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ mensaje: text }),
+                    });
+
+                    if (!res.ok) {
+                        const data = await res.json();
+                        throw new Error(data.error || 'Error al procesar el mensaje.');
+                    }
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const events = buffer.split('\n\n');
+                        buffer = events.pop();
+
+                        for (const event of events) {
+                            for (const line of event.split('\n')) {
+                                if (!line.startsWith('data: ')) continue;
+                                const raw = line.slice(6);
+                                if (raw === '[DONE]') break;
+                                let parsed;
+                                try { parsed = JSON.parse(raw); } catch (_) { continue; }
+                                if (parsed.error) throw new Error(parsed.error);
+                                if (parsed.replacement !== undefined) {
+                                    // PR 2 — el servidor emite ``replacement`` cuando la moderación
+                                    // de salida (hook D primer chunk o hook B respuesta
+                                    // ensamblada) detecta contenido flagged. Sobreescribimos
+                                    // el texto streameado con la canned refusal.
+                                    this.streamingContent = parsed.replacement;
+                                } else if (parsed.delta) {
+                                    this.streamingContent += parsed.delta;
+                                    // Cede al event loop para que el browser pinte el nuevo texto
+                                    await new Promise(r => setTimeout(r, 0));
+                                    this._scrollDown();
+                                }
+                            }
+                        }
+                    }
+
+                    const finalContent = this.streamingContent;
+                    this.isStreaming = false;
+                    this.streamingContent = '';
+                    if (finalContent) {
+                        this.messages.push({ rol: 'assistant', contenido: finalContent });
+                    }
+
+                } catch (e) {
+                    this.isStreaming = false;
+                    this.streamingContent = '';
+                    this.messages.push({
+                        rol: 'assistant',
+                        contenido: '⚠️ ' + (e.message || 'No pude responder en este momento.'),
+                    });
+                } finally {
+                    this.$nextTick(() => this._scrollDown());
+                }
+            },
+            async copyMsg(text, idx) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch (_) {
+                    const el = Object.assign(document.createElement('textarea'), {
+                        value: text, style: 'position:fixed;opacity:0',
+                    });
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                }
+                this.copiedIdx = idx;
+                setTimeout(() => { this.copiedIdx = null; }, 2000);
+            },
+            _csrf() {
+                const m = document.cookie.match(/csrftoken=([^;]+)/);
+                return m ? m[1] : '';
+            },
+            _scrollDown() {
+                if (this.$refs.scroll) {
+                    this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight;
+                }
+            },
+            renderMd(text) {
+                if (!text) return '';
+                // Sanitize first to prevent XSS
+                const esc = s => s
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const inline = s => esc(s)
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+                const lines = text.split('\n');
+                let html = '';
+                let inList = false;
+
+                for (const raw of lines) {
+                    const line = raw.trimEnd();
+                    if (line.startsWith('### ')) {
+                        if (inList) { html += '</ul>'; inList = false; }
+                        html += `<p class="text-sm font-semibold text-primary uppercase tracking-wide mt-2 mb-0.5">${inline(line.slice(4))}</p>`;
+                    } else if (line.startsWith('## ')) {
+                        if (inList) { html += '</ul>'; inList = false; }
+                        html += `<p class="text-sm font-bold text-gray-700 mt-2 mb-0.5">${inline(line.slice(3))}</p>`;
+                    } else if (line.startsWith('- ')) {
+                        if (!inList) { html += '<ul class="list-disc list-inside space-y-0.5 my-1 text-gray-700">'; inList = true; }
+                        html += `<li>${inline(line.slice(2))}</li>`;
+                    } else if (line === '') {
+                        if (inList) { html += '</ul>'; inList = false; }
+                        html += '<div class="mt-1.5"></div>';
+                    } else {
+                        if (inList) { html += '</ul>'; inList = false; }
+                        html += `<p class="text-sm">${inline(line)}</p>`;
+                    }
+                }
+                if (inList) html += '</ul>';
+                return html;
+            },
+        };
+    }
+</script>

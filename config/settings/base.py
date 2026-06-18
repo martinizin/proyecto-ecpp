@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "apps.solicitudes",
     "apps.secretaria",
     "apps.notificaciones",
+    "apps.copilot",
 ]
 
 MIDDLEWARE = [
@@ -72,13 +73,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database — PostgreSQL only, no SQLite fallback
+# Database — PostgreSQL only, no SQLite fallback.
+# Defaults razonables para CI/dev local; producción debe setear los env vars
+# explícitamente. Mantenemos DJANGO_SECRET_KEY estricto (línea 17) porque ahí
+# un default sería un agujero de seguridad.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ["DATABASE_NAME"],
-        "USER": os.environ["DATABASE_USER"],
-        "PASSWORD": os.environ["DATABASE_PASSWORD"],
+        "NAME": os.environ.get("DATABASE_NAME", "ecppp_test"),
+        "USER": os.environ.get("DATABASE_USER", "test_user"),
+        "PASSWORD": os.environ.get("DATABASE_PASSWORD", "test_pass"),
         "HOST": os.environ.get("DATABASE_HOST", "localhost"),
         "PORT": os.environ.get("DATABASE_PORT", "5432"),
     }
@@ -183,6 +187,44 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@ecppp.edu.ec"
 
 # Logo URL for email templates
 LOGO_URL = os.environ.get("LOGO_URL", "https://i.imgur.com/EPsrSix.png")
+
+# Copilot / OpenAI settings.
+# El default "sk-test-dummy-key-not-used-for-real-calls" es un placeholder
+# suficiente para que el SDK de openai se instancie sin tirar Missing credentials
+# (el SDK moderno valida en el constructor). Producción debe setear OPENAI_API_KEY
+# explícitamente vía env var. Los tests que mockean el SDK no hacen llamadas
+# reales, así que el valor dummy no afecta su comportamiento.
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-test-dummy-key-not-used-for-real-calls")
+COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
+
+# Copilot content moderation (HU22 + copilot-content-moderation, PR 1a)
+# Feature flag maestro: cuando es False, todo el pipeline de moderación
+# (input lista + input OpenAI fallback + output OpenAI check) se bypasea.
+# Default True: salimos defendidos, no indefensos.
+COPILOT_MODERATION_ENABLED = os.environ.get("COPILOT_MODERATION_ENABLED", "True") == "True"
+# Ruta al JSON de allow-list (frases académicas que relajan la severidad strong).
+# Si el archivo no existe o tiene JSON inválido, el loader loggea WARNING y
+# opera con la lista curada únicamente.
+# PR 1b: el archivo se renombró a ``allowlist_es.json`` (más descriptivo que
+# el placeholder ``copilot_moderation_allowlist.json`` de PR 1a). El default
+# apunta al archivo que PR 1b crea en ``apps/copilot/data/``.
+COPILOT_MODERATION_ALLOWLIST_PATH = BASE_DIR / "apps" / "copilot" / "data" / "allowlist_es.json"
+# OpenAI Moderation API — model y timeout (PR 1b).
+# ``omni-moderation-latest`` es el modelo multilingüe más reciente y el default
+# locked por design.md §Configuration.
+COPILOT_MODERATION_MODEL = os.environ.get("COPILOT_MODERATION_MODEL", "omni-moderation-latest")
+# Timeout para llamadas a la API de moderación, en milisegundos. El default
+# 1500 ms (1.5 s) balancea latencia vs disponibilidad — la OpenAI Moderation
+# API tiene p50 ~200 ms; 1.5 s deja margen para redes lentas sin penalizar
+# la UX. El constructor de ``OpenAIModerationClient`` convierte a segundos.
+COPILOT_MODERATION_OPENAI_TIMEOUT_MS = int(
+    os.environ.get("COPILOT_MODERATION_OPENAI_TIMEOUT_MS", "1500")
+)
+# Modos de fallo (hard-coded en el servicio, no se exponen como setting aún):
+# - input  → "OPEN"  (REQ-009: preferimos falsos negativos sobre falsos positivos)
+# - output → "SKIP"  (REQ-009: la respuesta del LLM se devuelve tal cual)
+COPILOT_MODERATION_INPUT_FAIL_MODE = os.environ.get("COPILOT_MODERATION_INPUT_FAIL_MODE", "OPEN")
+COPILOT_MODERATION_OUTPUT_FAIL_MODE = os.environ.get("COPILOT_MODERATION_OUTPUT_FAIL_MODE", "SKIP")
 
 # Django REST Framework
 REST_FRAMEWORK = {

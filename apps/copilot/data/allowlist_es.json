@@ -1,0 +1,11 @@
+{
+  "phrases": [
+    "hijo de",
+    "a partir de",
+    "del lado de"
+  ],
+  "normalization": {
+    "lowercase": true,
+    "strip_diacritics": true
+  }
+}
