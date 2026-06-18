@@ -48,11 +48,12 @@ def _matricular(estudiante, paralelo):
 
 def _calificar(evaluacion, estudiante, nota):
     """Crea una Calificacion para el estudiante en la evaluacion."""
-    return CalificacionFactory(evaluacion=evaluacion, estudiante=estudiante, nota=Decimal(str(nota)))
+    return CalificacionFactory(
+        evaluacion=evaluacion, estudiante=estudiante, nota=Decimal(str(nota))
+    )
 
 
 def _asistencia(estudiante, paralelo, estado=Asistencia.Estado.PRESENTE, fecha=None):
-    import datetime
     kwargs = {"estudiante": estudiante, "paralelo": paralelo, "estado": estado}
     if fecha is not None:
         kwargs["fecha"] = fecha
@@ -110,7 +111,9 @@ class TestRendimientoAcademicoServicePorcentajeAsistencia:
         assert RendimientoAcademicoService.calcular_porcentaje_asistencia(0, 0) == Decimal("0.0")
 
     def test_todos_presentes(self):
-        assert RendimientoAcademicoService.calcular_porcentaje_asistencia(10, 10) == Decimal("100.0")
+        assert RendimientoAcademicoService.calcular_porcentaje_asistencia(10, 10) == Decimal(
+            "100.0"
+        )
 
     def test_ninguno_presente(self):
         assert RendimientoAcademicoService.calcular_porcentaje_asistencia(0, 10) == Decimal("0.0")
@@ -141,9 +144,7 @@ class TestRendimientoAcademicoServicePromediosPonderados:
         assert resultado == []
 
     def test_estudiante_sin_notas_retorna_cero(self):
-        resultado = RendimientoAcademicoService.calcular_promedios_por_estudiante(
-            [(1, [])]
-        )
+        resultado = RendimientoAcademicoService.calcular_promedios_por_estudiante([(1, [])])
         assert resultado == [(1, Decimal("0.00"))]
 
     def test_ponderacion_correcta(self):
@@ -207,8 +208,8 @@ class TestDashboardRendimientoAppServiceMetricas:
     def test_aprobados_y_reprobados_contados_correctamente(self):
         periodo, paralelo, e1, e2, svc = self._setup_paralelo()
         ev = EvaluacionFactory(paralelo=paralelo, peso=Decimal("100.00"))
-        _calificar(ev, e1, "18.00")   # aprobado
-        _calificar(ev, e2, "12.00")   # reprobado
+        _calificar(ev, e1, "18.00")  # aprobado
+        _calificar(ev, e2, "12.00")  # reprobado
 
         metricas = svc.obtener_metricas_por_periodo(periodo.id)
         m = metricas[0]
@@ -463,9 +464,7 @@ class TestDashboardRendimientoViewFiltros:
     def test_filtro_inasistencia_invalido_ignorado(self, client):
         tl, periodo, paralelo, user = self._setup()
         client.force_login(user)
-        resp = client.get(
-            URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=999"
-        )
+        resp = client.get(URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=999")
         assert resp.status_code == 200
         assert resp.context["inasistencia_seleccionada"] == ""
 
@@ -498,6 +497,7 @@ class TestDashboardRendimientoViewFiltros:
 
     def test_filtro_umbral_inasistencia_filtra_metricas(self, client):
         import datetime
+
         tl, periodo, paralelo, user = self._setup()
         # 1 de 10 presentes → 10% asistencia → inasistencia = 90%
         e = EstudianteFactory()
@@ -509,16 +509,12 @@ class TestDashboardRendimientoViewFiltros:
         client.force_login(user)
 
         # umbral 20%: el paralelo tiene 90% inasistencia → supera el umbral → aparece
-        resp_con = client.get(
-            URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=20"
-        )
+        resp_con = client.get(URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=20")
         assert resp_con.status_code == 200
         assert len(resp_con.context["metricas"]) == 1
 
         # umbral 95 no es opción válida → se limpia → no filtra → el paralelo sigue apareciendo
-        resp_sin = client.get(
-            URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=95"
-        )
+        resp_sin = client.get(URL + f"?tipo_licencia={tl.id}&periodo={periodo.id}&inasistencia=95")
         assert resp_sin.status_code == 200
         assert resp_sin.context["inasistencia_seleccionada"] == ""
 
@@ -608,6 +604,7 @@ class TestDashboardRendimientoAPIViewMetricas:
     def test_filtro_inasistencia_en_api(self, client):
         """Con umbral inasistencia=20, cursos con asistencia perfecta no aparecen."""
         import datetime
+
         self._inspector_client(client)
         periodo = PeriodoFactory(activo=True)
         paralelo = ParaleloFactory(periodo=periodo)
@@ -616,7 +613,12 @@ class TestDashboardRendimientoAPIViewMetricas:
         # 10 de 10 presentes → inasistencia 0% → no supera umbral 20%
         base = datetime.date(2026, 4, 1)
         for i in range(10):
-            _asistencia(e, paralelo, Asistencia.Estado.PRESENTE, fecha=base + datetime.timedelta(days=i))
+            _asistencia(
+                e,
+                paralelo,
+                Asistencia.Estado.PRESENTE,
+                fecha=base + datetime.timedelta(days=i),
+            )
 
         resp = client.get(URL_API + f"?periodo={periodo.id}&inasistencia=20")
         data = json.loads(resp.content)

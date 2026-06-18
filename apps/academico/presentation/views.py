@@ -1390,16 +1390,16 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
 
         service = DashboardRendimientoAppService()
 
-        _tipo_licencia_raw  = request.GET.get("tipo_licencia", "")
-        _periodo_raw        = request.GET.get("periodo", "")
-        _asignatura_raw     = request.GET.get("asignatura", "")
-        _paralelo_raw       = request.GET.get("paralelo", "")
+        _tipo_licencia_raw = request.GET.get("tipo_licencia", "")
+        _periodo_raw = request.GET.get("periodo", "")
+        _asignatura_raw = request.GET.get("asignatura", "")
+        _paralelo_raw = request.GET.get("paralelo", "")
         umbral_inasistencia = request.GET.get("inasistencia", "")
 
         tipos_licencia = TipoLicencia.objects.filter(activo=True).order_by("codigo")
 
         # ── Validar tipo_licencia ──────────────────────────────────────────
-        tipo_licencia_id  = None
+        tipo_licencia_id = None
         tipo_licencia_obj = None
         if _tipo_licencia_raw:
             try:
@@ -1421,17 +1421,21 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
                 }
                 for tl in tipos_licencia
             ]
-            return render(request, self.template_name, {
-                "bienvenida": True,
-                "tipos_licencia": tipos_licencia,
-                "bienvenida_cards": bienvenida_cards,
-            })
+            return render(
+                request,
+                self.template_name,
+                {
+                    "bienvenida": True,
+                    "tipos_licencia": tipos_licencia,
+                    "bienvenida_cards": bienvenida_cards,
+                },
+            )
 
         # ── Con tipo_licencia seleccionado ─────────────────────────────────
         try:
-            periodo_id    = int(_periodo_raw)    if _periodo_raw    else None
+            periodo_id = int(_periodo_raw) if _periodo_raw else None
             asignatura_id = int(_asignatura_raw) if _asignatura_raw else None
-            paralelo_id   = int(_paralelo_raw)   if _paralelo_raw   else None
+            paralelo_id = int(_paralelo_raw) if _paralelo_raw else None
         except (ValueError, TypeError):
             return redirect("academico:dashboard_rendimiento")
 
@@ -1466,13 +1470,12 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
         if umbral_inasistencia:
             umbral = Decimal(umbral_inasistencia)
             metricas = [
-                m for m in metricas
-                if (Decimal("100") - m.porcentaje_asistencia) >= umbral
+                m for m in metricas if (Decimal("100") - m.porcentaje_asistencia) >= umbral
             ]
 
-        total_aprobados  = sum(m.estudiantes_aprobados  for m in metricas)
+        total_aprobados = sum(m.estudiantes_aprobados for m in metricas)
         total_reprobados = sum(m.estudiantes_reprobados for m in metricas)
-        total_en_curso   = sum(m.estudiantes_en_curso   for m in metricas)
+        total_en_curso = sum(m.estudiantes_en_curso for m in metricas)
         promedio_global = (
             sum(m.promedio_general for m in metricas) / len(metricas) if metricas else 0
         )
@@ -1480,18 +1483,20 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
             sum(m.porcentaje_asistencia for m in metricas) / len(metricas) if metricas else 0
         )
 
-        paralelos_data = json.dumps([
-            {
-                "id": p.id,
-                "nombre": str(p),
-                "periodo_id": p.periodo_id,
-                "asignatura_id": p.asignatura_id,
-                "tipo_licencia_id": p.tipo_licencia_id,
-            }
-            for p in Paralelo.objects.select_related("asignatura", "periodo").filter(
-                tipo_licencia=tipo_licencia_obj
-            ).order_by("periodo__fecha_inicio", "asignatura__codigo", "nombre")
-        ])
+        paralelos_data = json.dumps(
+            [
+                {
+                    "id": p.id,
+                    "nombre": str(p),
+                    "periodo_id": p.periodo_id,
+                    "asignatura_id": p.asignatura_id,
+                    "tipo_licencia_id": p.tipo_licencia_id,
+                }
+                for p in Paralelo.objects.select_related("asignatura", "periodo")
+                .filter(tipo_licencia=tipo_licencia_obj)
+                .order_by("periodo__fecha_inicio", "asignatura__codigo", "nombre")
+            ]
+        )
 
         return render(
             request,
@@ -1501,26 +1506,26 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
                 "tipos_licencia": tipos_licencia,
                 "tipo_licencia_seleccionado": tipo_licencia_obj,
                 "metricas": metricas,
-                "periodos": Periodo.objects.filter(
-                    tipo_licencia=tipo_licencia_obj
-                ).order_by("-fecha_inicio"),
+                "periodos": Periodo.objects.filter(tipo_licencia=tipo_licencia_obj).order_by(
+                    "-fecha_inicio"
+                ),
                 "asignaturas": Asignatura.objects.filter(
                     tipos_licencia=tipo_licencia_obj
                 ).order_by("codigo"),
                 "paralelos_json": paralelos_data,
-                "periodo_seleccionado":      periodo_id,
-                "asignatura_seleccionada":   asignatura_id,
-                "paralelo_seleccionado":     paralelo_id,
+                "periodo_seleccionado": periodo_id,
+                "asignatura_seleccionada": asignatura_id,
+                "paralelo_seleccionado": paralelo_id,
                 "inasistencia_seleccionada": umbral_inasistencia,
-                "umbrales_inasistencia":     self.UMBRALES_INASISTENCIA,
+                "umbrales_inasistencia": self.UMBRALES_INASISTENCIA,
                 "resumen": {
-                    "total_paralelos":         len(metricas),
+                    "total_paralelos": len(metricas),
                     "total_paralelos_periodo": total_paralelos_periodo,
-                    "promedio_global":   round(float(promedio_global), 2),
+                    "promedio_global": round(float(promedio_global), 2),
                     "asistencia_global": round(float(asistencia_global), 1),
-                    "total_aprobados":  total_aprobados,
+                    "total_aprobados": total_aprobados,
                     "total_reprobados": total_reprobados,
-                    "total_en_curso":   total_en_curso,
+                    "total_en_curso": total_en_curso,
                 },
             },
         )
@@ -1557,8 +1562,7 @@ class DashboardRendimientoAPIView(MultiRolRequeridoMixin, View):
         if umbral_inasistencia:
             umbral = Decimal(umbral_inasistencia)
             metricas = [
-                m for m in metricas
-                if (Decimal("100") - m.porcentaje_asistencia) >= umbral
+                m for m in metricas if (Decimal("100") - m.porcentaje_asistencia) >= umbral
             ]
 
         return JsonResponse(

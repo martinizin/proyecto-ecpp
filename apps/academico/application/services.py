@@ -596,8 +596,6 @@ class DashboardRendimientoAppService:
         """
         from decimal import Decimal
 
-        from django.db.models import Avg
-
         from apps.academico.infrastructure.models import Matricula, Paralelo
         from apps.asistencia.infrastructure.models import Asistencia
         from apps.calificaciones.infrastructure.models import Calificacion
@@ -606,9 +604,9 @@ class DashboardRendimientoAppService:
 
         svc = RendimientoAcademicoService()
 
-        paralelos = Paralelo.objects.filter(
-            periodo_id=periodo_id
-        ).select_related("asignatura", "docente", "periodo")
+        paralelos = Paralelo.objects.filter(periodo_id=periodo_id).select_related(
+            "asignatura", "docente", "periodo"
+        )
 
         if asignatura_id:
             paralelos = paralelos.filter(asignatura_id=asignatura_id)
@@ -618,14 +616,12 @@ class DashboardRendimientoAppService:
 
         metricas = []
         for paralelo in paralelos:
-            total_estudiantes = paralelo.matriculas.filter(
-                estado=Matricula.Estado.ACTIVA
-            ).count()
+            total_estudiantes = paralelo.matriculas.filter(estado=Matricula.Estado.ACTIVA).count()
 
             estudiante_ids = list(
-                paralelo.matriculas.filter(
-                    estado=Matricula.Estado.ACTIVA
-                ).values_list("estudiante_id", flat=True)
+                paralelo.matriculas.filter(estado=Matricula.Estado.ACTIVA).values_list(
+                    "estudiante_id", flat=True
+                )
             )
 
             # Build weighted average per student
@@ -652,9 +648,9 @@ class DashboardRendimientoAppService:
 
             # Overall average (all individual grades in paralelo)
             todas_notas = list(
-                Calificacion.objects.filter(
-                    evaluacion__paralelo=paralelo
-                ).values_list("nota", flat=True)
+                Calificacion.objects.filter(evaluacion__paralelo=paralelo).values_list(
+                    "nota", flat=True
+                )
             )
             promedio_general = svc.calcular_promedio_paralelo(
                 [Decimal(str(n)) for n in todas_notas]
@@ -667,9 +663,7 @@ class DashboardRendimientoAppService:
                 estado__in=["presente", "justificado"],
             ).count()
 
-            porcentaje_asistencia = svc.calcular_porcentaje_asistencia(
-                presentes, total_registros
-            )
+            porcentaje_asistencia = svc.calcular_porcentaje_asistencia(presentes, total_registros)
             total_con_notas = aprobados + reprobados
 
             metricas.append(
@@ -678,11 +672,7 @@ class DashboardRendimientoAppService:
                     paralelo_nombre=str(paralelo),
                     asignatura_nombre=paralelo.asignatura.nombre,
                     asignatura_codigo=paralelo.asignatura.codigo,
-                    docente_nombre=(
-                        paralelo.docente.get_full_name()
-                        if paralelo.docente
-                        else "—"
-                    ),
+                    docente_nombre=(paralelo.docente.get_full_name() if paralelo.docente else "—"),
                     promedio_general=promedio_general,
                     porcentaje_asistencia=porcentaje_asistencia,
                     tasa_aprobacion=svc.calcular_tasa_aprobacion(aprobados, total_estudiantes),
@@ -709,13 +699,15 @@ class DashboardRendimientoAppService:
         from apps.calificaciones.infrastructure.models import Calificacion, Evaluacion
 
         ORDEN_TIPOS = [
-            "parcial1", "parcial2_10h", "parcial3", "parcial4_10h",
-            "proyecto", "examen_final",
+            "parcial1",
+            "parcial2_10h",
+            "parcial3",
+            "parcial4_10h",
+            "proyecto",
+            "examen_final",
         ]
 
-        evaluaciones = Evaluacion.objects.filter(
-            paralelo_id=paralelo_id
-        ).order_by("tipo")
+        evaluaciones = Evaluacion.objects.filter(paralelo_id=paralelo_id).order_by("tipo")
 
         evaluaciones_ordenadas = sorted(
             evaluaciones,
@@ -724,14 +716,20 @@ class DashboardRendimientoAppService:
 
         tendencia = []
         for evaluacion in evaluaciones_ordenadas:
-            promedio = Calificacion.objects.filter(
-                evaluacion=evaluacion
-            ).aggregate(avg=Avg("nota"))["avg"]
+            promedio = Calificacion.objects.filter(evaluacion=evaluacion).aggregate(
+                avg=Avg("nota")
+            )["avg"]
 
-            tendencia.append({
-                "evaluacion": evaluacion.get_tipo_display(),
-                "tipo": evaluacion.tipo,
-                "promedio": float(Decimal(str(promedio)).quantize(Decimal("0.01"))) if promedio else None,
-            })
+            tendencia.append(
+                {
+                    "evaluacion": evaluacion.get_tipo_display(),
+                    "tipo": evaluacion.tipo,
+                    "promedio": (
+                        float(Decimal(str(promedio)).quantize(Decimal("0.01")))
+                        if promedio
+                        else None
+                    ),
+                }
+            )
 
         return tendencia
