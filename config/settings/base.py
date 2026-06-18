@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "apps.secretaria",
     "apps.notificaciones",
     "apps.copilot",
+    "apps.reportes",
 ]
 
 MIDDLEWARE = [
