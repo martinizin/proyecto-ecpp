@@ -11,16 +11,10 @@ El hub ``/reportes/`` (HU27b) se implementa en WU4; aquí solo dejamos
 los stubs de ``PreviewExportView`` y la utilidad ``_rate_limit_json``.
 """
 
-from decimal import Decimal
-
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views import View
 
-from apps.asistencia.domain.services import AsistenciaCalculoService
-from apps.asistencia.infrastructure.models import Asistencia
-from apps.calificaciones.application.services import RegistroCalificacionAppService
-from apps.calificaciones.domain.services import CalificacionValidationService
 from apps.reportes.application.rate_limiter import (
     ExportacionPreviewRateLimiter,
     ExportacionRateLimiter,
@@ -221,64 +215,9 @@ class PreviewExportView(MultiRolRequeridoMixin, View):
         else:
             service = ExportacionAsistenciaService(filtros, request.user)
 
-        # 6. Construir la respuesta JSON con shape del spec R13
-        # WU1 implementación inicial: en WU2 delegamos a ``obtener_count_y_muestra``.
-        paralelos = service._filtrar_paralelos()
-        if not paralelos:
-            count = 0
-            sample_rows = []
-        else:
-            # Conteo agregado: matrículas activas en los paralelos filtrados
-            count = 0
-            for p in paralelos:
-                count += p.matriculas.filter(estado="activa").count()
-            # Sample: delegamos al service de planilla (no re-implementamos la fórmula)
-            sample_rows = []
-            for paralelo in paralelos[:1]:  # solo el primer paralelo para el sample
-                if tipo == "calificaciones":
-                    planilla = RegistroCalificacionAppService().obtener_planilla(paralelo.id)
-                    for fila in planilla["filas"][:3]:
-                        promedio = fila["promedio"]
-                        sample_rows.append(
-                            {
-                                "cedula": fila["matricula"].estudiante.cedula,
-                                "nombres": fila["matricula"].estudiante.get_full_name(),
-                                "promedio": float(promedio) if promedio is not None else None,
-                                "estado": (
-                                    CalificacionValidationService.estado_aprobacion(promedio)
-                                    if promedio is not None
-                                    else "sin_notas"
-                                ),
-                            }
-                        )
-                else:  # asistencia
-                    matriculas = (
-                        paralelo.matriculas.filter(estado="activa")
-                        .select_related("estudiante")
-                        .order_by("estudiante__last_name", "estudiante__first_name")[:3]
-                    )
-                    for matricula in matriculas:
-                        qs = Asistencia.objects.filter(
-                            estudiante_id=matricula.estudiante_id, paralelo_id=paralelo.id
-                        )
-                        total = qs.count()
-                        presentes = qs.filter(estado=Asistencia.Estado.PRESENTE).count()
-                        justificadas = qs.filter(estado=Asistencia.Estado.JUSTIFICADO).count()
-                        calc = AsistenciaCalculoService()
-                        porcentaje = calc.calcular_porcentaje_asistencia(
-                            presentes + justificadas, total
-                        )
-                        inasistencia_pct = Decimal("100.00") - porcentaje
-                        sample_rows.append(
-                            {
-                                "cedula": matricula.estudiante.cedula,
-                                "nombres": matricula.estudiante.get_full_name(),
-                                "porcentaje_asistencia": float(porcentaje),
-                                "estado": calc.evaluar_riesgo(inasistencia_pct),
-                            }
-                        )
-                if len(sample_rows) >= 3:
-                    break
+        # 6. WU2 — delegación pura: el service tiene su propio
+        # ``obtener_count_y_muestra()`` (no fórmula en la view, R25).
+        count, sample_rows = service.obtener_count_y_muestra()
 
         # 7. Available periodos/paralelos (role-aware via service, D2)
         available_periodos_qs = ReportesDisponibilidadService.obtener_periodos_disponibles(

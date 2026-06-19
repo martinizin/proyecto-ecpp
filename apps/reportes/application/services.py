@@ -268,6 +268,46 @@ class ExportacionCalificacionesService:
             data.append(row)
         return data
 
+    # ----- Preview (HU27b WU2) -------------------------------------------
+
+    def obtener_count_y_muestra(self, limite: int = 3) -> tuple[int, list[dict]]:
+        """Cuenta matrículas activas y retorna una muestra de hasta ``limite`` filas.
+
+        Reutilizado por ``PreviewExportView`` (HU27b WU2) para el endpoint JSON
+        ``/reportes/preview/``. NO genera archivos. NO re-implementa la
+        fórmula del promedio — delega a ``CalificacionValidationService``
+        (R25 / design §4.7).
+
+        Returns:
+            ``(count, sample_rows)``:
+            - ``count`` = total de matrículas activas en los paralelos filtrados.
+            - ``sample_rows`` = hasta ``limite`` dicts con keys
+              ``cedula, nombres, promedio, estado`` (mismo shape que
+              ``PreviewExportView`` retorna en WU1, para refactor transparente).
+        """
+        paralelos = self._filtrar_paralelos()
+        if not paralelos:
+            return 0, []
+        count = sum(p.matriculas.filter(estado="activa").count() for p in paralelos)
+        sample_rows: list[dict] = []
+        for paralelo in paralelos[:1]:
+            planilla = RegistroCalificacionAppService().obtener_planilla(paralelo.id)
+            for fila in planilla["filas"][:limite]:
+                promedio = fila["promedio"]
+                sample_rows.append(
+                    {
+                        "cedula": fila["matricula"].estudiante.cedula,
+                        "nombres": fila["matricula"].estudiante.get_full_name(),
+                        "promedio": float(promedio) if promedio is not None else None,
+                        "estado": (
+                            CalificacionValidationService.estado_aprobacion(promedio)
+                            if promedio is not None
+                            else "sin_notas"
+                        ),
+                    }
+                )
+        return count, sample_rows
+
 
 # ---------------------------------------------------------------------------
 # Asistencia
@@ -476,3 +516,48 @@ class ExportacionAsistenciaService:
             ]
             data.append(row)
         return data
+
+    # ----- Preview (HU27b WU2) -------------------------------------------
+
+    def obtener_count_y_muestra(self, limite: int = 3) -> tuple[int, list[dict]]:
+        """Cuenta matrículas activas y retorna una muestra de hasta ``limite`` filas.
+
+        Reutilizado por ``PreviewExportView`` (HU27b WU2) para el endpoint JSON
+        ``/reportes/preview/``. NO genera archivos. NO re-implementa la
+        fórmula del porcentaje — delega a ``AsistenciaCalculoService``
+        (R25 / design §4.7). Reusa internamente ``_calcular_datos_asistencia_estudiante``,
+        ``_porcentaje_asistencia`` y ``_estado_asistencia`` para mantener una
+        sola fuente de verdad del cálculo de asistencia en este módulo.
+
+        Returns:
+            ``(count, sample_rows)``:
+            - ``count`` = total de matrículas activas en los paralelos filtrados.
+            - ``sample_rows`` = hasta ``limite`` dicts con keys
+              ``cedula, nombres, porcentaje_asistencia, estado`` (mismo shape
+              que ``PreviewExportView`` retorna en WU1, para refactor
+              transparente).
+        """
+        paralelos = self._filtrar_paralelos()
+        if not paralelos:
+            return 0, []
+        count = sum(p.matriculas.filter(estado="activa").count() for p in paralelos)
+        sample_rows: list[dict] = []
+        for paralelo in paralelos[:1]:
+            matriculas = (
+                paralelo.matriculas.filter(estado="activa")
+                .select_related("estudiante")
+                .order_by("estudiante__last_name", "estudiante__first_name")[:limite]
+            )
+            for matricula in matriculas:
+                datos = self._calcular_datos_asistencia_estudiante(
+                    matricula.estudiante_id, paralelo.id
+                )
+                sample_rows.append(
+                    {
+                        "cedula": matricula.estudiante.cedula,
+                        "nombres": matricula.estudiante.get_full_name(),
+                        "porcentaje_asistencia": float(self._porcentaje_asistencia(datos)),
+                        "estado": self._estado_asistencia(datos),
+                    }
+                )
+        return count, sample_rows
