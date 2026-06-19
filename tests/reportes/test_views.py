@@ -101,7 +101,7 @@ class TestExportarCalificacionesView:
         assert response.content[:2] == b"PK"
 
     def test_view_returns_429_on_11th_call(self, docente_client):
-        """La 11ª llamada dentro del mismo minuto retorna 429 con mensaje en español."""
+        """La 11ª llamada dentro del mismo minuto retorna 429 con JSON body."""
         from django.contrib.auth import get_user_model
         from django.utils import timezone
 
@@ -116,8 +116,12 @@ class TestExportarCalificacionesView:
 
         response = docente_client.get(self.url, {**self.query, "formato": "excel"})
         assert response.status_code == 429
-        body = response.content.decode("utf-8")
-        assert "Límite" in body or "limite" in body.lower()
+        # HU27b: el body es JSON con shape específico (R18 del spec reportes-ux-hub)
+        assert response["Content-Type"].startswith("application/json")
+        import json
+
+        body = json.loads(response.content)
+        assert body == {"error": "rate_limit", "retry_after_seconds": 60}
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +176,7 @@ class TestExportarAsistenciaView:
         assert filename.endswith(".xlsx")
 
     def test_view_returns_429_on_11th_call(self, docente_client):
-        """La 11ª llamada retorna 429 con mensaje en español."""
+        """La 11ª llamada retorna 429 con JSON body."""
         from django.contrib.auth import get_user_model
 
         Usuario = get_user_model()
@@ -186,5 +190,9 @@ class TestExportarAsistenciaView:
 
         response = docente_client.get(self.url, {**self.query, "formato": "excel"})
         assert response.status_code == 429
-        body = response.content.decode("utf-8")
-        assert "Límite" in body or "limite" in body.lower()
+        # HU27b: el body es JSON con shape específico (R18 del spec reportes-ux-hub)
+        assert response["Content-Type"].startswith("application/json")
+        import json
+
+        body = json.loads(response.content)
+        assert body == {"error": "rate_limit", "retry_after_seconds": 60}

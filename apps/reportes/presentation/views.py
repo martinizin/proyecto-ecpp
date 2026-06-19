@@ -1,22 +1,42 @@
 """
-Vistas para exportación de reportes (HU27).
+Vistas para exportación de reportes (HU27 + HU27b).
+
+HU27: dos endpoints de exportación de archivos (calificaciones / asistencia).
+HU27b: agrega el endpoint ``/reportes/preview/`` (JSON para el hub UX) y
+cambia el body de 429 de ``text/plain`` a ``application/json`` para que
+el componente Alpine ``exportFlow()`` pueda mostrar un toast con
+countdown.
+
+El hub ``/reportes/`` (HU27b) se implementa en WU4; aquí solo dejamos
+los stubs de ``PreviewExportView`` y la utilidad ``_rate_limit_json``.
 """
 
-from django.http import HttpResponse
+from decimal import Decimal
+
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views import View
 
-from apps.reportes.application.rate_limiter import ExportacionRateLimiter
+from apps.asistencia.domain.services import AsistenciaCalculoService
+from apps.asistencia.infrastructure.models import Asistencia
+from apps.calificaciones.application.services import RegistroCalificacionAppService
+from apps.calificaciones.domain.services import CalificacionValidationService
+from apps.reportes.application.rate_limiter import (
+    ExportacionPreviewRateLimiter,
+    ExportacionRateLimiter,
+)
 from apps.reportes.application.services import (
     ExportacionAsistenciaService,
     ExportacionCalificacionesService,
 )
+from apps.reportes.domain.services import ReportesDisponibilidadService
 from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
 
 
 CONTENT_TYPE_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 CONTENT_TYPE_PDF = "application/pdf"
 ROLES_PERMITIDOS = ["docente", "inspector", "secretaria"]
+TIPOS_PREVIEW = ["calificaciones", "asistencia"]
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +83,18 @@ def _build_filename(tipo: str, filtros: dict, formato: str, cuando) -> str:
     return "_".join(parts) + f".{ext}"
 
 
+def _rate_limit_json() -> JsonResponse:
+    """Respuesta JSON 429 estándar (HU27b R18).
+
+    Body: ``{"error": "rate_limit", "retry_after_seconds": 60}``.
+    Usado por los endpoints de export y de preview cuando el limiter rechaza.
+    """
+    return JsonResponse(
+        {"error": "rate_limit", "retry_after_seconds": 60},
+        status=429,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Calificaciones
 # ---------------------------------------------------------------------------
@@ -75,11 +107,7 @@ class ExportarCalificacionesView(MultiRolRequeridoMixin, View):
 
     def get(self, request):
         if not ExportacionRateLimiter.check(request.user.id):
-            return HttpResponse(
-                "Límite de exportaciones excedido. Intente de nuevo en el siguiente minuto.",
-                status=429,
-                content_type="text/plain; charset=utf-8",
-            )
+            return _rate_limit_json()
         filtros = _parse_filtros(request.GET)
         service = ExportacionCalificacionesService(filtros, request.user)
         formato = request.GET.get("formato", "excel")
@@ -107,11 +135,7 @@ class ExportarAsistenciaView(MultiRolRequeridoMixin, View):
 
     def get(self, request):
         if not ExportacionRateLimiter.check(request.user.id):
-            return HttpResponse(
-                "Límite de exportaciones excedido. Intente de nuevo en el siguiente minuto.",
-                status=429,
-                content_type="text/plain; charset=utf-8",
-            )
+            return _rate_limit_json()
         filtros = _parse_filtros(request.GET)
         service = ExportacionAsistenciaService(filtros, request.user)
         formato = request.GET.get("formato", "excel")
@@ -125,3 +149,169 @@ class ExportarAsistenciaView(MultiRolRequeridoMixin, View):
         response = HttpResponse(buffer.read(), content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+# ---------------------------------------------------------------------------
+# Preview (HU27b)
+# ---------------------------------------------------------------------------
+
+
+class PreviewExportView(MultiRolRequeridoMixin, View):
+    """GET /reportes/preview/ — JSON pre-visualización de export (HU27b R13, R14, R15).
+
+    Query params:
+        ``tipo`` (required): "calificaciones" | "asistencia".
+        ``periodo`` (required, int): ID del período académico.
+        ``paralelo`` (optional, int): ID del paralelo.
+        ``materia`` (optional, int): ID de la asignatura.
+        ``estado`` (optional, str): estado del registro.
+
+    Response:
+        200: ``{"count": int, "sample_rows": list[dict], "available_periodos": list[dict],
+        "available_paralelos": list[dict]}``
+        400: ``{"error": "invalid_tipo", "allowed": ["calificaciones", "asistencia"]}``
+        403: estudiante o anónimo.
+        429: ``{"error": "rate_limit", "retry_after_seconds": 60}`` (20/min/user, HU27b R15).
+    """
+
+    roles_permitidos = ROLES_PERMITIDOS
+
+    def get(self, request):
+        # 1. Rate limit (20/min/user, HU27b R15)
+        if not ExportacionPreviewRateLimiter.check(request.user.id):
+            return _rate_limit_json()
+
+        # 2. Validar ``tipo`` (D3 del design)
+        tipo = request.GET.get("tipo")
+        if tipo not in TIPOS_PREVIEW:
+            return JsonResponse(
+                {"error": "invalid_tipo", "allowed": TIPOS_PREVIEW},
+                status=400,
+            )
+
+        # 3. Validar ``periodo``
+        periodo_id_raw = request.GET.get("periodo")
+        if not periodo_id_raw:
+            return JsonResponse(
+                {"error": "invalid_tipo", "allowed": TIPOS_PREVIEW},
+                status=400,
+            )
+        try:
+            periodo_id = int(periodo_id_raw)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"error": "invalid_tipo", "allowed": TIPOS_PREVIEW},
+                status=400,
+            )
+
+        # 4. Construir filtros para el export service
+        filtros = {"periodo_id": periodo_id}
+        for src, dst in (
+            ("materia", "materia_id"),
+            ("paralelo", "paralelo_id"),
+            ("estado", "estado"),
+        ):
+            value = request.GET.get(src)
+            if value:
+                filtros[dst] = int(value) if dst.endswith("_id") and value.isdigit() else value
+
+        # 5. Delegar al service de export correspondiente (reuso de servicios existentes)
+        if tipo == "calificaciones":
+            service = ExportacionCalificacionesService(filtros, request.user)
+        else:
+            service = ExportacionAsistenciaService(filtros, request.user)
+
+        # 6. Construir la respuesta JSON con shape del spec R13
+        # WU1 implementación inicial: en WU2 delegamos a ``obtener_count_y_muestra``.
+        paralelos = service._filtrar_paralelos()
+        if not paralelos:
+            count = 0
+            sample_rows = []
+        else:
+            # Conteo agregado: matrículas activas en los paralelos filtrados
+            count = 0
+            for p in paralelos:
+                count += p.matriculas.filter(estado="activa").count()
+            # Sample: delegamos al service de planilla (no re-implementamos la fórmula)
+            sample_rows = []
+            for paralelo in paralelos[:1]:  # solo el primer paralelo para el sample
+                if tipo == "calificaciones":
+                    planilla = RegistroCalificacionAppService().obtener_planilla(paralelo.id)
+                    for fila in planilla["filas"][:3]:
+                        promedio = fila["promedio"]
+                        sample_rows.append(
+                            {
+                                "cedula": fila["matricula"].estudiante.cedula,
+                                "nombres": fila["matricula"].estudiante.get_full_name(),
+                                "promedio": float(promedio) if promedio is not None else None,
+                                "estado": (
+                                    CalificacionValidationService.estado_aprobacion(promedio)
+                                    if promedio is not None
+                                    else "sin_notas"
+                                ),
+                            }
+                        )
+                else:  # asistencia
+                    matriculas = (
+                        paralelo.matriculas.filter(estado="activa")
+                        .select_related("estudiante")
+                        .order_by("estudiante__last_name", "estudiante__first_name")[:3]
+                    )
+                    for matricula in matriculas:
+                        qs = Asistencia.objects.filter(
+                            estudiante_id=matricula.estudiante_id, paralelo_id=paralelo.id
+                        )
+                        total = qs.count()
+                        presentes = qs.filter(estado=Asistencia.Estado.PRESENTE).count()
+                        justificadas = qs.filter(estado=Asistencia.Estado.JUSTIFICADO).count()
+                        calc = AsistenciaCalculoService()
+                        porcentaje = calc.calcular_porcentaje_asistencia(
+                            presentes + justificadas, total
+                        )
+                        inasistencia_pct = Decimal("100.00") - porcentaje
+                        sample_rows.append(
+                            {
+                                "cedula": matricula.estudiante.cedula,
+                                "nombres": matricula.estudiante.get_full_name(),
+                                "porcentaje_asistencia": float(porcentaje),
+                                "estado": calc.evaluar_riesgo(inasistencia_pct),
+                            }
+                        )
+                if len(sample_rows) >= 3:
+                    break
+
+        # 7. Available periodos/paralelos (role-aware via service, D2)
+        available_periodos_qs = ReportesDisponibilidadService.obtener_periodos_disponibles(
+            request.user
+        )
+        available_periodos = [
+            {"id": p.id, "nombre": p.nombre, "activo": p.activo} for p in available_periodos_qs
+        ]
+
+        # Para paralelos disponibles, necesitamos el periodo actual
+        from apps.academico.infrastructure.models import Periodo as PeriodoModel
+
+        try:
+            current_periodo = PeriodoModel.objects.get(pk=periodo_id)
+        except PeriodoModel.DoesNotExist:
+            current_periodo = available_periodos_qs[0] if available_periodos_qs else None
+
+        if current_periodo is not None:
+            available_paralelos_qs = ReportesDisponibilidadService.obtener_paralelos_disponibles(
+                request.user, current_periodo
+            )
+            available_paralelos = [
+                {"id": p.id, "codigo": p.nombre, "materia": p.asignatura.nombre}
+                for p in available_paralelos_qs
+            ]
+        else:
+            available_paralelos = []
+
+        return JsonResponse(
+            {
+                "count": count,
+                "sample_rows": sample_rows,
+                "available_periodos": available_periodos,
+                "available_paralelos": available_paralelos,
+            }
+        )

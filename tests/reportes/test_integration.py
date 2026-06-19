@@ -403,10 +403,12 @@ class TestRateLimitGlobal:
         assert response.status_code == 429
 
     def test_rate_limit_429_message_in_spanish(self, docente_client):
-        """El body del 429 contiene 'Límite' (case-insensitive)."""
+        """El body del 429 es JSON con shape ``{error, retry_after_seconds}`` (HU27b R18)."""
         _clear_cache()
         from django.contrib.auth import get_user_model
         from django.utils import timezone
+
+        import json
 
         Usuario = get_user_model()
         user = Usuario.objects.filter(rol="docente").order_by("-id").first()
@@ -417,5 +419,6 @@ class TestRateLimitGlobal:
         url = reverse("reportes:exportar_calificaciones")
         response = docente_client.get(url, {"periodo": periodo.id, "formato": "excel"})
         assert response.status_code == 429
-        body = response.content.decode("utf-8")
-        assert "Límite" in body or "limite" in body.lower()
+        assert response["Content-Type"].startswith("application/json")
+        body = json.loads(response.content)
+        assert body == {"error": "rate_limit", "retry_after_seconds": 60}
