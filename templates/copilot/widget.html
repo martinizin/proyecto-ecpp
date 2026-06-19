@@ -214,6 +214,17 @@
                 </div>
             </template>
 
+            {# Redirect animation #}
+            <div x-show="isRedirecting" class="flex justify-center py-3">
+                <div class="flex items-center gap-2.5 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
+                    <svg class="w-4 h-4 text-primary animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                    </svg>
+                    <span class="text-xs font-medium text-primary" x-text="redirectLabel + '…'"></span>
+                </div>
+            </div>
+
             {# Streaming indicator — x-show (siempre en el DOM), reactivo a isStreaming #}
             <div x-show="isStreaming" class="flex justify-start">
                 <div class="max-w-[85%] px-1 py-1">
@@ -263,7 +274,19 @@
             messages: [],
             isStreaming: false,
             streamingContent: '',
+            pendingLink: null,
+            isRedirecting: false,
+            redirectLabel: '',
             async init() {
+                const saved = sessionStorage.getItem('copilot_messages');
+                if (saved) {
+                    try {
+                        this.messages = JSON.parse(saved);
+                        this.open = true;
+                    } catch (_) {}
+                    sessionStorage.removeItem('copilot_messages');
+                    return;
+                }
                 // Reset backend session on every page load so conversation never persists across reloads
                 try {
                     await fetch('{% url "copilot:nueva_conversacion" %}', {
@@ -348,12 +371,15 @@
                                 let parsed;
                                 try { parsed = JSON.parse(raw); } catch (_) { continue; }
                                 if (parsed.error) throw new Error(parsed.error);
+                                if (parsed.link) console.log('[copilot] link recibido:', parsed.link);
                                 if (parsed.replacement !== undefined) {
                                     // PR 2 — el servidor emite ``replacement`` cuando la moderación
                                     // de salida (hook D primer chunk o hook B respuesta
                                     // ensamblada) detecta contenido flagged. Sobreescribimos
                                     // el texto streameado con la canned refusal.
                                     this.streamingContent = parsed.replacement;
+                                } else if (parsed.link) {
+                                    this.pendingLink = parsed.link;
                                 } else if (parsed.delta) {
                                     this.streamingContent += parsed.delta;
                                     // Cede al event loop para que el browser pinte el nuevo texto
@@ -365,10 +391,18 @@
                     }
 
                     const finalContent = this.streamingContent;
+                    const finalLink = this.pendingLink;
                     this.isStreaming = false;
                     this.streamingContent = '';
+                    this.pendingLink = null;
                     if (finalContent) {
                         this.messages.push({ rol: 'assistant', contenido: finalContent });
+                    }
+                    if (finalLink) {
+                        this.isRedirecting = true;
+                        this.redirectLabel = finalLink.label;
+                        sessionStorage.setItem('copilot_messages', JSON.stringify(this.messages));
+                        setTimeout(() => { window.location.href = finalLink.url; }, 1800);
                     }
 
                 } catch (e) {

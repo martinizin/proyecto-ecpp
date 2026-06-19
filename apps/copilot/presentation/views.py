@@ -184,6 +184,8 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
                     #     sobrescribir el texto streameado.
                     if isinstance(chunk, dict) and chunk.get("type") == "replacement":
                         payload = json.dumps({"replacement": chunk["text"]}, ensure_ascii=False)
+                    elif isinstance(chunk, dict) and chunk.get("type") == "link":
+                        payload = json.dumps({"link": {"url": chunk["url"], "label": chunk["label"]}}, ensure_ascii=False)
                     else:
                         payload = json.dumps({"delta": chunk}, ensure_ascii=False)
                     yield f"data: {payload}\n\n"

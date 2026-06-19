@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Generar Reporte ANT{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li><a href="{% url 'reportes:ant_listado' %}" class="hover:text-primary transition-colors">Reportes ANT</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Generar</li>
+    </ol>
+</nav>
+
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">Generar Reporte ANT</h1>
+            <p class="text-sm text-gray-500 mt-0.5">
+                Reporte normativo conforme a la Resolución 005-DIR-2022-ANT con hash SHA-256 de integridad.
+            </p>
+        </div>
+
+        <!-- Form con Alpine.js cascada -->
+        <div
+            x-data="{
+                tipoLicenciaId: '',
+                periodoId: '',
+                periodos: {{ periodos_json }},
+                get periodosFiltrados() {
+                    if (!this.tipoLicenciaId) return [];
+                    return this.periodos.filter(p => p.tipo_licencia_id == this.tipoLicenciaId);
+                },
+                resetPeriodo() {
+                    this.periodoId = '';
+                }
+            }"
+        >
+        <form method="post" class="px-6 py-6 space-y-5">
+            {% csrf_token %}
+
+            <!-- Tipo de Licencia -->
+            <div>
+                <label for="tipo_licencia" class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tipo de Licencia <span class="text-red-500">*</span>
+                </label>
+                <select
+                    id="tipo_licencia"
+                    x-model="tipoLicenciaId"
+                    @change="resetPeriodo()"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700
+                           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
+                >
+                    <option value="">— Seleccione un tipo de licencia —</option>
+                    {% for tl in tipo_licencias %}
+                    <option value="{{ tl.id }}">{{ tl.codigo }} — {{ tl.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Período Académico (filtrado según tipo) -->
+            <div>
+                <label for="periodo_id" class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Período Académico <span class="text-red-500">*</span>
+                </label>
+
+                <!-- Sin tipo seleccionado -->
+                <template x-if="!tipoLicenciaId">
+                    <div class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-400 bg-gray-50">
+                        Primero seleccione un tipo de licencia
+                    </div>
+                </template>
+
+                <!-- Tipo seleccionado pero sin períodos -->
+                <template x-if="tipoLicenciaId && periodosFiltrados.length === 0">
+                    <div class="w-full border border-amber-200 rounded-lg px-3 py-2.5 text-sm text-amber-700 bg-amber-50">
+                        No hay períodos registrados para este tipo de licencia
+                    </div>
+                </template>
+
+                <!-- Selector de períodos -->
+                <template x-if="tipoLicenciaId && periodosFiltrados.length > 0">
+                    <select
+                        id="periodo_id"
+                        x-model="periodoId"
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700
+                               focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
+                    >
+                        <option value="">— Seleccione un período —</option>
+                        <template x-for="p in periodosFiltrados" :key="p.id">
+                            <option :value="p.id" x-text="p.nombre + (p.activo ? ' (Activo)' : '')"></option>
+                        </template>
+                    </select>
+                </template>
+
+                <!-- Campo oculto: garantiza envío del valor aunque el select esté dentro de <template> -->
+                <input type="hidden" name="periodo_id" :value="periodoId">
+            </div>
+
+            <!-- Notas opcionales -->
+            <div>
+                <label for="notas" class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Observaciones <span class="text-gray-400 font-normal">(opcional)</span>
+                </label>
+                <textarea id="notas" name="notas" rows="3"
+                          placeholder="Observaciones institucionales que aparecerán al pie del reporte…"
+                          class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700
+                                 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary
+                                 transition-colors resize-none"></textarea>
+            </div>
+
+            <!-- Info box -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                <p class="font-medium mb-1">¿Qué incluye el reporte?</p>
+                <ul class="list-disc list-inside space-y-0.5 text-blue-700">
+                    <li>Todos los estudiantes matriculados en el período seleccionado</li>
+                    <li>Calificaciones por evaluación, promedio y estado final</li>
+                    <li>Porcentaje de asistencia por estudiante</li>
+                    <li>Firma del responsable y hash SHA-256 de integridad</li>
+                </ul>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3 pt-2">
+                <button
+                    type="submit"
+                    :disabled="!periodoId"
+                    :class="periodoId
+                        ? 'bg-primary hover:bg-secondary cursor-pointer'
+                        : 'bg-gray-300 cursor-not-allowed'"
+                    class="inline-flex items-center gap-2 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors text-sm"
+                >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9Z"/>
+                    </svg>
+                    Generar PDF
+                </button>
+                <a href="{% url 'reportes:ant_listado' %}"
+                   class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
