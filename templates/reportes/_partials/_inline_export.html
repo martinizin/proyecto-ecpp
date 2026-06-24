@@ -1,0 +1,64 @@
+{# ══════════════════════════════════════════════════════════════════════════
+   Inline export buttons partial — HU27b WU5 (R21-R24, R26).
+
+   Reusable button group: 2 buttons (Calificaciones Excel + PDF) by default,
+   + 2 buttons (Asistencia Excel + PDF) when show_asistencia=True.
+
+   Usage (4 documented callsites):
+     - dashboard_rendimiento.html:    show_asistencia=False (period-wide)
+     - seleccionar_paralelo.html:     show_asistencia=True  (per paralelo)
+     - auditoria_calificaciones.html: show_asistencia=False (audit page)
+     - (usuarios/dashboard.html uses a quick-action card, not this partial)
+
+   Args (passed via `with`):
+     - periodo:               int (current periodo id, may be empty)
+     - paralelo:              int (optional, current paralelo id)
+     - show_asistencia:       bool (default False)
+
+   Progressive enhancement (R19):
+   - Each button is a NATIVE <a href="..."> that works without Alpine.
+   - The @click.prevent handler dispatches an 'export:start' CustomEvent
+     that the hub's exportFlow() Alpine component listens for. If
+     exportFlow() is not on the page, the native <a download> takes over.
+   - This makes the partial USABLE on pages that do NOT have exportFlow()
+     (like the inline callsites) without any extra JS state.
+
+   A11y (R26):
+   - role="group" wraps the buttons (WAI-ARIA toolbar pattern).
+   - Each <a> has an aria-label (icon-only buttons need it).
+   - All emoji icons are aria-hidden="true".
+#}
+<div class="inline-flex flex-wrap gap-2"
+     role="group"
+     aria-label="Exportar reportes">
+    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}"
+       @click.prevent="window.dispatchEvent(new CustomEvent('export:start', { detail: { tipo: 'calificaciones', formato: 'excel' } }))"
+       class="inline-flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+       aria-label="Descargar calificaciones en Excel">
+        <span aria-hidden="true">📥</span>
+        <span>Excel</span>
+    </a>
+    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}"
+       @click.prevent="window.dispatchEvent(new CustomEvent('export:start', { detail: { tipo: 'calificaciones', formato: 'pdf' } }))"
+       class="inline-flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+       aria-label="Descargar calificaciones en PDF">
+        <span aria-hidden="true">📄</span>
+        <span>PDF</span>
+    </a>
+    {% if show_asistencia %}
+    <a href="{% url 'reportes:exportar_asistencia' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}"
+       @click.prevent="window.dispatchEvent(new CustomEvent('export:start', { detail: { tipo: 'asistencia', formato: 'excel' } }))"
+       class="inline-flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+       aria-label="Descargar asistencia en Excel">
+        <span aria-hidden="true">📊</span>
+        <span>Asist. Excel</span>
+    </a>
+    <a href="{% url 'reportes:exportar_asistencia' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}"
+       @click.prevent="window.dispatchEvent(new CustomEvent('export:start', { detail: { tipo: 'asistencia', formato: 'pdf' } }))"
+       class="inline-flex items-center gap-1.5 bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-colors"
+       aria-label="Descargar asistencia en PDF">
+        <span aria-hidden="true">📊</span>
+        <span>Asist. PDF</span>
+    </a>
+    {% endif %}
+</div>
