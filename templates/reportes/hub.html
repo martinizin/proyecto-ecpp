@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reportes{% endblock %}
+
+{% block content %}
+{# ═══════════════ Hub de Reportes — HU27b WU4 ═══════════════
+
+   Layout: title + filter form + 2 export cards in a grid.
+   Pattern B from explore: title → filter form → action grid.
+
+   - 2 roles gate: MultiRolRequeridoMixin in ReportesHubView (R12).
+   - Smart defaults: ?periodo=N > first available (server side).
+     localStorage 'ecppp_last_periodo' > server default (client side
+     in init()).
+   - Progressive enhancement: each button is a native <a href> that
+     works without Alpine. The @click.prevent just calls download()
+     for the fetch+blob path.
+   - exportFlow() Alpine component (R17):
+     busy state, fetch + .blob() + URL.createObjectURL + synthetic
+     <a download> click. 3 branches: 200 / 429 / other-error.
+   - Toast events: dispatches to the global toast() component from
+     WU3 (single global setInterval).
+#}
+<div class="max-w-7xl mx-auto px-4 py-6"
+     x-data="exportFlow()"
+     x-init="init()">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Reportes</h1>
+    <p class="text-gray-600 mb-6">
+        Exporta listados de calificaciones y asistencia en Excel o PDF.
+    </p>
+
+    {# ─── Filter form (periodo, paralelo) ──────────────────── #}
+    <form @submit.prevent
+          class="mb-6 bg-white rounded-lg shadow p-4 flex flex-wrap gap-4 items-end"
+          aria-label="Filtros de exportación">
+        <div>
+            <label for="id_periodo"
+                   class="block text-sm font-medium text-gray-700">
+                Período
+            </label>
+            <select id="id_periodo"
+                    name="periodo"
+                    x-model.number="filters.periodo"
+                    @change="onFilterChange()"
+                    class="form-select mt-1">
+                {% for p in periodos_disponibles %}
+                    <option value="{{ p.id }}"
+                            {% if periodo_actual and p.id == periodo_actual.id %}selected{% endif %}>
+                        {{ p.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if paralelos_disponibles %}
+        <div>
+            <label for="id_paralelo"
+                   class="block text-sm font-medium text-gray-700">
+                Paralelo
+            </label>
+            <select id="id_paralelo"
+                    name="paralelo"
+                    x-model.number="filters.paralelo"
+                    @change="onFilterChange()"
+                    class="form-select mt-1">
+                <option value="">Todos</option>
+                {% for par in paralelos_disponibles %}
+                    <option value="{{ par.id }}">{{ par.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </form>
+
+    {# ─── 2 export cards in a grid ───────────────────────── #}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% include "reportes/_partials/card_calificaciones.html" %}
+        {% include "reportes/_partials/card_asistencia.html" %}
+    </div>
+</div>
+
+<script>
+    /* eslint-disable no-undef */
+    {# exportFlow() — HU27b WU4 design §4.6.
+
+       Owns the export click lifecycle for the hub. On click:
+         1. Show "Generando…" info toast.
+         2. fetch() the export URL with credentials='same-origin'.
+         3. Branch on response.status:
+            - 200 → blob + URL.createObjectURL + synthetic <a download>
+              + "Listo" success toast with re-download link.
+            - 429 → "Límite alcanzado" error toast with live countdown
+              (consumed by the global toast() from WU3).
+            - other → "Error" error toast.
+         4. Set busy=false in finally, restore aria-busy on originating btn.
+
+       Smart defaults: init() reads localStorage 'ecppp_last_periodo'
+       and, if found and the server didn't pre-select a periodo, applies
+       it. Server-side ?periodo=N always wins (R12).
+
+       Toasts are global: this component does NOT manage its own
+       intervals (D9). It only dispatches `toast:show` events; the
+       toast() component from WU3 owns the setInterval.
+
+       Blob URL lifecycle (D8): this component creates the object URL
+       with `URL.createObjectURL(blob)` and passes it to the success
+       toast via `retryUrl`. The global toast() component in
+       `templates/partials/_toast.html` is responsible for calling
+       `URL.revokeObjectURL(retryUrl)` on dismiss — this component
+       never revokes the URL itself. This contract is what makes
+       in-session re-downloads work without leaking blob URLs. #}
+    function exportFlow() {
+        return {
+            busy: false,
+            filters: {
+                periodo: {% if periodo_actual %}{{ periodo_actual.id }}{% else %}null{% endif %},
+                paralelo: null
+            },
+            _serverPeriodo: {% if periodo_actual %}{{ periodo_actual.id }}{% else %}null{% endif %},
+
+            init() {
+                // Smart defaults priority: server (?periodo=N) > localStorage > null.
+                // Server already populated filters.periodo in the factory above.
+                if (this.filters.periodo === null) {
+                    const stored = localStorage.getItem('ecppp_last_periodo');
+                    if (stored) {
+                        const parsed = parseInt(stored, 10);
+                        if (!Number.isNaN(parsed)) {
+                            this.filters.periodo = parsed;
+                        }
+                    }
+                }
+                // Fetch initial preview for both cards.
+                this.fetchPreview();
+            },
+
+            onFilterChange() {
+                // Persist selection to localStorage.
+                if (this.filters.periodo) {
+                    localStorage.setItem(
+                        'ecppp_last_periodo',
+                        String(this.filters.periodo)
+                    );
+                }
+                // Re-fetch preview for both cards.
+                this.fetchPreview();
+            },
+
+            async fetchPreview() {
+                // Fire two parallel preview fetches; the partial updates
+                // via DOM mutation (data-preview-count) on success.
+                const tipos = ['calificaciones', 'asistencia'];
+                await Promise.all(tipos.map(t => this._fetchOnePreview(t)));
+            },
+
+            async _fetchOnePreview(tipo) {
+                if (!this.filters.periodo) return;
+                const url = new URL('/reportes/preview/', window.location.origin);
+                url.searchParams.set('tipo', tipo);
+                url.searchParams.set('periodo', String(this.filters.periodo));
+                if (this.filters.paralelo) {
+                    url.searchParams.set('paralelo', String(this.filters.paralelo));
+                }
+                try {
+                    const res = await fetch(url, { credentials: 'same-origin' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Update ALL preview panes whose data-card-tipo matches.
+                        // The two panes share a contract: cardId is the prefix.
+                        const card = document.getElementById(
+                            'card-' + (tipo === 'calificaciones'
+                                ? 'calificaciones' : 'asistencia')
+                        );
+                        if (card) {
+                            const counter = card.querySelector(
+                                '[data-preview-count]'
+                            );
+                            if (counter) counter.textContent = data.count;
+                        }
+                    }
+                } catch (e) {
+                    // Network error: leave the counter at '—'. Don't toast
+                    // here — preview is a passive affordance.
+                }
+            },
+
+            async download(tipo, formato, event) {
+                if (this.busy) return;
+                this.busy = true;
+                const btn = event && event.currentTarget
+                    ? event.currentTarget : null;
+
+                // 1. "Generando…" info toast.
+                window.dispatchEvent(new CustomEvent('toast:show', {
+                    detail: {
+                        type: 'info',
+                        title: 'Generando…',
+                        message: `${tipo} en ${formato.toUpperCase()}.`,
+                        icon: '⏳',
+                        autoDismissMs: 2000
+                    }
+                }));
+
+                // 2. Build the export URL.
+                const url = new URL(
+                    `/reportes/${tipo}/exportar/`, window.location.origin
+                );
+                url.searchParams.set('formato', formato);
+                if (this.filters.periodo) {
+                    url.searchParams.set(
+                        'periodo', String(this.filters.periodo)
+                    );
+                }
+                if (this.filters.paralelo) {
+                    url.searchParams.set(
+                        'paralelo', String(this.filters.paralelo)
+                    );
+                }
+
+                try {
+                    // 3. fetch + .blob() + URL.createObjectURL.
+                    const res = await fetch(url, { credentials: 'same-origin' });
+                    if (res.status === 429) {
+                        // 3a. 429 → countdown toast (consumed by WU3 toast()).
+                        const data = await res.json().catch(() => ({}));
+                        this._show429Toast(data.retry_after_seconds || 60);
+                    } else if (!res.ok) {
+                        // 3b. other non-200 → red error toast.
+                        this._showErrorToast(
+                            'Error al generar archivo. Reintentá.'
+                        );
+                    } else {
+                        // 3c. 200 → blob + synthetic download + success toast.
+                        const blob = await res.blob();
+                        const filename = this._extractFilename(res)
+                            || `${tipo}_${Date.now()}.${formato === 'excel' ? 'xlsx' : 'pdf'}`;
+                        const objectUrl = URL.createObjectURL(blob);
+                        this._triggerDownload(objectUrl, filename);
+                        // Success toast with re-download link (D8: URL revoked
+                        // on dismiss by the global toast() component).
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: {
+                                type: 'success',
+                                title: 'Listo',
+                                message: filename,
+                                icon: '✅',
+                                retryUrl: objectUrl,
+                                retryFilename: filename,
+                                retryLabel: 'Re-descargar',
+                                autoDismissMs: 5000
+                            }
+                        }));
+                    }
+                } catch (e) {
+                    // 3d. network failure → error toast.
+                    this._showErrorToast(
+                        'No se pudo conectar al servidor. Reintentá.'
+                    );
+                } finally {
+                    this.busy = false;
+                    if (btn) btn.setAttribute('aria-busy', 'false');
+                }
+            },
+
+            _show429Toast(seconds) {
+                const baseMessage = 'Límite alcanzado — reintentar en';
+                window.dispatchEvent(new CustomEvent('toast:show', {
+                    detail: {
+                        type: 'error',
+                        title: 'Límite de descargas',
+                        message: `${baseMessage} 0:${String(seconds).padStart(2, '0')}`,
+                        icon: '⏱',
+                        autoDismissMs: 0,
+                        countdownSeconds: seconds,
+                        _baseMessage: baseMessage
+                    }
+                }));
+            },
+
+            _showErrorToast(message) {
+                window.dispatchEvent(new CustomEvent('toast:show', {
+                    detail: {
+                        type: 'error',
+                        title: 'Error',
+                        message: message,
+                        icon: '⚠',
+                        autoDismissMs: 0
+                    }
+                }));
+            },
+
+            _extractFilename(res) {
+                const disp = res.headers.get('Content-Disposition') || '';
+                const m = disp.match(/filename="?([^"]+)"?/);
+                return m ? m[1] : null;
+            },
+
+            _triggerDownload(objectUrl, filename) {
+                const a = document.createElement('a');
+                a.href = objectUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
+        };
+    }
+</script>
+{% endblock %}

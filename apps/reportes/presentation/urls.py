@@ -8,11 +8,18 @@ from apps.reportes.presentation.views import (
     ExportarAsistenciaView,
     ExportarCalificacionesView,
     PreviewExportView,
+    ReportesHubView,
 )
 
 app_name = "reportes"
 
 urlpatterns = [
+    # HU27b WU4: hub page (entry point at /reportes/)
+    path(
+        "",
+        ReportesHubView.as_view(),
+        name="hub",
+    ),
     # HU27b: preview JSON endpoint (20/min/user, role-aware)
     path(
         "preview/",

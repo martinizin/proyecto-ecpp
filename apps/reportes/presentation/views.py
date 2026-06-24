@@ -7,13 +7,13 @@ cambia el body de 429 de ``text/plain`` a ``application/json`` para que
 el componente Alpine ``exportFlow()`` pueda mostrar un toast con
 countdown.
 
-El hub ``/reportes/`` (HU27b) se implementa en WU4; aquí solo dejamos
-los stubs de ``PreviewExportView`` y la utilidad ``_rate_limit_json``.
+El hub ``/reportes/`` (HU27b WU4) se implementa en ``ReportesHubView``.
 """
 
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views import View
+from django.views.generic import TemplateView
 
 from apps.reportes.application.rate_limiter import (
     ExportacionPreviewRateLimiter,
@@ -254,3 +254,58 @@ class PreviewExportView(MultiRolRequeridoMixin, View):
                 "available_paralelos": available_paralelos,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Hub (HU27b WU4)
+# ---------------------------------------------------------------------------
+
+
+class ReportesHubView(MultiRolRequeridoMixin, TemplateView):
+    """GET /reportes/ — Hub UX con 2 cards de export (R12).
+
+    Renders ``templates/reportes/hub.html`` con el contexto role-aware:
+    ``periodos_disponibles``, ``periodo_actual`` (smart defaults:
+    ``?periodo=N`` query > primer periodo disponible) y
+    ``paralelos_disponibles`` para el periodo actual.
+
+    El handler Alpine ``exportFlow()`` (definido inline en ``hub.html``)
+    consume el preview endpoint ``/reportes/preview/`` y los export
+    endpoints ``/reportes/{calificaciones,asistencia}/exportar/``.
+
+    Mixin order mirrors existing export views: ``MultiRolRequeridoMixin,
+    TemplateView`` — no MRO conflict.
+    """
+
+    template_name = "reportes/hub.html"
+    roles_permitidos = ROLES_PERMITIDOS
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        service = ReportesDisponibilidadService()
+        periodos = service.obtener_periodos_disponibles(self.request.user)
+        context["periodos_disponibles"] = periodos
+
+        # Smart defaults: ?periodo=N > first available (R12).
+        # localStorage is read on the CLIENT (Alpine), not in the view.
+        periodo_actual = None
+        periodo_id_raw = self.request.GET.get("periodo")
+        if periodo_id_raw:
+            try:
+                periodo_id = int(periodo_id_raw)
+            except (TypeError, ValueError):
+                periodo_id = None
+            if periodo_id is not None:
+                periodo_actual = next((p for p in periodos if p.id == periodo_id), None)
+        if periodo_actual is None and periodos:
+            periodo_actual = periodos[0]
+        context["periodo_actual"] = periodo_actual
+
+        if periodo_actual is not None:
+            context["paralelos_disponibles"] = service.obtener_paralelos_disponibles(
+                self.request.user, periodo_actual
+            )
+        else:
+            context["paralelos_disponibles"] = []
+
+        return context

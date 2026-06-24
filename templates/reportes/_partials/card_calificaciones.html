@@ -1,0 +1,51 @@
+{# Card Calificaciones — HU27b WU4.
+
+   Progressive enhancement (R19):
+   - Each button is a NATIVE <a href="..."> that works without Alpine.
+   - The @click.prevent on the same element calls the parent exportFlow()'s
+     download() for the fetch+blob path. Alpine is the enhancement, not
+     the contract.
+
+   A11y (R24):
+   - :aria-busy="busy" tells screen readers when the button is mid-request.
+   - :disabled="busy" prevents double-clicks.
+   - Visible button text (📥 Excel) is the accessible name.
+#}
+<div class="bg-white rounded-lg shadow-md p-6 flex flex-col"
+     id="card-calificaciones"
+     data-card-tipo="calificaciones">
+    <div class="flex items-start gap-3 mb-3">
+        <span class="text-3xl" aria-hidden="true">📊</span>
+        <div>
+            <h2 class="text-xl font-bold text-gray-900">Calificaciones</h2>
+            <p class="text-sm text-gray-600">
+                Notas por estudiante, promedio y estado de aprobación
+            </p>
+        </div>
+    </div>
+
+    {% include "reportes/_partials/preview_pane.html" with card_id="calificaciones" %}
+
+    <div class="flex gap-2 mt-auto pt-4">
+        <a href="{% url 'reportes:exportar_calificaciones' %}?formato=excel&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+           @click.prevent="download('calificaciones', 'excel', $event)"
+           :disabled="busy"
+           :aria-busy="busy"
+           :class="busy ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''"
+           class="flex-1 bg-green-600 text-white text-center px-4 py-2 rounded font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors">
+            <span x-show="!busy" aria-hidden="true">📥</span>
+            <span x-show="busy" aria-hidden="true" class="inline-block animate-spin">⏳</span>
+            Excel
+        </a>
+        <a href="{% url 'reportes:exportar_calificaciones' %}?formato=pdf&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+           @click.prevent="download('calificaciones', 'pdf', $event)"
+           :disabled="busy"
+           :aria-busy="busy"
+           :class="busy ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''"
+           class="flex-1 bg-red-600 text-white text-center px-4 py-2 rounded font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors">
+            <span x-show="!busy" aria-hidden="true">📄</span>
+            <span x-show="busy" aria-hidden="true" class="inline-block animate-spin">⏳</span>
+            PDF
+        </a>
+    </div>
+</div>
