@@ -1,4 +1,4 @@
-{# Global Alpine toast() component — HU27b WU3.
+{% comment %} Global Alpine toast() component — HU27b WU3.
 
    Mounted once in ``templates/base.html`` (immediately before ``</body>``).
    Invokable from any Alpine context via::
@@ -12,7 +12,7 @@
    - ``info``/``success``/``warning``  → ``role="status" aria-live="polite"``
    - ``error``                          → ``role="alert"  aria-live="assertive"``
    - Close button (icon-only)           → ``aria-label="Cerrar notificación"``
-#}
+{% endcomment %}
 <div x-data="toast()"
      @toast:show.window="show($event.detail)"
      class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"

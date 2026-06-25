@@ -1,4 +1,4 @@
-{# HUB-PREVIEW-PANE
+{% comment %} HUB-PREVIEW-PANE
    Shared preview pane (count + 3 sample rows) used by both export cards.
    Source data is fetched by the parent exportFlow() in hub.html and
    passed in via the ``data-*`` attrs OR via an x-data scope. For server
@@ -7,7 +7,7 @@
 
    A11y (R26): the count region has aria-live="polite" so screen
    readers announce the new row count when filters change.
-#}
+{% endcomment %}
 <div class="bg-gray-50 rounded p-3 mb-3"
      role="status"
      aria-live="polite"

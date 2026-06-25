@@ -1,4 +1,4 @@
-{# Card Asistencia — HU27b WU4.
+{% comment %} Card Asistencia — HU27b WU4.
 
    Same shape as card_calificaciones.html. The button hrefs target the
    /reportes/asistencia/exportar/ endpoint. The parent exportFlow() in
@@ -7,7 +7,7 @@
    Progressive enhancement (R19): each <a href> works natively without
    Alpine. The @click.prevent just calls download() for the enhanced
    path.
-#}
+{% endcomment %}
 <div class="bg-white rounded-lg shadow-md p-6 flex flex-col"
      id="card-asistencia"
      data-card-tipo="asistencia">
