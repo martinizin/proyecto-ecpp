@@ -269,14 +269,12 @@ class TestPreviewPane:
     """El hub incluye el preview_pane partial."""
 
     def test_hub_renderiza_preview_pane(self, docente_client):
-        """El HTML renderizado contiene un marker del preview_pane."""
+        """El HTML renderizado incluye el preview_pane partial (data-preview-pane)."""
         response = _render_hub(docente_client)
         html = response.content.decode("utf-8")
-        # Aceptamos el marker comment del partial O el include string
-        assert (
-            "HUB-PREVIEW-PANE" in html
-            or 'include "reportes/_partials/preview_pane.html"' in _read(HUB_HTML)
-        ), "Preview pane must be included in hub"
+        # El partial preview_pane.html emite un div con data-preview-pane.
+        # Eso es la evidencia de que el partial está incluido y renderizado.
+        assert "data-preview-pane" in html, "Preview pane must be included in hub"
 
     def test_preview_pane_partial_exists_and_renders(self):
         """El partial preview_pane.html existe y renderiza standalone."""
@@ -449,3 +447,85 @@ class TestHubUrl:
         url = reverse("reportes:hub")
         response = docente_client.get(url)
         assert response.status_code == 200
+
+    def test_hub_renderiza_filtro_paralelo(self, docente_client):
+        """El filtro de Paralelo (Curso) se renderiza SIEMPRE (con "Todos" como default)."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        # El select de paralelo debe estar siempre presente
+        assert 'id="id_paralelo"' in html, "Paralelo select must always be rendered"
+        # La opción "Todos" debe estar presente (label actualizado al patrón rendimiento)
+        assert "Todos los cursos del período" in html, "Default 'Todos' option must be present"
+        # El chip de "Filtros activos" debe estar en el HTML (aunque no visible sin filtros)
+        assert "Filtros activos:" in html, "Active filters chip region must be in template"
+
+    def test_hub_renderiza_filtro_materia(self, docente_client):
+        """El filtro de Materia se renderiza en step 3 del cascade."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert 'id="id_materia"' in html, "Materia select must be rendered"
+        assert "Todas las materias" in html, "Default 'Todas las materias' option must be present"
+        assert "Por materia" in html, "Materia label must be 'Por materia'"
+
+    def test_hub_carga_paralelos_json(self, docente_client):
+        """El hub inyecta todos_los_paralelos como JSON para filtrado client-side."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert 'id="paralelos-data"' in html, "paralelos-data script tag must be present"
+        assert 'type="application/json"' in html, "Script must be application/json"
+
+    def test_hub_usa_patron_3_steps(self, docente_client):
+        """El filtro visual usa 3 círculos numerados (patrón rendimiento)."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        # 3 círculos con los números 1, 2, 3
+        assert ">1</span>" in html, "Step 1 circle missing"
+        assert ">2</span>" in html, "Step 2 circle missing"
+        assert ">3</span>" in html, "Step 3 circle missing"
+        # El label "Curso" (no "Paralelo") — patrón rendimiento
+        assert "Curso" in html, "Step 2 label should be 'Curso' (rendimiento pattern)"
+        assert "Cascade: Período → Curso → Materia" in html, "Cascade hint missing"
+
+    def test_hub_filtro_materia_pasa_al_export_url(self, docente_client):
+        """El download construye el URL con materia cuando está seleccionado."""
+        script = _read(HUB_HTML)
+        assert (
+            "url.searchParams.set('materia'" in script or 'searchParams.set("materia"' in script
+        ), "exportFlow must pass materia to export URL when set"
+
+    def test_hub_renderiza_chip_limpiar(self, docente_client):
+        """El botón 'Limpiar filtros' está en el HTML (condicional con x-show)."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert "Limpiar filtros" in html, "Reset button must be in template"
+        # El método resetFilters() debe estar en el exportFlow
+        script = _read(HUB_HTML)
+        assert "resetFilters" in script, "exportFlow must define resetFilters()"
+        assert "activeFiltersCount" in script, "exportFlow must define activeFiltersCount()"
+        assert "materiasFiltradas" in script, "exportFlow must define materiasFiltradas computed"
+        assert "paralelosFiltrados" in script, "exportFlow must define paralelosFiltrados computed"
+        assert "alCambiarPeriodo" in script, "exportFlow must define alCambiarPeriodo()"
+        assert "alCambiarParalelo" in script, "exportFlow must define alCambiarParalelo()"
+
+    def test_hub_honor_url_params_preseleccion(self, docente_client):
+        """El hub honra ?paralelo= y ?materia= en la URL (callsites inline)."""
+        # Simular URL con paralelo y materia pre-seleccionados
+        url = reverse("reportes:hub") + "?periodo=1&paralelo=5&materia=3"
+        response = docente_client.get(url)
+        html = response.content.decode("utf-8")
+        # El template renderiza los valores en el factory de Alpine
+        assert (
+            "paralelo: '5'" in html
+        ), "filters.paralelo debe inicializarse con el valor de la URL (?paralelo=5)"
+        assert (
+            "materia: '3'" in html
+        ), "filters.materia debe inicializarse con el valor de la URL (?materia=3)"
+        assert response.status_code == 200
+
+    def test_hub_url_sin_params_sin_preseleccion(self, docente_client):
+        """Sin ?paralelo ni ?materia, los filters están vacíos."""
+        url = reverse("reportes:hub")
+        response = docente_client.get(url)
+        html = response.content.decode("utf-8")
+        assert "paralelo: ''" in html, "Sin ?paralelo, filters.paralelo debe ser ''"
+        assert "materia: ''" in html, "Sin ?materia, filters.materia debe ser ''"

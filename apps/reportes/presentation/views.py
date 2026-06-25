@@ -320,6 +320,8 @@ class ReportesHubView(MultiRolRequeridoMixin, TemplateView):
     roles_permitidos = ROLES_PERMITIDOS
 
     def get_context_data(self, **kwargs):
+        import json
+
         context = super().get_context_data(**kwargs)
         service = ReportesDisponibilidadService()
         periodos = service.obtener_periodos_disponibles(self.request.user)
@@ -340,11 +342,39 @@ class ReportesHubView(MultiRolRequeridoMixin, TemplateView):
             periodo_actual = periodos[0]
         context["periodo_actual"] = periodo_actual
 
+        # Step 2 (Curso / Paralelo) y Step 3 (Materia / Asignatura) del
+        # cascade Periodo > Curso > Materia. Las opciones del select de
+        # Paralelo se renderizan desde el JSON client-side (patrón del
+        # módulo de rendimiento); el de Materia se hidrata desde el server
+        # para los labels completos.
+        todos_los_paralelos = service.obtener_todos_los_paralelos_para_filtros(self.request.user)
+        context["paralelos_json"] = json.dumps(
+            [
+                {
+                    "id": p.id,
+                    "nombre": str(p),
+                    "periodo_id": p.periodo_id,
+                    "asignatura_id": p.asignatura_id,
+                    "asignatura_nombre": p.asignatura.nombre,
+                }
+                for p in todos_los_paralelos
+            ]
+        )
+
         if periodo_actual is not None:
             context["paralelos_disponibles"] = service.obtener_paralelos_disponibles(
                 self.request.user, periodo_actual
             )
+            context["materias_disponibles"] = service.obtener_materias_disponibles(
+                self.request.user, periodo_actual
+            )
         else:
             context["paralelos_disponibles"] = []
+            context["materias_disponibles"] = []
+
+        # Honor ?paralelo= and ?materia= from URL (e.g. from inline button
+        # callsites that pass the page's filter state).
+        context["paralelo_preseleccionado"] = self.request.GET.get("paralelo") or ""
+        context["materia_preseleccionada"] = self.request.GET.get("materia") or ""
 
         return context
