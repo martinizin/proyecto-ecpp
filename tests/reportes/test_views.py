@@ -75,6 +75,26 @@ class TestExportarCalificacionesView:
         response = client.get(self.url, {**self.query, "formato": "excel"})
         assert response.status_code in (302, 403)
 
+    def test_missing_periodo_defaults_to_activo(self, docente_client):
+        """Sin ?periodo= la view DEFAULTEA al periodo activo y retorna 200.
+
+        UX decision (2026-06-24): en vez de 400, el endpoint usa el
+        periodo activo como default. El usuario clickea "Excel" sin
+        pensar en el periodo y obtiene un archivo del periodo actual.
+        El filename del Excel/PDF incluye el periodo (R8) para que
+        el usuario vea qué periodo se exportó.
+        """
+        response = docente_client.get(self.url, {"formato": "excel"})
+        assert response.status_code == 200
+        assert response["Content-Disposition"].startswith("attachment;")
+        assert "2026-A" in response["Content-Disposition"]
+
+    def test_empty_periodo_defaults_to_activo(self, docente_client):
+        """?periodo= (vacío) también defaultea al periodo activo."""
+        response = docente_client.get(self.url, {"formato": "excel", "periodo": ""})
+        assert response.status_code == 200
+        assert "2026-A" in response["Content-Disposition"]
+
     def test_content_disposition_attachment(self, docente_client):
         """El header ``Content-Disposition`` es ``attachment`` con filename."""
         response = docente_client.get(self.url, {**self.query, "formato": "excel"})
@@ -174,6 +194,12 @@ class TestExportarAsistenciaView:
         filename = match.group(1)
         assert filename.startswith("asistencia_2026-A_")
         assert filename.endswith(".xlsx")
+
+    def test_missing_periodo_defaults_to_activo(self, docente_client):
+        """Sin ?periodo= la view DEFAULTEA al periodo activo y retorna 200."""
+        response = docente_client.get(self.url, {"formato": "excel"})
+        assert response.status_code == 200
+        assert "2026-A" in response["Content-Disposition"]
 
     def test_view_returns_429_on_11th_call(self, docente_client):
         """La 11ª llamada retorna 429 con JSON body."""

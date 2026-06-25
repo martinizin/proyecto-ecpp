@@ -39,10 +39,31 @@ TIPOS_PREVIEW = ["calificaciones", "asistencia"]
 
 
 def _parse_filtros(GET):
-    """Parsea los query params a un dict de filtros (todos opcionales)."""
-    filtros = {}
-    if GET.get("periodo"):
-        filtros["periodo_id"] = int(GET["periodo"])
+    """Parsea los query params a un dict de filtros.
+
+    ``periodo`` es obligatorio, pero si no viene, default al periodo
+    activo (UX-friendly: el usuario no tiene que saber el id del periodo
+    activo, clickear el botón debe "simplemente funcionar").
+
+    Esto es un cambio deliberado vs. la versión que retornaba 400
+    (defense-in-depth): la página puede no pasar ``?periodo=`` si el
+    usuario no seleccionó un filtro (ej. clicks directos desde
+    llamadas con curl), y el endpoint debe devolver un archivo del
+    periodo activo en lugar de un 400 que confunde.
+
+    Defense-in-depth: el filename del Excel/PDF incluye el periodo
+    (R8) para que el usuario vea qué periodo se exportó.
+    """
+    periodo_id_raw = GET.get("periodo")
+    if not periodo_id_raw:
+        from apps.academico.infrastructure.models import Periodo
+
+        periodo_activo = Periodo.objects.filter(activo=True).order_by("-fecha_inicio").first()
+        if not periodo_activo:
+            return None  # No hay periodo activo → caller retorna 400
+        periodo_id_raw = str(periodo_activo.id)
+
+    filtros = {"periodo_id": int(periodo_id_raw)}
     if GET.get("materia"):
         filtros["materia_id"] = int(GET["materia"])
     if GET.get("paralelo"):
@@ -50,6 +71,20 @@ def _parse_filtros(GET):
     if GET.get("estado"):
         filtros["estado"] = GET["estado"]
     return filtros
+
+
+def _missing_periodo_response():
+    """Respuesta 400 estandar cuando falta ``?periodo=`` en el export."""
+    return JsonResponse(
+        {
+            "error": "missing_periodo",
+            "message": (
+                "El query param 'periodo' es obligatorio para generar un "
+                "reporte. Ejemplo: ?periodo=1&formato=excel"
+            ),
+        },
+        status=400,
+    )
 
 
 def _build_filename(tipo: str, filtros: dict, formato: str, cuando) -> str:
@@ -103,6 +138,8 @@ class ExportarCalificacionesView(MultiRolRequeridoMixin, View):
         if not ExportacionRateLimiter.check(request.user.id):
             return _rate_limit_json()
         filtros = _parse_filtros(request.GET)
+        if filtros is None:
+            return _missing_periodo_response()
         service = ExportacionCalificacionesService(filtros, request.user)
         formato = request.GET.get("formato", "excel")
         if formato == "excel":
@@ -131,6 +168,8 @@ class ExportarAsistenciaView(MultiRolRequeridoMixin, View):
         if not ExportacionRateLimiter.check(request.user.id):
             return _rate_limit_json()
         filtros = _parse_filtros(request.GET)
+        if filtros is None:
+            return _missing_periodo_response()
         service = ExportacionAsistenciaService(filtros, request.user)
         formato = request.GET.get("formato", "excel")
         if formato == "excel":
