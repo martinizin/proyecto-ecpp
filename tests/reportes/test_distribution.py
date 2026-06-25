@@ -251,11 +251,11 @@ class TestInlineButtonsAuditoriaCalificaciones:
         assert response.status_code == 200
         html = response.content.decode("utf-8")
         assert (
-            "/reportes/calificaciones/exportar/?formato=excel" in html
-        ), "Expected calificaciones Excel href in auditoria header"
+            "/calificaciones/auditoria/exportar/?formato=excel" in html
+        ), "Expected auditoria Excel href in auditoria header"
         assert (
-            "/reportes/calificaciones/exportar/?formato=pdf" in html
-        ), "Expected calificaciones PDF href in auditoria header"
+            "/calificaciones/auditoria/exportar/?formato=pdf" in html
+        ), "Expected auditoria PDF href in auditoria header"
 
     @pytest.mark.parametrize(
         "client_fixture_name",
@@ -341,7 +341,7 @@ class TestInlineButtonsContextFilters:
         assert response.status_code == 200
         html = response.content.decode("utf-8")
         # El href de export debe estar presente y bien formado
-        assert "/reportes/calificaciones/exportar/?formato=excel" in html
+        assert "/calificaciones/auditoria/exportar/?formato=excel" in html
 
 
 # ---------------------------------------------------------------------------
@@ -512,3 +512,76 @@ def hub_periodo_con_docente(db, hub_periodo, docente):
     """Periodo con un paralelo asignado al docente (mirror de test_hub)."""
     ParaleloFactory(periodo=hub_periodo, docente=docente, nombre="A")
     return hub_periodo
+
+
+class TestInlineExportPartialIsNativeOnly:
+    """Regression: el partial inline_export debe ser SOLO <a href> nativo.
+
+    Bug encontrado en 2026-06-18: el partial usaba ``@click.prevent`` para
+    despachar un CustomEvent que el ``exportFlow()`` del hub escucha.
+    Pero las páginas de Auditoría / Rendimiento / Paralelos NO tienen
+    ``exportFlow()`` — el ``@click.prevent`` bloqueaba la navegación
+    nativa Y el evento se disparaba al vacío → "click no hace nada".
+
+    Spec R19: progressive enhancement. El partial es un <a href> nativo
+    que funciona sin JS. El hub usa sus propios botones en las cards con
+    ``exportFlow()`` para el feedback completo (toast + countdown).
+    """
+
+    def test_inline_export_partial_no_tiene_click_prevent(self):
+        """El partial NO debe contener @click.prevent (que bloquearía la descarga)."""
+        from pathlib import Path
+
+        partial = (
+            Path(__file__).resolve().parent.parent.parent
+            / "templates"
+            / "reportes"
+            / "_partials"
+            / "_inline_export.html"
+        )
+        content = partial.read_text(encoding="utf-8")
+        assert "@click.prevent" not in content, (
+            "inline_export.html must not use @click.prevent — the partial is "
+            "rendered on pages WITHOUT exportFlow() and the prevent would "
+            "block the native <a href> download"
+        )
+        assert "export:start" not in content, (
+            "inline_export.html must not dispatch the 'export:start' CustomEvent "
+            "— there's no listener outside the hub"
+        )
+
+    def test_inline_export_partial_preserva_href(self):
+        """El partial conserva el href nativo (sin JS, click = navegación)."""
+        from pathlib import Path
+
+        partial = (
+            Path(__file__).resolve().parent.parent.parent
+            / "templates"
+            / "reportes"
+            / "_partials"
+            / "_inline_export.html"
+        )
+        content = partial.read_text(encoding="utf-8")
+        # El href de los 4 botones debe estar presente y apuntar al endpoint correcto
+        assert "href=\"{% url 'reportes:exportar_calificaciones' %}?formato=excel" in content
+        assert "href=\"{% url 'reportes:exportar_calificaciones' %}?formato=pdf" in content
+        assert "href=\"{% url 'reportes:exportar_asistencia' %}?formato=excel" in content
+        assert "href=\"{% url 'reportes:exportar_asistencia' %}?formato=pdf" in content
+        # Y deben incluir el param materia cuando se pasa
+        assert "{% if materia %}&amp;materia={{ materia }}{% endif %}" in content
+
+    def test_auditoria_buttons_son_links_nativos(self, request):
+        """En la página de Auditoría, los buttons son <a href> puros (sin onclick handler)."""
+        client = request.getfixturevalue("inspector_client")
+        response = client.get("/calificaciones/auditoria/")
+        html = response.content.decode("utf-8")
+        # Los hrefs están presentes
+        assert "/calificaciones/auditoria/exportar/?formato=excel" in html
+        # Y NO hay @click.prevent dentro del bloque del partial
+        # (verificamos que el HTML renderizado no tenga onclick handlers de Alpine
+        # que bloqueen la navegación)
+        # El partial inline NO debe contener 'export:start' en el HTML renderizado
+        assert "export:start" not in html, (
+            "auditoria.html rendered output must not contain the 'export:start' event "
+            "(would need exportFlow() listener to be useful, and that page doesn't have it)"
+        )

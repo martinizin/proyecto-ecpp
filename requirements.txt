@@ -14,3 +14,6 @@ openai==2.41.0
 # HU27 — Exportación de calificaciones y asistencia a Excel y PDF
 openpyxl>=3.1.0
 reportlab>=4.0.0
+
+# Test de PDFs generados (HU27 auditoría)
+pypdf>=6.0.0
