@@ -419,7 +419,8 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Validar Calificaciones</span>
         </a>
 
-        <!-- ─── REPORTES ANT (Secretaría) ─── -->
+        <!-- ─── REPORTES ANT (Secretaría / Director Académico) ─── -->
+        {% if user.rol == 'secretaria' or user.rol == 'director_academico' %}
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
         <p x-show="!sidebarCollapsed" x-cloak
            class="px-3 mt-4 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Reportes</p>
@@ -434,6 +435,7 @@
             </svg>
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Reportes ANT</span>
         </a>
+        {% endif %}
 
         <!-- ─── SOLICITUDES (Secretaría) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>

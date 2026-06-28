@@ -17,7 +17,7 @@ from apps.reportes.domain.exceptions import PeriodoSinEstudiantesError
 from apps.reportes.domain.services import ReporteANTService
 from apps.reportes.infrastructure.models import ReporteANT
 
-ROLES_LECTURA = ("inspector", "secretaria", "director_academico")
+ROLES_LECTURA = ("secretaria", "director_academico")
 ROLES_GENERACION = ("secretaria", "director_academico")
 
 
@@ -37,9 +37,9 @@ class ReporteANTListView(_RolMixin, ListView):
     roles_permitidos = ROLES_LECTURA
 
     def get_queryset(self):
-        return ReporteANT.objects.select_related(
-            "periodo", "generado_por"
-        ).order_by("-fecha_generacion")
+        return ReporteANT.objects.select_related("periodo", "generado_por").order_by(
+            "-fecha_generacion"
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -55,22 +55,29 @@ class ReporteANTGenerarView(_RolMixin, View):
     def get(self, request):
         import json
         from apps.academico.infrastructure.models import TipoLicencia
+
         periodos = Periodo.objects.select_related("tipo_licencia").order_by("-fecha_inicio")
         tipo_licencias = TipoLicencia.objects.filter(activo=True).order_by("codigo")
-        periodos_json = json.dumps([
+        periodos_json = json.dumps(
+            [
+                {
+                    "id": p.id,
+                    "nombre": p.nombre,
+                    "activo": p.activo,
+                    "tipo_licencia_id": p.tipo_licencia_id,
+                }
+                for p in periodos
+            ]
+        )
+        return render(
+            request,
+            "reportes/ant/generar.html",
             {
-                "id": p.id,
-                "nombre": p.nombre,
-                "activo": p.activo,
-                "tipo_licencia_id": p.tipo_licencia_id,
-            }
-            for p in periodos
-        ])
-        return render(request, "reportes/ant/generar.html", {
-            "periodos": periodos,
-            "tipo_licencias": tipo_licencias,
-            "periodos_json": periodos_json,
-        })
+                "periodos": periodos,
+                "tipo_licencias": tipo_licencias,
+                "periodos_json": periodos_json,
+            },
+        )
 
     def post(self, request):
         periodo_id = request.POST.get("periodo_id")
@@ -96,8 +103,9 @@ class ReporteANTGenerarView(_RolMixin, View):
             )
         except PeriodoSinEstudiantesError as e:
             messages.error(request, str(e))
-        except Exception as e:
+        except Exception:
             from django.conf import settings
+
             if settings.DEBUG:
                 raise
             messages.error(
@@ -125,8 +133,10 @@ class ReporteANTDescargarView(_RolMixin, View):
         )
 
 
-class ReporteANTVerificarHashView(LoginRequiredMixin, View):
+class ReporteANTVerificarHashView(_RolMixin, View):
     """Return JSON with integrity check result for a stored report."""
+
+    roles_permitidos = ROLES_LECTURA
 
     def get(self, request, pk):
         reporte = get_object_or_404(ReporteANT, pk=pk)
@@ -137,8 +147,10 @@ class ReporteANTVerificarHashView(LoginRequiredMixin, View):
         hash_actual = ReporteANTService.computar_hash(contenido)
         coincide = hash_actual == reporte.hash_sha256
 
-        return JsonResponse({
-            "hash_almacenado": reporte.hash_sha256,
-            "hash_actual": hash_actual,
-            "integridad_valida": coincide,
-        })
+        return JsonResponse(
+            {
+                "hash_almacenado": reporte.hash_sha256,
+                "hash_actual": hash_actual,
+                "integridad_valida": coincide,
+            }
+        )

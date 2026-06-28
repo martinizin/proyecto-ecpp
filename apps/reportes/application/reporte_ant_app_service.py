@@ -100,11 +100,14 @@ class ReporteANTAppService:
             estudiante = matricula.estudiante
             paralelo = matricula.paralelo
 
-            porcentaje_asistencia = self._calcular_asistencia(estudiante.id, paralelo.id)
+            porcentaje_asistencia, es_desertor = self._calcular_asistencia(
+                estudiante.id, paralelo.id
+            )
             promedio = self._calcular_promedio(estudiante, paralelo)
             estado = ReporteANTService.calcular_estado_estudiante(
                 promedio_final=promedio,
                 porcentaje_asistencia=porcentaje_asistencia,
+                es_desertor=es_desertor,
             )
 
             resultado.append(
@@ -120,19 +123,28 @@ class ReporteANTAppService:
             )
         return resultado
 
-    def _calcular_asistencia(self, estudiante_id: int, paralelo_id: int) -> Decimal:
+    def _calcular_asistencia(self, estudiante_id: int, paralelo_id: int) -> tuple[Decimal, bool]:
+        """Returns (porcentaje_asistencia, es_desertor).
+
+        A student is considered a desertor when the period has attendance records
+        but the student has zero present/justified sessions.
+        """
         from django.db.models import Q
 
         total = Asistencia.objects.filter(
             estudiante_id=estudiante_id, paralelo_id=paralelo_id
         ).count()
-        asistidas = Asistencia.objects.filter(
-            estudiante_id=estudiante_id,
-            paralelo_id=paralelo_id,
-        ).filter(
-            Q(estado=Asistencia.Estado.PRESENTE) | Q(estado=Asistencia.Estado.JUSTIFICADO)
-        ).count()
-        return self._calculo_asistencia.calcular_porcentaje_asistencia(asistidas, total)
+        asistidas = (
+            Asistencia.objects.filter(
+                estudiante_id=estudiante_id,
+                paralelo_id=paralelo_id,
+            )
+            .filter(Q(estado=Asistencia.Estado.PRESENTE) | Q(estado=Asistencia.Estado.JUSTIFICADO))
+            .count()
+        )
+        porcentaje = self._calculo_asistencia.calcular_porcentaje_asistencia(asistidas, total)
+        es_desertor = total > 0 and asistidas == 0
+        return porcentaje, es_desertor
 
     def _calcular_promedio(self, estudiante, paralelo) -> Decimal | None:
         evaluaciones = paralelo.evaluaciones.order_by("tipo")

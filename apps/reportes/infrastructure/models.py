@@ -23,9 +23,7 @@ class ReporteANT(models.Model):
     total_desertores = models.PositiveIntegerField(default=0)
     total_en_curso = models.PositiveIntegerField(default=0)
     archivo_pdf = models.FileField(upload_to="reportes/ant/%Y/%m/")
-    archivo_excel = models.FileField(
-        upload_to="reportes/ant/%Y/%m/", null=True, blank=True
-    )
+    archivo_excel = models.FileField(upload_to="reportes/ant/%Y/%m/", null=True, blank=True)
     hash_sha256 = models.CharField(max_length=64)
     firma_responsable_imagen = models.CharField(
         max_length=300,
@@ -34,9 +32,7 @@ class ReporteANT(models.Model):
     )
     nombre_firmante = models.CharField(max_length=200)
     cedula_firmante = models.CharField(max_length=20)
-    cargo_firmante = models.CharField(
-        max_length=100, default="Director Académico ECPPP"
-    )
+    cargo_firmante = models.CharField(max_length=100, default="Director Académico ECPPP")
     notas = models.TextField(blank=True)
 
     class Meta:

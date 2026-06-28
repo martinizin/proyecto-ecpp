@@ -13,9 +13,7 @@ class DjangoReporteANTRepository(IReporteANTRepository):
         return ReporteANT.objects.create(**reporte_data)
 
     def listar_por_periodo(self, periodo_id: int):
-        return ReporteANT.objects.filter(periodo_id=periodo_id).order_by(
-            "-fecha_generacion"
-        )
+        return ReporteANT.objects.filter(periodo_id=periodo_id).order_by("-fecha_generacion")
 
     def obtener_por_id(self, reporte_id: int):
         return ReporteANT.objects.filter(pk=reporte_id).first()

@@ -5,8 +5,6 @@ Pure Python — no DB required.
 
 from decimal import Decimal
 
-import pytest
-
 from apps.reportes.domain.entities import DatosEstudianteReporte, TotalesReporte
 from apps.reportes.domain.services import ReporteANTService
 
@@ -64,7 +62,9 @@ class TestComputarHash:
 
     def test_mismo_contenido_produce_mismo_hash(self):
         contenido = b"datos del reporte"
-        assert ReporteANTService.computar_hash(contenido) == ReporteANTService.computar_hash(contenido)
+        h1 = ReporteANTService.computar_hash(contenido)
+        h2 = ReporteANTService.computar_hash(contenido)
+        assert h1 == h2
 
     def test_contenidos_distintos_producen_hashes_distintos(self):
         h1 = ReporteANTService.computar_hash(b"reporte v1")

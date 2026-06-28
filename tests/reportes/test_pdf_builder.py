@@ -51,7 +51,9 @@ def totales_muestra(estudiantes_muestra):
 
 
 class TestReporteANTPDFBuilder:
-    def test_construir_retorna_bytes_no_vacios(self, builder, estudiantes_muestra, totales_muestra):
+    def test_construir_retorna_bytes_no_vacios(
+        self, builder, estudiantes_muestra, totales_muestra
+    ):
         pdf = builder.construir(estudiantes_muestra, totales_muestra)
         assert isinstance(pdf, bytes)
         assert len(pdf) > 0
@@ -60,7 +62,9 @@ class TestReporteANTPDFBuilder:
         pdf = builder.construir(estudiantes_muestra, totales_muestra)
         assert pdf[:4] == b"%PDF"
 
-    def test_pdf_con_hash_en_footer_es_diferente(self, builder, estudiantes_muestra, totales_muestra):
+    def test_pdf_con_hash_en_footer_es_diferente(
+        self, builder, estudiantes_muestra, totales_muestra
+    ):
         pdf_sin_hash = builder.construir(estudiantes_muestra, totales_muestra)
         pdf_con_hash = builder.construir(
             estudiantes_muestra, totales_muestra, hash_footer="abc123" * 10
