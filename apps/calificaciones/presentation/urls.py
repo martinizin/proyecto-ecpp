@@ -7,6 +7,7 @@ from apps.calificaciones.presentation.views import (
     EditarEvaluacionView,
     EliminarEvaluacionView,
     EnviarValidacionView,
+    ExportarAuditoriaView,
     GestionEvaluacionesView,
     MiLibretaView,
     PendientesValidacionView,
@@ -53,6 +54,11 @@ urlpatterns = [
         "auditoria/",
         AuditoriaCalificacionesView.as_view(),
         name="auditoria_calificaciones",
+    ),
+    path(
+        "auditoria/exportar/",
+        ExportarAuditoriaView.as_view(),
+        name="auditoria_exportar",
     ),
     path(
         "pendientes-validacion/",
