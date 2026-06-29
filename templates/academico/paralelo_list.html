@@ -16,6 +16,7 @@
 <!-- Header with actions -->
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
     <h1 class="text-xl font-semibold text-gray-800">Paralelos</h1>
+    {% if user.rol != 'director_academico' %}
     <div class="flex items-center gap-3">
         <a href="{% url 'academico:paralelo_create_lote' %}" class="inline-flex items-center gap-1.5 bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -30,6 +31,7 @@
             Nuevo Individual
         </a>
     </div>
+    {% endif %}
 </div>
 
 {% if paralelo_groups %}
@@ -46,6 +48,7 @@
                 <span class="text-gray-400 text-xs">·</span>
                 <span class="text-gray-500 text-xs">Capacidad: {{ group.capacidad_maxima }}</span>
             </div>
+            {% if user.rol != 'director_academico' %}
             <a href="{% url 'academico:paralelo_grupo_edit' group.periodo.pk group.tipo_licencia.pk group.nombre %}"
                class="inline-flex items-center gap-1 text-primary hover:text-secondary font-medium text-sm transition-colors shrink-0">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -53,6 +56,7 @@
                 </svg>
                 Editar Grupo
             </a>
+            {% endif %}
         </div>
 
         <!-- Asignaturas list -->
@@ -157,6 +161,7 @@
                             </div>
                         </div>
                     </div>
+                    {% if user.rol != 'director_academico' %}
                     <div class="flex items-center gap-2 shrink-0">
                         <button type="button" @click="open = !open" class="text-gray-400 hover:text-primary transition-colors" title="Editar horario">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -172,9 +177,11 @@
                             </svg>
                         </button>
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- Inline schedule editor -->
+                {% if user.rol != 'director_academico' %}
                 <div x-show="open" x-transition x-cloak class="px-6 pb-4">
                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
                         <p class="text-xs text-gray-500 mb-3">Edite los bloques horarios de esta asignatura.</p>
@@ -223,6 +230,7 @@
                            class="text-sm mt-2"></p>
                     </div>
                 </div>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>

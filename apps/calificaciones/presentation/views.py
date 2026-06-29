@@ -290,7 +290,7 @@ class EliminarEvaluacionView(RolRequeridoMixin, View):
 class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):
     """Reporte de auditoría — accesible para secretaría e inspector."""
 
-    roles_permitidos = ["secretaria", "inspector"]
+    roles_permitidos = ["secretaria", "inspector", "director_academico"]
     template_name = "calificaciones/auditoria_calificaciones.html"
 
     def get(self, request):
@@ -456,10 +456,10 @@ class RechazarCalificacionesView(RolRequeridoMixin, View):
 # ---------------------------------------------------------------------------
 
 
-class SupervisionCalificacionesView(RolRequeridoMixin, View):
+class SupervisionCalificacionesView(MultiRolRequeridoMixin, View):
     """Redirect to unified supervision view with calificaciones tab active."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "director_academico"]
 
     def get(self, request):
         return redirect("/asistencia/supervision/?tab=calificaciones")

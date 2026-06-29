@@ -3,6 +3,7 @@
 {% block title %}Dashboard de Justificaciones — Inspector{% endblock %}
 
 {% block content %}
+{% if not es_solo_lectura %}
 <!-- Hidden bulk-form: checkboxes target this via form="bulk-form". -->
 <form id="bulk-form" method="post"
       action="{% url 'solicitudes:inspector_justificaciones_bulk' %}"
@@ -12,6 +13,7 @@
     <input type="hidden" name="accion" id="bulk-accion" value="">
     <input type="hidden" name="comentario" id="bulk-comentario" value="">
 </form>
+{% endif %}
 
 <!-- Breadcrumb -->
 <nav class="mb-4 text-sm" aria-label="Breadcrumb">
@@ -119,6 +121,7 @@
     </form>
 
     {# ---------------- Bulk toolbar ---------------- #}
+    {% if not es_solo_lectura %}
     <div class="bg-white rounded-xl shadow-md px-4 py-3 mb-4 flex items-center justify-between">
         <p class="text-sm text-gray-600">
             Seleccioná filas con las casillas para habilitar las acciones masivas.
@@ -132,8 +135,10 @@
             Acción masiva
         </button>
     </div>
+    {% endif %}
 
     {# ---------------- Bulk modal (Alpine) ---------------- #}
+    {% if not es_solo_lectura %}
     <div x-show="open"
          x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -186,6 +191,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     {# ---------------- Table or empty state ---------------- #}
     {% if solicitudes %}
@@ -194,10 +200,12 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
                     <tr>
+                        {% if not es_solo_lectura %}
                         <th class="px-3 py-2 text-left">
                             <input type="checkbox" x-model="selectAll" @change="toggleAll($event)"
                                    class="rounded border-gray-300" title="Seleccionar todo">
                         </th>
+                        {% endif %}
                         <th class="px-3 py-2 text-left">Estudiante</th>
                         <th class="px-3 py-2 text-left">Tipo cert.</th>
                         <th class="px-3 py-2 text-left">Paralelo</th>
@@ -210,10 +218,12 @@
                 <tbody class="divide-y divide-gray-100">
                     {% for sol in solicitudes %}
                     <tr class="hover:bg-gray-50">
+                        {% if not es_solo_lectura %}
                         <td class="px-3 py-2">
                             <input type="checkbox" name="solicitud_ids" value="{{ sol.pk }}"
                                    form="bulk-form" class="rounded border-gray-300">
                         </td>
+                        {% endif %}
                         <td class="px-3 py-2">
                             <p class="font-medium text-gray-800">{{ sol.estudiante.get_full_name }}</p>
                             <p class="text-xs text-gray-500">{{ sol.estudiante.cedula }}</p>

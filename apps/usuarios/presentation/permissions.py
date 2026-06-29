@@ -61,16 +61,22 @@ class IsInspector(BasePermission):
 
 
 class IsInspectorOrSecretaria(BasePermission):
-    """Allow access to users with rol='inspector' or rol='secretaria'."""
+    """Allow access to users with rol='inspector', 'secretaria' or 'director_academico'."""
 
-    message = "Solo el Inspector o la Secretaria pueden realizar esta acción."
+    message = "Solo el Inspector, Secretaria o Director Académico pueden realizar esta acción."
 
     def has_permission(self, request, view) -> bool:
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.rol in ("inspector", "secretaria")
+            and request.user.rol in ("inspector", "secretaria", "director_academico")
         )
+
+
+class DirectorAcademicoPermissionMixin(MultiRolRequeridoMixin):
+    """Allow access to inspector or director_academico (read-only enforced via template)."""
+
+    roles_permitidos = ["inspector", "director_academico"]
 
 
 class IsDocente(BasePermission):

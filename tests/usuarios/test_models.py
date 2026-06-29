@@ -94,4 +94,5 @@ class TestUsuarioConstraints:
         assert "docente" in choices
         assert "inspector" in choices
         assert "secretaria" in choices
-        assert len(choices) == 4
+        assert "director_academico" in choices
+        assert len(choices) == 5
