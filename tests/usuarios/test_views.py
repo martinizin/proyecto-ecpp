@@ -716,3 +716,33 @@ class TestSessionTimeoutMiddleware:
 
         assert response.status_code == 200
         assert "last_activity" not in self.client.session
+
+
+# =============================================================================
+# TestLoginExpiredBanner — HU31 (1 test: T12)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestLoginExpiredBanner:
+    """Tests para el banner de sesión expirada en login.html (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def test_login_muestra_banner_si_session_expired_query_param(self):
+        # T12: GET /usuarios/login/?session=expired → role="alert" + texto
+        response = self.client.get(reverse("usuarios:login") + "?session=expired")
+
+        assert response.status_code == 200
+        body = response.content.decode("utf-8")
+        assert 'role="alert"' in body
+        assert "Su sesión ha expirado por inactividad" in body
+
+    def test_login_no_muestra_banner_sin_query_param(self):
+        # Guard de R9: el banner NO aparece si no viene ?session=expired
+        response = self.client.get(reverse("usuarios:login"))
+
+        assert response.status_code == 200
+        body = response.content.decode("utf-8")
+        assert "Su sesión ha expirado por inactividad" not in body
