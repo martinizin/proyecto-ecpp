@@ -60,20 +60,24 @@ class SessionTimeoutMiddleware:
     la middleware se vuelve no-op.
     """
 
-    # URL prefixes que NUNCA disparan cierre de sesión (los endpoints
-    # /api/session/* deben estar disponibles incluso con sesión vencida
-    # para que el cliente pueda renovar la sesión).
+    # URL prefixes que NUNCA disparan cierre de sesión. Incluye los
+    # endpoints de keep-alive (``/api/session/extend/`` y
+    # ``/api/session/touch/``) — que en el proyecto viven bajo
+    # ``/usuarios/api/session/...`` por el ``include()`` del root
+    # URLconf, y que referenciamos por nombre en ``EXEMPT_PATH_NAMES``
+    # para no acoplarnos al prefijo del namespace.
     EXEMPT_PATH_PREFIXES = frozenset(
         [
-            "/api/session/",
             "/admin/",
             "/static/",
             "/media/",
         ]
     )
 
-    # URL names que tampoco disparan cierre (se resuelven en runtime
-    # contra ``resolve(request.path_info).url_name``).
+    # URL names que tampoco disparan cierre. Se matchean por
+    # ``resolve(request.path_info).url_name`` en runtime. Incluye los
+    # 3 endpoints de sesión — ``session_check`` queda en la lista
+    # intermedia (ver ``PRESERVE_ACTIVITY_PATH_NAMES``).
     EXEMPT_PATH_NAMES = frozenset(
         [
             "login",
@@ -83,6 +87,20 @@ class SessionTimeoutMiddleware:
             "password_reset_confirm",
             "password_reset_complete",
             "verificar_2fa",
+            "session_extend",
+            "session_touch",
+        ]
+    )
+
+    # URL names que SÍ pasan por el chequeo de expiración pero la
+    # middleware NO les actualiza ``last_activity``. Justificación: el
+    # endpoint /api/session/check/ debe reportar el estado REAL de la
+    # sesión al cliente (idle real, no el que la propia request acaba
+    # de producir). Sin este set, T7 falla porque el view siempre ve
+    # ``last_activity`` recién escrito.
+    PRESERVE_ACTIVITY_PATH_NAMES = frozenset(
+        [
+            "session_check",
         ]
     )
 
@@ -102,38 +120,37 @@ class SessionTimeoutMiddleware:
         if timeout <= 0:
             return self.get_response(request)
 
-        # 2) Path exento → refrescar last_activity y dejar pasar. Esto
-        # es lo que permite que POST /api/session/extend/ renueve la
-        # sesión justo antes del timeout (R3.3, S8).
-        if self._is_exempt_path(request):
+        exempt = self._is_exempt_path(request)
+
+        # 2) Chequeo de expiración (salteado para paths exentos).
+        if not exempt:
+            last = request.session.get("last_activity")
+            if last is None:
+                # Primera request autenticada: inicializar el reloj
+                # y seguir (R10.3). last_activity ahora = int(time.time()).
+                request.session["last_activity"] = int(time.time())
+                request.session.modified = True
+                return self.get_response(request)
+            idle = time.time() - int(last)
+            if idle > timeout:
+                # Sesión expirada → logout + redirect al login con
+                # flag ``session=expired`` para que login.html muestre
+                # el banner.
+                logout(request)
+                login_url = reverse("usuarios:login")
+                return redirect(f"{login_url}?session=expired")
+
+        # 3) Refrescar ``last_activity`` salvo que el path esté marcado
+        # como "preserve" (típicamente /api/session/check/, cuya view
+        # necesita leer el valor original para reportar el estado real).
+        if not self._is_preserve_path(request):
             request.session["last_activity"] = int(time.time())
             request.session.modified = True
-            return self.get_response(request)
 
-        # 3) Sesión expirada → logout + redirect al login con flag
-        # ``session=expired`` para que login.html muestre el banner.
-        last = request.session.get("last_activity")
-        if last is None:
-            # Primera request autenticada: inicializar el reloj (R10.3).
-            request.session["last_activity"] = int(time.time())
-            request.session.modified = True
-            return self.get_response(request)
-
-        idle = time.time() - int(last)
-        if idle > timeout:
-            logout(request)
-            login_url = reverse("usuarios:login")
-            return redirect(f"{login_url}?session=expired")
-
-        # 4) Sesión activa → refrescar el timestamp y continuar.
-        # El ``modified = True`` defensivo es necesario porque el
-        # proyecto usa ``SESSION_SAVE_EVERY_REQUEST=False`` (R2.6).
-        request.session["last_activity"] = int(time.time())
-        request.session.modified = True
         return self.get_response(request)
 
     def _is_exempt_path(self, request) -> bool:
-        """Devuelve True si la URL actual está en la lista de exentas."""
+        """Devuelve True si la URL no debe disparar cierre de sesión."""
         path = request.path_info or ""
         if any(path.startswith(prefix) for prefix in self.EXEMPT_PATH_PREFIXES):
             return True
@@ -142,9 +159,18 @@ class SessionTimeoutMiddleware:
         except Exception:
             return False
         # match.url_name viene del path_info sin namespace; lo
-        # cruzamos con la lista de names del namespace ``usuarios``
-        # resolviendo cada nombre.
+        # cruzamos con la lista de names del namespace ``usuarios``.
         url_name = match.url_name
         if url_name and url_name in self.EXEMPT_PATH_NAMES:
             return True
         return False
+
+    def _is_preserve_path(self, request) -> bool:
+        """Devuelve True si la URL no debe actualizar ``last_activity``."""
+        path = request.path_info or ""
+        try:
+            match = resolve(path)
+        except Exception:
+            return False
+        url_name = match.url_name
+        return bool(url_name and url_name in self.PRESERVE_ACTIVITY_PATH_NAMES)

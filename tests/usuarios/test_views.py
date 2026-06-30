@@ -14,6 +14,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+import json
 import time
 from django.contrib.admin.sites import AdminSite
 from django.test import Client, RequestFactory
@@ -716,6 +717,116 @@ class TestSessionTimeoutMiddleware:
 
         assert response.status_code == 200
         assert "last_activity" not in self.client.session
+
+    def test_exempt_path_no_redirige(self):
+        # T4: hitting /api/session/extend/ while expired must NOT log the user out
+        user = _create_active_user("exempt@test.com", rol="docente")
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1500  # deep in expired zone
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_extend"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        # last_activity was rewritten by the endpoint
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+
+# =============================================================================
+# TestSessionEndpoints — HU31 (6 tests: T6, T7, T8, T9, T10, T11)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSessionEndpoints:
+    """Tests para los 3 endpoints JSON bajo /api/session/ (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def _login_fresh(self, email: str = "ep@test.com") -> None:
+        user = _create_active_user(email, rol="docente")
+        self.client.force_login(user)
+
+    def test_check_retorna_warning_false_si_fresco(self):
+        # T6: fresh → warning=False, expired=False, remaining ≈ 1200
+        self._login_fresh()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 200
+        body = json.loads(response.content)
+        assert body == {"warning": False, "expired": False, "remaining": 1200}
+
+    def test_check_retorna_warning_true_si_en_zona_warning(self):
+        # T7: 18:20 idle (1100s) → warning=True, expired=False, remaining=100
+        self._login_fresh("warn@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 1100
+        session.save()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 200
+        body = json.loads(response.content)
+        assert body["warning"] is True
+        assert body["expired"] is False
+        assert 95 <= body["remaining"] <= 105  # tolerance for test execution
+
+    def test_check_retorna_expired_true_si_pasado_timeout(self):
+        # T8: server-side: 1201s idle → middleware flushes BEFORE the view runs
+        # → @login_required returns 302 to login. The client treats 302
+        # as "expired" and redirects to logout (see design.md §5.4).
+        self._login_fresh("exp@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 1201
+        session.save()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:login") + "?session=expired"
+
+    def test_extend_actualiza_last_activity(self):
+        # T9: POST /api/session/extend/ → 200, last_activity reset
+        self._login_fresh("ext@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 600
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_extend"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+    def test_touch_actualiza_last_activity(self):
+        # T10: POST /api/session/touch/ → 200, last_activity reset
+        self._login_fresh("touch@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 600
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_touch"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+    def test_endpoints_requieren_login(self):
+        # T11: anonymous calls to all 3 endpoints → 302 to login
+        for url_name, method in [
+            ("usuarios:session_check", "get"),
+            ("usuarios:session_extend", "post"),
+            ("usuarios:session_touch", "post"),
+        ]:
+            response = getattr(self.client, method)(reverse(url_name))
+            assert (
+                response.status_code == 302
+            ), f"{url_name} {method} expected 302, got {response.status_code}"
+            assert reverse("usuarios:login") in response.url
 
 
 # =============================================================================
