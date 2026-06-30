@@ -45,6 +45,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.usuarios.presentation.middleware.ForzarCambioPasswordMiddleware",
+    "apps.usuarios.presentation.middleware.SessionTimeoutMiddleware",  # HU31
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -136,6 +137,13 @@ AUTH_PASSWORD_VALIDATORS = [
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 3600  # 1 hora
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Session timeout (HU31) — cierre por inactividad. El cookie age de
+# arriba es un backstop absoluto y se mantiene en 3600s; este timeout
+# es la fuente de verdad para "cuánto tiempo puede estar idle un
+# usuario autenticado". SESSION_TIMEOUT_SECONDS=0 desactiva la feature.
+SESSION_TIMEOUT_SECONDS = int(os.environ.get("SESSION_TIMEOUT_SECONDS", "1200"))  # 20 min
+SESSION_WARNING_SECONDS = int(os.environ.get("SESSION_WARNING_SECONDS", "120"))  # 2 min
 
 # Password reset
 PASSWORD_RESET_TIMEOUT = 1800  # 30 minutos

@@ -14,6 +14,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+import time
 from django.contrib.admin.sites import AdminSite
 from django.test import Client, RequestFactory
 from django.urls import reverse
@@ -668,3 +669,50 @@ class TestUsuarioAdmin:
 
         assert form.is_valid() is False
         assert "email" in form.errors
+
+
+# =============================================================================
+# TestSessionTimeoutMiddleware — HU31 (3 tests in WU1; T4 + T5 added later)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSessionTimeoutMiddleware:
+    """Tests for the middleware that closes the session on idle (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def test_actualiza_last_activity_en_request_autenticado(self):
+        # T1: usuario fresco → la middleware escribe last_activity, no redirige
+        user = _create_active_user("active@test.com", rol="docente")
+        self.client.force_login(user)
+
+        before = int(time.time())
+        response = self.client.get(reverse("usuarios:perfil"))
+        after = int(time.time())
+
+        assert response.status_code == 200
+        assert before <= int(self.client.session["last_activity"]) <= after
+
+    def test_redirige_a_login_expired_si_inactivo_mas_de_timeout(self):
+        # T2: idle > 20 min → 302 a login?session=expired, sesión flusheada
+        user = _create_active_user("idle@test.com", rol="docente")
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1201
+        session.save()
+
+        response = self.client.get(reverse("usuarios:perfil"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:login") + "?session=expired"
+        # session is flushed — anonymous on the next request
+        assert "_auth_user_id" not in self.client.session
+
+    def test_no_hace_nada_para_usuario_anonimo(self):
+        # T3: anónimo → la middleware es no-op (no redirige, no escribe last_activity)
+        response = self.client.get(reverse("usuarios:login"))
+
+        assert response.status_code == 200
+        assert "last_activity" not in self.client.session
