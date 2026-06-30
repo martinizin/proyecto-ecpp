@@ -733,6 +733,26 @@ class TestSessionTimeoutMiddleware:
         # last_activity was rewritten by the endpoint
         assert self.client.session["last_activity"] >= time.time() - 1
 
+    def test_no_redirige_usuario_con_debe_cambiar_password(self):
+        # T5: ordering — ForzarCambioPassword runs first, user goes to cambiar_contrasena
+        # Invarint: aunque la sesión esté vencida (>1200s idle), un usuario con
+        # debe_cambiar_password=True debe terminar en cambiar_contrasena, no en
+        # login?session=expired. Verifica R2.4 y la locked decision #2.
+        user = _create_active_user("temp@test.com", rol="docente")
+        user.debe_cambiar_password = True
+        user.save(update_fields=["debe_cambiar_password"])
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1500  # also expired
+        session.save()
+
+        response = self.client.get(reverse("usuarios:perfil"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:cambiar_contrasena")
+        # NOT the login-expired URL — password-change wins
+        assert "session=expired" not in response.url
+
 
 # =============================================================================
 # TestSessionEndpoints — HU31 (6 tests: T6, T7, T8, T9, T10, T11)
