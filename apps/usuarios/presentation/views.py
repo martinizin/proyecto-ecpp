@@ -101,6 +101,11 @@ class LoginView(View):
 
         # Secretaría — direct login (2FA pending until real email is configured)
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        # HU31 — Inicializar el reloj de inactividad acá para que la
+        # primera request post-login NO triggeree un init write en la
+        # SessionTimeoutMiddleware (ahorra 3 queries: SAVEPOINT + UPDATE
+        # + RELEASE sobre ``django_session``).
+        request.session["last_activity"] = int(time.time())
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
 
@@ -153,6 +158,9 @@ class Verificacion2FAView(View):
 
         del request.session["2fa_user_id"]
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        # HU31 — Inicializar el reloj de inactividad post-OTP-verify
+        # (mismo rationale que en LoginView).
+        request.session["last_activity"] = int(time.time())
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
 

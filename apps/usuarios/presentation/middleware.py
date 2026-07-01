@@ -58,6 +58,13 @@ class SessionTimeoutMiddleware:
 
     ``SESSION_TIMEOUT_SECONDS=0`` en ``.env`` actúa como kill-switch:
     la middleware se vuelve no-op.
+
+    ``SESSION_UPDATE_INTERVAL_SECONDS`` (default 60) limita la frecuencia
+    con que se refresca ``last_activity`` en ``django_session``. Sin
+    throttle, cada request autenticada generaría 1 UPDATE de sesión
+    (3 queries: SAVEPOINT + UPDATE + RELEASE), incompatible con el query
+    budget de dashboards como el del inspector (11 queries) y un
+    desperdicio de DB en producción.
     """
 
     # URL prefixes que NUNCA disparan cierre de sesión. Incluye los
@@ -143,9 +150,17 @@ class SessionTimeoutMiddleware:
         # 3) Refrescar ``last_activity`` salvo que el path esté marcado
         # como "preserve" (típicamente /api/session/check/, cuya view
         # necesita leer el valor original para reportar el estado real).
+        # THROTTLE: solo escribimos si pasaron más de
+        # SESSION_UPDATE_INTERVAL_SECONDS (default 60) desde la última
+        # escritura. Así, una ráfaga de requests en pocos segundos
+        # produce 1 solo UPDATE de ``django_session`` en vez de N.
         if not self._is_preserve_path(request):
-            request.session["last_activity"] = int(time.time())
-            request.session.modified = True
+            update_interval = getattr(settings, "SESSION_UPDATE_INTERVAL_SECONDS", 60)
+            now = int(time.time())
+            last = request.session.get("last_activity")
+            if last is None or (now - int(last)) >= update_interval:
+                request.session["last_activity"] = now
+                request.session.modified = True
 
         return self.get_response(request)
 
