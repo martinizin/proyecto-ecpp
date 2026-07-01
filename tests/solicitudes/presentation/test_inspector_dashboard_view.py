@@ -9,6 +9,7 @@ against N+1 regression.
 """
 
 import datetime
+import time
 
 import pytest
 from django.urls import reverse
@@ -455,6 +456,14 @@ class TestNumQueries:
         inspector = InspectorFactory()
         inspector.save()
         client.force_login(inspector)
+        # HU31: pre-inicializar ``last_activity`` en la sesión. Importante:
+        # en Django 5.1 ``Client.session`` es una @property que retorna
+        # una SessionStore NUEVA en cada acceso. Hay que guardar la
+        # referencia en una variable local para que el set + save
+        # operen sobre el MISMO objeto.
+        session = client.session
+        session["last_activity"] = int(time.time())
+        session.save()
 
         with django_assert_max_num_queries(11):
             resp = client.get(URL)
