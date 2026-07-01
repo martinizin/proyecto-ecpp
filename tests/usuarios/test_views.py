@@ -753,6 +753,58 @@ class TestSessionTimeoutMiddleware:
         # NOT the login-expired URL — password-change wins
         assert "session=expired" not in response.url
 
+    def test_throttle_no_escribe_si_request_dentro_de_60s(self):
+        # T14: si la última escritura de ``last_activity`` fue hace menos
+        # de ``SESSION_UPDATE_INTERVAL_SECONDS`` (default 60s), el
+        # siguiente request NO triggerea UPDATE de ``django_session``.
+        # Verifica la producción: ráfagas de requests no generan N writes.
+        # Para testear esto, ``request.session.modified`` debe ser False
+        # al salir del middleware — no podemos observar eso directamente
+        # desde el test, pero SÍ podemos observar que el valor de
+        # ``last_activity`` no cambió después de un request dentro del
+        # window de throttle.
+        user = _create_active_user("throttle-fresh@test.com", rol="docente")
+        self.client.force_login(user)
+        # Setear ``last_activity`` a un valor MUY reciente (10s atrás).
+        # Cualquier cosa <60s debería skip el write.
+        recent = int(time.time()) - 10
+        session = self.client.session
+        session["last_activity"] = recent
+        session.save()
+
+        self.client.get(reverse("usuarios:perfil"))
+
+        # Después de un request dentro del window de throttle, el valor
+        # de ``last_activity`` no debe haber sido actualizado. Esto
+        # verifica indirectamente que la middleware NO escribió en la
+        # sesión.
+        session = self.client.session
+        assert int(session["last_activity"]) == recent
+
+    def test_throttle_escribe_despues_de_60s(self):
+        # T15: si la última escritura fue hace MÁS de
+        # ``SESSION_UPDATE_INTERVAL_SECONDS`` (default 60s), el siguiente
+        # request SÍ triggerea UPDATE con el valor actualizado.
+        # Complemento de T14.
+        user = _create_active_user("throttle-stale@test.com", rol="docente")
+        self.client.force_login(user)
+        # Setear ``last_activity`` a 90s atrás (mayor al default 60s).
+        stale = int(time.time()) - 90
+        session = self.client.session
+        session["last_activity"] = stale
+        session.save()
+
+        before = int(time.time())
+        self.client.get(reverse("usuarios:perfil"))
+        after = int(time.time())
+
+        # Después de un request fuera del window de throttle, el valor
+        # de ``last_activity`` debe haber sido actualizado a now (entre
+        # ``before`` y ``after``).
+        session = self.client.session
+        assert before <= int(session["last_activity"]) <= after
+        assert int(session["last_activity"]) > stale
+
 
 # =============================================================================
 # TestSessionEndpoints — HU31 (6 tests: T6, T7, T8, T9, T10, T11)
