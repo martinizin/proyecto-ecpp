@@ -142,7 +142,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 # backstop defense-in-depth; la SessionTimeoutMiddleware usa su propio
 # reloj contra ``request.session['last_activity']`` (ver R10 spec).
 SESSION_TIMEOUT_SECONDS = 1200  # 20 min de inactividad = logout
-SESSION_WARNING_SECONDS = 120   # pop-up de aviso a los 18 min
+SESSION_WARNING_SECONDS = 120  # pop-up de aviso a los 18 min
 SESSION_UPDATE_INTERVAL_SECONDS = 60  # throttle del write de last_activity
 
 # Session timeout (HU31) — cierre por inactividad. El cookie age de
