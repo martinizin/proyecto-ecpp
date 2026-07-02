@@ -15,6 +15,7 @@ class Usuario(AbstractUser):
         DOCENTE = "docente", "Docente"
         INSPECTOR = "inspector", "Inspector"
         SECRETARIA = "secretaria", "Secretaría"
+        DIRECTOR_ACADEMICO = "director_academico", "Director Académico"
 
     rol = models.CharField(max_length=20, choices=Rol.choices)
     cedula = models.CharField(max_length=13, unique=True)

@@ -503,7 +503,7 @@ class _InspectorRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def test_func(self) -> bool:
         user = self.request.user
-        return user.is_authenticated and user.rol == "inspector"
+        return user.is_authenticated and user.rol in ("inspector", "director_academico")
 
     def handle_no_permission(self):
         if self.request.user.is_authenticated:
@@ -662,6 +662,7 @@ class InspectorJustificacionesDashboardView(_InspectorRequiredMixin, ListView):
         qd = self.request.GET.copy()
         qd.pop("page", None)
         ctx["query_string"] = qd.urlencode()
+        ctx["es_solo_lectura"] = self.request.user.rol == "director_academico"
 
         return ctx
 
@@ -724,6 +725,7 @@ class InspectorJustificacionDetalleView(_InspectorRequiredMixin, DetailView):
             Solicitud.EstadoSolicitud.APROBADA,
             Solicitud.EstadoSolicitud.RECHAZADA,
         )
+        ctx["es_solo_lectura"] = self.request.user.rol == "director_academico"
         return ctx
 
 

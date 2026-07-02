@@ -54,7 +54,7 @@ from .forms import (
 class PeriodoListView(MultiRolRequeridoMixin, ListView):
     """List all academic periods — Inspector only."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
     model = Periodo
     template_name = "academico/periodo_list.html"
     context_object_name = "periodos"
@@ -277,7 +277,7 @@ class AsignaturaDeleteView(MultiRolRequeridoMixin, View):
 class AsignaturaListView(MultiRolRequeridoMixin, ListView):
     """List all subjects — Inspector only."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
     model = Asignatura
     template_name = "academico/asignatura_list.html"
     context_object_name = "asignaturas"
@@ -459,7 +459,7 @@ class AsignaturaUpdateView(MultiRolRequeridoMixin, ListView):
 class ParaleloListView(MultiRolRequeridoMixin, ListView):
     """List all parallels grouped by identity — Inspector only."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
     model = Paralelo
     template_name = "academico/paralelo_list.html"
     context_object_name = "paralelos"
@@ -832,7 +832,7 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
 class AsignaturasPorTipoLicenciaView(MultiRolRequeridoMixin, View):
     """JSON endpoint: returns asignaturas filtered by tipo_licencia ID."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
 
     def get(self, request):
         tipo_id = request.GET.get("tipo_licencia")
@@ -1176,7 +1176,7 @@ class ParaleloHorarioUpdateView(View):
 class TipoLicenciaListView(MultiRolRequeridoMixin, ListView):
     """List all license types — Inspector only, read-only."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
     model = TipoLicencia
     template_name = "academico/tipo_licencia_list.html"
     context_object_name = "tipos_licencia"
@@ -1371,7 +1371,7 @@ def _construir_grilla_horario(bloques):
 class DashboardRendimientoView(MultiRolRequeridoMixin, View):
     """Performance dashboard — aggregated metrics per paralelo. Inspector/Secretaria only."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
     template_name = "academico/dashboard_rendimiento.html"
 
     UMBRALES_INASISTENCIA = [
@@ -1534,7 +1534,7 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
 class DashboardRendimientoAPIView(MultiRolRequeridoMixin, View):
     """JSON endpoint consumed by Chart.js for performance dashboard charts."""
 
-    roles_permitidos = ["inspector", "secretaria"]
+    roles_permitidos = ["inspector", "secretaria", "director_academico"]
 
     def get(self, request):
         from decimal import Decimal

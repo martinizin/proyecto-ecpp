@@ -213,10 +213,10 @@ class DashboardAsistenciaEstudianteView(RolRequeridoMixin, View):
         )
 
 
-class SupervisionAsistenciaView(RolRequeridoMixin, View):
+class SupervisionAsistenciaView(MultiRolRequeridoMixin, View):
     """Inspector supervision panel — shows all students with risk indicators."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "director_academico"]
     template_name = "asistencia/supervision.html"
 
     def get(self, request):
@@ -253,10 +253,10 @@ class SupervisionAsistenciaView(RolRequeridoMixin, View):
         return render(request, self.template_name, datos)
 
 
-class DetalleInasistenciaEstudianteView(RolRequeridoMixin, View):
-    """API endpoint: returns per-subject absence breakdown for a student (inspector only)."""
+class DetalleInasistenciaEstudianteView(MultiRolRequeridoMixin, View):
+    """API endpoint: returns per-subject absence breakdown for a student."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "director_academico"]
 
     def get(self, request, estudiante_id):
         service = RegistroAsistenciaAppService()
@@ -281,10 +281,10 @@ class DetalleInasistenciaEstudianteView(RolRequeridoMixin, View):
         return JsonResponse({"asignaturas": asignaturas})
 
 
-class DetalleCalificacionesEstudianteView(RolRequeridoMixin, View):
-    """API endpoint: returns per-subject grade breakdown for a student (inspector only)."""
+class DetalleCalificacionesEstudianteView(MultiRolRequeridoMixin, View):
+    """API endpoint: returns per-subject grade breakdown for a student."""
 
-    rol_requerido = "inspector"
+    roles_permitidos = ["inspector", "director_academico"]
 
     def get(self, request, estudiante_id):
         from apps.calificaciones.application.services import (

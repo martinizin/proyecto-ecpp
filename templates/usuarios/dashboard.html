@@ -20,7 +20,7 @@
 
 <!-- Quick Actions -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-    {% if user.rol == "inspector" %}
+    {% if user.rol == "inspector" or user.rol == "director_academico" %}
     <a href="/academico/periodos/" class="bg-white rounded-xl border border-gray-200 p-4 hover:border-primary hover:shadow-md transition-all group">
         <div class="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors">
             <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

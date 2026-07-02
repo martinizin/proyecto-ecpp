@@ -77,8 +77,8 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Dashboard</span>
         </a>
 
-        {% if user.rol == 'inspector' or user.rol == 'secretaria' %}
-        <!-- ─── GESTIÓN ACADÉMICA (Inspector + Secretaría) ─── -->
+        {% if user.rol == 'inspector' or user.rol == 'secretaria' or user.rol == 'director_academico' %}
+        <!-- ─── GESTIÓN ACADÉMICA (Inspector + Secretaría + Director Académico) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
         <p x-show="!sidebarCollapsed" x-cloak
            class="px-3 mt-4 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Gestión Académica</p>
@@ -132,8 +132,8 @@
         </a>
         {% endif %}
 
-        {% if user.rol == 'inspector' %}
-        <!-- ─── SUPERVISIÓN (Inspector) ─── -->
+        {% if user.rol == 'inspector' or user.rol == 'director_academico' %}
+        <!-- ─── SUPERVISIÓN (Inspector + Director Académico) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
         <p x-show="!sidebarCollapsed" x-cloak
            class="px-3 mt-4 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Supervisión</p>

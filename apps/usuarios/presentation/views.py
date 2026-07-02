@@ -89,7 +89,7 @@ class LoginView(View):
             return render(request, self.template_name, {"form": form})
 
         # 2FA for estudiante, docente, inspector — send OTP before completing login
-        if user.rol in ("estudiante", "docente", "inspector"):
+        if user.rol in ("estudiante", "docente", "inspector", "director_academico"):
             service_2fa = Login2FAService()
             service_2fa.generar_otp_login(user.pk)
             request.session["2fa_user_id"] = user.pk
