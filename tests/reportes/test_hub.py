@@ -111,6 +111,25 @@ class TestHubRoleGate:
         response = _render_hub(estudiante_client)
         assert response.status_code == 403
 
+    def test_hub_director_academico_200(self):
+        """Director Académico: GET /reportes/ → 200 (post-merge HU26/HU33).
+
+        Bug fix 2026-07-01: ``ROLES_PERMITIDOS`` no lo incluía → 403
+        al click del link en el sidebar.
+        """
+        from django.test import Client
+        from tests.factories import UsuarioFactory
+        from apps.usuarios.infrastructure.models import Usuario
+
+        da = UsuarioFactory(rol=Usuario.Rol.DIRECTOR_ACADEMICO)
+        da.save()
+        client = Client()
+        client.force_login(da)
+        response = _render_hub(client)
+        assert (
+            response.status_code == 200
+        ), f"Expected 200 for director_academico, got {response.status_code}"
+
 
 class TestHubAnonymousRedirect:
     """Sin autenticación, el hub redirige a login (R12)."""

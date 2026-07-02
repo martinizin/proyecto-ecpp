@@ -23,7 +23,9 @@ from tests.factories import (
     InspectorFactory,
     LogCalificacionFactory,
     SecretariaFactory,
+    UsuarioFactory,
 )
+from apps.usuarios.infrastructure.models import Usuario
 
 
 @pytest.fixture
@@ -64,6 +66,13 @@ def estudiante(db):
 
 
 @pytest.fixture
+def director_academico(db):
+    user = UsuarioFactory(rol=Usuario.Rol.DIRECTOR_ACADEMICO)
+    user.save()
+    return user
+
+
+@pytest.fixture
 def secretaria_client(secretaria):
     client = Client()
     client.force_login(secretaria)
@@ -88,6 +97,13 @@ def docente_client(docente):
 def estudiante_client(estudiante):
     client = Client()
     client.force_login(estudiante)
+    return client
+
+
+@pytest.fixture
+def director_academico_client(director_academico):
+    client = Client()
+    client.force_login(director_academico)
     return client
 
 
@@ -173,6 +189,24 @@ class TestExportarAuditoriaView:
             reverse("calificaciones:auditoria_exportar"), {"formato": "excel"}
         )
         assert response.status_code == 403
+
+    def test_director_academico_gets_excel_200(self, director_academico_client):
+        """Director Académico recibe HTTP 200 con xlsx (post-merge HU26/HU33).
+
+        El view del listado de auditoría ya lo incluía, pero el
+        endpoint de export se olvidó → 403 al click del inline button.
+        Bug fix 2026-07-01: agregado a ``roles_permitidos``.
+        """
+        _crear_log()
+        response = director_academico_client.get(
+            reverse("calificaciones:auditoria_exportar"), {"formato": "excel"}
+        )
+        assert response.status_code == 200
+        assert (
+            response["Content-Type"]
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        assert response.content[:2] == b"PK"
 
     def test_anonymous_redirects_to_login(self, db, client):
         """Usuario anónimo es redirigido a login (302) o denegado (403)."""

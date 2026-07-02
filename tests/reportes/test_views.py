@@ -6,9 +6,11 @@ import re
 
 import pytest
 from django.core.cache import cache
+from django.test import Client
 from django.urls import reverse
 
-from tests.factories import ParaleloFactory, PeriodoFactory
+from apps.usuarios.infrastructure.models import Usuario
+from tests.factories import ParaleloFactory, PeriodoFactory, UsuarioFactory
 
 
 pytestmark = pytest.mark.django_db
@@ -64,6 +66,22 @@ class TestExportarCalificacionesView:
         """Secretaria recibe HTTP 200 con xlsx."""
         response = secretaria_client.get(self.url, {**self.query, "formato": "excel"})
         assert response.status_code == 200
+
+    def test_director_academico_gets_excel_200(self):
+        """Director Académico recibe HTTP 200 con xlsx (post-merge HU26/HU33).
+
+        Bug fix 2026-07-01: ``ROLES_PERMITIDOS`` no lo incluía.
+        """
+        da = UsuarioFactory(rol=Usuario.Rol.DIRECTOR_ACADEMICO)
+        da.save()
+        client = Client()
+        client.force_login(da)
+        response = client.get(self.url, {**self.query, "formato": "excel"})
+        assert response.status_code == 200
+        assert (
+            response["Content-Type"]
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
     def test_estudiante_is_forbidden_403(self, estudiante_client):
         """Estudiante recibe HTTP 403."""

@@ -40,7 +40,9 @@ from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin
 
 CONTENT_TYPE_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 CONTENT_TYPE_PDF = "application/pdf"
-ROLES_PERMITIDOS = ["docente", "inspector", "secretaria"]
+# Director Académico fue agregado tras los merge de HU26 y HU33.
+# Antes: ["docente", "inspector", "secretaria"] — excluía al director.
+ROLES_PERMITIDOS = ["docente", "inspector", "secretaria", "director_academico"]
 TIPOS_PREVIEW = ["calificaciones", "asistencia"]
 
 # HU26 — reportes ANT

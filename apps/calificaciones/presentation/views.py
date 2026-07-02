@@ -506,7 +506,10 @@ class ExportarAuditoriaView(MultiRolRequeridoMixin, View):
     """
 
     LIMITE = 1000  # máximo de filas para evitar archivos enormes
-    roles_permitidos = ["secretaria", "inspector"]
+    # Director Académico agregado: el view del listado (line 293) ya
+    # lo incluye, pero el endpoint de export se olvidó. Inconsistencia
+    # que rompía el inline button en la página de auditoría.
+    roles_permitidos = ["secretaria", "inspector", "director_academico"]
 
     def get(self, request):
         from django.http import HttpResponse
