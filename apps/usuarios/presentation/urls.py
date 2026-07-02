@@ -3,6 +3,7 @@ URL patterns for the Usuarios bounded context.
 
 Auth (HU01-HU03): login, logout, 2FA, dashboard, password recovery.
 Profile (HU04): personal data, password change.
+Session (HU31): JSON endpoints for the Alpine session-timeout pop-up.
 
 NOTE: Public registration was removed — users are created by staff via Django Admin.
 """
@@ -19,6 +20,9 @@ from .views import (
     LoginView,
     LogoutView,
     PerfilView,
+    SessionCheckView,
+    SessionExtendView,
+    SessionTouchView,
     Verificacion2FAView,
 )
 
@@ -47,4 +51,8 @@ urlpatterns = [
         ECPPPPasswordResetCompleteView.as_view(),
         name="password_reset_complete",
     ),
+    # Session timeout (HU31) — JSON endpoints for the Alpine pop-up
+    path("api/session/check/", SessionCheckView.as_view(), name="session_check"),
+    path("api/session/extend/", SessionExtendView.as_view(), name="session_extend"),
+    path("api/session/touch/", SessionTouchView.as_view(), name="session_touch"),
 ]

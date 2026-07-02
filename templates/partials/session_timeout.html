@@ -1,0 +1,167 @@
+{% comment %}
+   HU31 — Componente Alpine.js de aviso de expiración de sesión.
+
+   Montado una sola vez desde ``templates/base.html`` (inmediatamente
+   antes de ``</body>``, junto a ``{% include "partials/_toast.html" %}``).
+   Solo aplica a usuarios autenticados — el ``{% if %}`` lo monta y lo
+   destruye. El componente pop-up en sí mismo se muestra/oculta vía
+   ``x-show="warning"``.
+
+   Spec-mandated ARIA contract (R7.2 — decisión locked #8):
+   - ``role="dialog"``           → anuncia al AT que es un diálogo
+   - ``aria-modal="true"``       → bloquea el contenido de fondo para el AT
+   - ``aria-labelledby="..."``   → título del diálogo
+   - ``aria-describedby="..."``  → descripción / mensaje
+   - ``x-trap.inert.noscroll``   → focus trap + scroll lock
+   - ``@keydown.escape.window``  → ESC llama a ``logout()`` mientras está
+     visible (R7.6)
+
+   Frontend contract (R8):
+   - ``mousemove`` throttled a 1 fire / 10s (R8.2)
+   - ``click`` / ``keypress`` sin throttle (R8.1)
+   - ``setInterval(checkActivity, 60_000)`` (R8.4)
+   - ``touch()`` solo postea a /api/session/touch/ si el pop-up NO
+     está visible (R8.3)
+{% endcomment %}
+{% if user.is_authenticated %}
+<div x-data="sessionTimeout()"
+     x-init="init()"
+     x-cloak>
+    <div x-show="warning"
+         x-trap.inert.noscroll="warning"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="session-timeout-title"
+         aria-describedby="session-timeout-desc"
+         @keydown.escape.window="logout()"
+         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 border-t-4 border-yellow-500">
+            <h2 id="session-timeout-title" class="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <span aria-hidden="true">⚠️</span>
+                <span>Sesión por expirar</span>
+            </h2>
+            <p id="session-timeout-desc" class="text-sm text-gray-600 mb-4">
+                Su sesión expirará en
+                <span x-text="countdown" class="font-bold text-yellow-700" aria-live="polite"></span>
+                segundos por inactividad.
+            </p>
+            <div class="flex gap-2 justify-end">
+                <button type="button"
+                        @click="logout()"
+                        class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium">
+                    Cerrar sesión
+                </button>
+                <button type="button"
+                        @click="extend()"
+                        x-ref="primary"
+                        class="px-4 py-2 rounded-lg bg-primary hover:bg-secondary text-white transition-colors text-sm font-semibold">
+                    Continuar sesión
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function sessionTimeout() {
+    return {
+        warning: false,
+        expired: false,
+        countdown: 0,
+        lastTouchAt: 0,
+        checkTimer: null,
+        countdownTimer: null,
+        init() {
+            // 1) Polling server-side state cada 60s (R8.4)
+            this.checkTimer = setInterval(() => this.checkActivity(), 60_000);
+            // 2) Countdown local cada 1s mientras el pop-up está visible
+            this.countdownTimer = setInterval(() => this.tickCountdown(), 1_000);
+            // 3) Listeners de actividad del usuario
+            document.addEventListener("click",     () => this.touch());
+            document.addEventListener("keypress",  () => this.touch());
+            document.addEventListener("mousemove", () => this.touchThrottled());
+        },
+        async checkActivity() {
+            try {
+                const response = await fetch("{% url 'usuarios:session_check' %}", {
+                    method: "GET",
+                    credentials: "same-origin",
+                    headers: {"X-Requested-With": "XMLHttpRequest"},
+                });
+                // 302 == sesión expirada server-side → logout graceful
+                if (response.redirected || response.status === 302) {
+                    this.logout();
+                    return;
+                }
+                if (!response.ok) return;
+                const data = await response.json();
+                // Server dice "expired" → forzar logout
+                if (data.expired) { this.logout(); return; }
+                // Toggle pop-up visibility
+                if (data.warning && !this.warning) {
+                    this.warning = true;
+                    this.countdown = data.remaining;
+                    this.$nextTick(() => this.$refs.primary && this.$refs.primary.focus());
+                } else if (!data.warning && this.warning) {
+                    this.warning = false;
+                }
+            } catch (e) {
+                // Network errors son no-op: el próximo poll reintentará
+            }
+        },
+        touch() {
+            // Solo postear si el pop-up NO está visible (R8.3) — el
+            // usuario ya está siendo avisado, no hace falta tráfico.
+            if (this.warning) return;
+            this.postTouch();
+        },
+        touchThrottled() {
+            const now = Date.now();
+            if (now - this.lastTouchAt > 10_000) {
+                this.lastTouchAt = now;
+                this.touch();
+            }
+        },
+        async extend() {
+            try {
+                const response = await fetch("{% url 'usuarios:session_extend' %}", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "X-CSRFToken": this.getCsrfToken(),
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                });
+                if (response.ok) {
+                    this.warning = false;
+                    this.countdown = 0;
+                }
+            } catch (e) { /* ignore */ }
+        },
+        logout() {
+            window.location.href = "{% url 'usuarios:logout' %}";
+        },
+        tickCountdown() {
+            if (!this.warning) return;
+            this.countdown = Math.max(0, this.countdown - 1);
+            if (this.countdown === 0) this.logout();
+        },
+        postTouch() {
+            // fire-and-forget; el server responde 200 + {"status":"ok"}
+            fetch("{% url 'usuarios:session_touch' %}", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "X-CSRFToken": this.getCsrfToken(),
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            }).catch(() => { /* ignore */ });
+        },
+        getCsrfToken() {
+            const match = document.cookie.match(/csrftoken=([^;]+)/);
+            return match ? match[1] : "";
+        },
+    };
+}
+</script>
+{% endif %}

@@ -55,6 +55,10 @@
                         </svg>
                         Gestionar Evaluaciones
                     </a>
+                    {# ═══ REPORTES — Inline export buttons (Docente, per paralelo) — HU27b WU5 (R22) ═══ #}
+                    <div class="pt-1 border-t border-gray-100 mt-1">
+                        {% include "reportes/_partials/_inline_export.html" with periodo=paralelo.periodo.id paralelo=paralelo.id show_asistencia=True %}
+                    </div>
                 </div>
             </div>
         </div>

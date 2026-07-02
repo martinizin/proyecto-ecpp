@@ -1,0 +1,68 @@
+{% comment %} Inline export buttons partial — HU27b WU5 (R21-R24, R26).
+
+   Reusable button group: 2 buttons (Calificaciones Excel + PDF) by default,
+   + 2 buttons (Asistencia Excel + PDF) when show_asistencia=True.
+
+   Usage (4 documented callsites):
+     - dashboard_rendimiento.html:    show_asistencia=False (period-wide)
+     - seleccionar_paralelo.html:     show_asistencia=True  (per paralelo)
+     - auditoria_calificaciones.html: show_asistencia=False (audit page)
+     - (usuarios/dashboard.html uses a quick-action card, not this partial)
+
+   Args (passed via `with`):
+     - periodo:               int (current periodo id, may be empty)
+     - paralelo:              int (optional, current paralelo id)
+     - materia:               int (optional, current materia id)
+     - show_asistencia:       bool (default False)
+
+   Progressive enhancement (R19 — DESIGN DECISION):
+   Each button is a pure native <a href="..."> that triggers the browser
+   download by Content-Disposition: attachment. NO click-prevent
+   modifier, NO CustomEvent dispatch — this partial is rendered on pages
+   (Auditoría, Rendimiento, Paralelos, Dashboard) that DO NOT have the
+   hub's exportFlow() Alpine component. Using click-prevent here would
+   block the native navigation and dispatch the event to a non-existent
+   listener, causing "click does nothing" (the bug found on 2026-06-18
+   after the WU5 commit).
+
+   The hub (/reportes/) uses its OWN buttons in the card partials, which
+   DO use click-prevent + exportFlow() for the in-session toast feedback
+   (countdown, re-download, etc.). The two partials serve different
+   purposes: the hub does the full UX flow, inline callsites do a quick
+   one-click download.
+
+   A11y (R26):
+   - role="group" wraps the buttons (WAI-ARIA toolbar pattern).
+   - Each <a> has an aria-label (icon-only buttons need it).
+   - All emoji icons are aria-hidden="true".
+{% endcomment %}
+<div class="inline-flex flex-wrap gap-2"
+     role="group"
+     aria-label="Exportar reportes">
+    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+       class="inline-flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+       aria-label="Descargar calificaciones en Excel">
+        <span aria-hidden="true">📥</span>
+        <span>Excel</span>
+    </a>
+    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+       class="inline-flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+       aria-label="Descargar calificaciones en PDF">
+        <span aria-hidden="true">📄</span>
+        <span>PDF</span>
+    </a>
+    {% if show_asistencia %}
+    <a href="{% url 'reportes:exportar_asistencia' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+       class="inline-flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+       aria-label="Descargar asistencia en Excel">
+        <span aria-hidden="true">📊</span>
+        <span>Asist. Excel</span>
+    </a>
+    <a href="{% url 'reportes:exportar_asistencia' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+       class="inline-flex items-center gap-1.5 bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-colors"
+       aria-label="Descargar asistencia en PDF">
+        <span aria-hidden="true">📊</span>
+        <span>Asist. PDF</span>
+    </a>
+    {% endif %}
+</div>

@@ -1,0 +1,152 @@
+{% comment %} Global Alpine toast() component — HU27b WU3.
+
+   Mounted once in ``templates/base.html`` (immediately before ``</body>``).
+   Invokable from any Alpine context via::
+
+       window.dispatchEvent(new CustomEvent('toast:show', {
+           detail: { type, title, message, icon, autoDismissMs,
+                     retryUrl, retryFilename, retryLabel, countdownSeconds }
+       }));
+
+   A11y contract (R16 + R18):
+   - ``info``/``success``/``warning``  → ``role="status" aria-live="polite"``
+   - ``error``                          → ``role="alert"  aria-live="assertive"``
+   - Close button (icon-only)           → ``aria-label="Cerrar notificación"``
+{% endcomment %}
+<div x-data="toast()"
+     @toast:show.window="show($event.detail)"
+     class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+     aria-live="polite" aria-atomic="false"
+     x-cloak>
+    <template x-for="t in toasts" :key="t.id">
+        <div
+            :class="{
+                'bg-red-600 text-white': t.type === 'error',
+                'bg-green-600 text-white': t.type === 'success',
+                'bg-yellow-500 text-white': t.type === 'warning',
+                'bg-blue-600 text-white': t.type === 'info'
+            }"
+            class="pointer-events-auto px-4 py-3 rounded-lg shadow-2xl max-w-sm flex items-start gap-3"
+            :role="t.type === 'error' ? 'alert' : 'status'"
+            :aria-live="t.type === 'error' ? 'assertive' : 'polite'"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 translate-y-2"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+        >
+            <span x-text="t.icon" class="text-lg shrink-0" aria-hidden="true"></span>
+            <div class="flex-1 min-w-0">
+                <p x-text="t.title" class="font-bold text-sm"></p>
+                <p x-text="t.message" class="text-sm opacity-90"></p>
+                <template x-if="t.retryUrl">
+                    <a :href="t.retryUrl"
+                       :download="t.retryFilename"
+                       x-text="t.retryLabel || 'Re-descargar'"
+                       class="text-sm underline mt-1 inline-block"></a>
+                </template>
+            </div>
+            <button @click="dismiss(t.id)"
+                    class="shrink-0 text-white opacity-75 hover:opacity-100"
+                    aria-label="Cerrar notificación">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </template>
+</div>
+
+<script>
+    /* eslint-disable no-undef */
+    function toast() {
+        return {
+            toasts: [],
+            nextId: 1,
+            MAX_VISIBLE: 3,
+            _countdownInterval: null,
+            show({
+                type = 'info',
+                title = '',
+                message = '',
+                icon = '',
+                autoDismissMs,
+                retryUrl = null,
+                retryFilename = null,
+                retryLabel = null,
+                countdownSeconds = null
+            } = {}) {
+                const id = this.nextId++;
+                const effectiveIcon = icon || (
+                    type === 'success' ? '\u2705' :
+                    type === 'error'   ? '\u274C' :
+                    type === 'warning' ? '\u26A0\uFE0F' : '\u2139\uFE0F'
+                );
+                this.toasts.push({
+                    id, type, title, message, icon: effectiveIcon,
+                    retryUrl, retryFilename, retryLabel,
+                    countdownSeconds,
+                    _baseMessage: message,
+                });
+                // Cap at MAX_VISIBLE — drop oldest
+                while (this.toasts.length > this.MAX_VISIBLE) {
+                    this.toasts.shift();
+                }
+                // Auto-dismiss (R15: 5s default for success/info/warning;
+                // error is persistent unless autoDismissMs is explicit).
+                if (autoDismissMs !== undefined && autoDismissMs !== null) {
+                    if (autoDismissMs > 0) {
+                        setTimeout(() => this.dismiss(id), autoDismissMs);
+                    }
+                    // autoDismissMs === 0 means persistent
+                } else if (type === 'success' || type === 'info' || type === 'warning') {
+                    setTimeout(() => this.dismiss(id), 5000);
+                }
+                // error type with no explicit autoDismissMs → persistent
+                this._ensureCountdownLoop();
+                return id;
+            },
+            dismiss(id) {
+                const t = this.toasts.find(x => x.id === id);
+                if (t && t.retryUrl) {
+                    // D8: revoke blob URL on dismiss to prevent memory leaks
+                    URL.revokeObjectURL(t.retryUrl);
+                }
+                this.toasts = this.toasts.filter(x => x.id !== id);
+            },
+            _ensureCountdownLoop() {
+                // D9: a SINGLE global setInterval decrements ALL countdown
+                // toasts. Avoids one interval per toast.
+                if (this._countdownInterval) return;
+                this._countdownInterval = setInterval(() => {
+                    let anyActive = false;
+                    for (const t of this.toasts) {
+                        if (t.countdownSeconds !== undefined && t.countdownSeconds !== null
+                            && t.countdownSeconds > 0) {
+                            t.countdownSeconds--;
+                            t.message = t._baseMessage + ' 0:'
+                                + String(t.countdownSeconds).padStart(2, '0');
+                            anyActive = true;
+                        } else if (t.countdownSeconds === 0 && t._baseMessage !== undefined) {
+                            // Hit zero — mark done, restore original message
+                            t.message = t._baseMessage + ' \u2713';
+                            t.countdownSeconds = null;
+                            window.dispatchEvent(new CustomEvent(
+                                'toast:countdown-done', { detail: { toastId: t.id } }
+                            ));
+                        }
+                    }
+                    if (!anyActive && !this.toasts.some(
+                        t => t.countdownSeconds !== undefined && t.countdownSeconds !== null
+                    )) {
+                        clearInterval(this._countdownInterval);
+                        this._countdownInterval = null;
+                    }
+                }, 1000);
+            }
+        };
+    }
+</script>

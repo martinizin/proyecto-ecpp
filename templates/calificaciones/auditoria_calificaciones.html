@@ -19,15 +19,31 @@
             <h1 class="text-xl font-semibold text-gray-800">Auditorías</h1>
             <p class="text-sm text-gray-500 mt-1">Historial de eventos importantes: envíos de planillas, aprobaciones, rechazos, recalificaciones y justificaciones.</p>
         </div>
-        {% if user.rol == "secretaria" %}
-        <a href="{% url 'calificaciones:pendientes_validacion' %}"
-           class="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-            </svg>
-            Validar Calificaciones
-        </a>
-        {% endif %}
+        {# ═══ REPORTES — Inline export buttons del Reporte de Auditoría (HU27b follow-up 2026-06-24) ═══ #}
+        {# Propaga los filtros de la página al endpoint de export (fecha_inicio, fecha_fin, accion, docente, estudiante). #}
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="{% url 'calificaciones:auditoria_exportar' %}?formato=excel&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
+               class="inline-flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+               aria-label="Descargar reporte de auditoría en Excel">
+                <span aria-hidden="true">📋</span>
+                <span>Excel</span>
+            </a>
+            <a href="{% url 'calificaciones:auditoria_exportar' %}?formato=pdf&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
+               class="inline-flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+               aria-label="Descargar reporte de auditoría en PDF">
+                <span aria-hidden="true">📄</span>
+                <span>PDF</span>
+            </a>
+            {% if user.rol == "secretaria" %}
+            <a href="{% url 'calificaciones:pendientes_validacion' %}"
+               class="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                </svg>
+                Validar Calificaciones
+            </a>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Filtros -->

@@ -465,6 +465,12 @@
 
     {% block extra_js %}{% endblock %}
 
+    {# ═══════ Global Alpine toast() component — HU27b WU3 ═══════ #}
+    {% include "partials/_toast.html" %}
+
+    {# ═══════ Session timeout pop-up — HU31 ═══════ #}
+    {% include "partials/session_timeout.html" %}
+
     <!-- Tom Select 2.3.1 -->
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>

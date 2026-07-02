@@ -463,3 +463,89 @@ class SupervisionCalificacionesView(RolRequeridoMixin, View):
 
     def get(self, request):
         return redirect("/asistencia/supervision/?tab=calificaciones")
+
+
+# ---------------------------------------------------------------------------
+# Reporte de Auditoría (HU27b follow-up 2026-06-24)
+# ---------------------------------------------------------------------------
+
+
+def _parse_auditoria_filtros(GET):
+    """Parsea query params para el export de auditoría.
+
+    Todos los filtros son opcionales (a diferencia de los export de
+    calificaciones/asistencia que requieren ?periodo=). Si no se
+    pasan filtros, se exportan todos los logs (hasta el límite de
+    1000 para no generar archivos enormes).
+    """
+    filtros = {}
+    fecha_inicio = (GET.get("fecha_inicio") or "").strip()
+    if fecha_inicio:
+        filtros["fecha_inicio"] = fecha_inicio
+    fecha_fin = (GET.get("fecha_fin") or "").strip()
+    if fecha_fin:
+        filtros["fecha_fin"] = fecha_fin
+    accion = (GET.get("accion") or "").strip()
+    if accion:
+        filtros["accion"] = accion
+    docente = (GET.get("docente") or "").strip()
+    if docente:
+        filtros["docente"] = docente
+    estudiante = (GET.get("estudiante") or "").strip()
+    if estudiante:
+        filtros["estudiante"] = estudiante
+    return filtros
+
+
+class ExportarAuditoriaView(MultiRolRequeridoMixin, View):
+    """GET /calificaciones/auditoria/exportar/ — Reporte de Auditoría.
+
+    Queryea ``LogCalificacion`` (NO ``Calificacion``) con los mismos
+    filtros de la página de auditoría y genera un archivo Excel/PDF
+    titulado "ECPPP — Reporte de Auditoría".
+    """
+
+    LIMITE = 1000  # máximo de filas para evitar archivos enormes
+    roles_permitidos = ["secretaria", "inspector"]
+
+    def get(self, request):
+        from django.http import HttpResponse
+
+        from apps.calificaciones.application.services import (
+            ExportarAuditoriaService,
+        )
+        from apps.reportes.application.rate_limiter import (
+            ExportacionRateLimiter,
+        )
+        from apps.reportes.presentation.views import _rate_limit_json
+
+        # 1. Rate limit (10/min/user, reusado de reportes)
+        if not ExportacionRateLimiter.check(request.user.id):
+            return _rate_limit_json()
+
+        # 2. Parse filters
+        filtros = _parse_auditoria_filtros(request.GET)
+
+        # Si el queryset excede LIMITE, igual generamos el archivo pero
+        # con un warning en el header. El export NO pagina — si el usuario
+        # necesita más, puede refinar los filtros.
+        filtros["_limite"] = self.LIMITE
+
+        # 4. Build service
+        service = ExportarAuditoriaService(filtros)
+
+        # 5. Generate file
+        formato = request.GET.get("formato", "excel")
+        if formato == "excel":
+            buffer = service.exportar_excel()
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else:
+            buffer = service.exportar_pdf()
+            content_type = "application/pdf"
+
+        # 6. Filename
+        filename = service._filename(formato)
+
+        response = HttpResponse(buffer.read(), content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response

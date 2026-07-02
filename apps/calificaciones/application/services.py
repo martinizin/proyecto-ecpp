@@ -720,3 +720,311 @@ class SupervisionCalificacionesAppService:
             "total_estudiantes": len(resultados),
             "en_riesgo": sum(1 for e in resultados if e["riesgo"] == "rojo"),
         }
+
+
+# ---------------------------------------------------------------------------
+# Reporte de Auditoría (HU27b follow-up 2026-06-24)
+# ---------------------------------------------------------------------------
+
+
+class ExportarAuditoriaService:
+    """Genera archivos Excel/PDF del Reporte de Auditoría.
+
+    Queryea ``LogCalificacion`` (NO ``Calificacion``) con los mismos filtros
+    que la página ``/calificaciones/auditoria/``. Genera un "Reporte de
+    Auditoría" (no "Reporte de Calificaciones") — el bug era que el
+    botón inline de la página apuntaba a los endpoints de
+    calificaciones/asistencia que generan el archivo equivocado.
+
+    Filtros soportados (todos opcionales, vienen de ``?fecha_inicio=...``,
+    ``?fecha_fin=...``, ``?accion=...``, ``?docente=...``,
+    ``?estudiante=...``):
+    - ``fecha_inicio`` (YYYY-MM-DD) → ``timestamp__date__gte=fecha_inicio``
+    - ``fecha_fin`` (YYYY-MM-DD) → ``timestamp__date__lte=fecha_fin``
+    - ``accion`` → match exacto en ``LogCalificacion.TipoAccion.choices``
+    - ``docente`` (int) → ``realizado_por_id=docente`` (ignora si no es int)
+    - ``estudiante`` (str) → ``estudiante_info__icontains=estudiante``
+    """
+
+    def __init__(self, filtros: dict):
+        self.filtros = filtros or {}
+
+    def exportar_excel(self):
+        """Genera un .xlsx con los logs filtrados."""
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Auditoría"
+
+        header_fill = PatternFill("solid", fgColor="1E3A8A")  # azul oscuro (mismo que reportes)
+        header_font = Font(bold=True, color="FFFFFF")
+        header_align = Alignment(horizontal="center", vertical="center")
+        bold = Font(bold=True)
+
+        # Header block: 3 filas (título + filtros + generado) + 1 spacer
+        header_lines = self._header_block_rows()
+        for i, line in enumerate(header_lines, start=1):
+            cell = ws.cell(row=i, column=1, value=line)
+            cell.font = bold
+            ws.merge_cells(start_row=i, end_row=i, start_column=1, end_column=12)
+
+        # Spacer row
+        ws.cell(row=len(header_lines) + 1, column=1, value="")
+
+        # Column headers
+        column_headers = [
+            "Fecha y hora",
+            "Acción",
+            "Materia",
+            "Paralelo",
+            "Evaluación",
+            "Estudiante",
+            "Cédula",
+            "Valor anterior",
+            "Valor nuevo",
+            "Realizado por",
+            "IP",
+            "Motivo",
+        ]
+        header_row_idx = len(header_lines) + 2
+        for col_idx, header in enumerate(column_headers, start=1):
+            cell = ws.cell(row=header_row_idx, column=col_idx, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_align
+
+        # Data rows
+        logs = self._query_logs()
+        for i, log in enumerate(logs, start=header_row_idx + 1):
+            paralelo = log.calificacion.evaluacion.paralelo if log.calificacion else None
+            ws.cell(
+                row=i,
+                column=1,
+                value=log.timestamp.replace(tzinfo=None) if log.timestamp else "",
+            )
+            ws.cell(row=i, column=2, value=log.get_accion_display())
+            ws.cell(
+                row=i,
+                column=3,
+                value=paralelo.asignatura.nombre if paralelo and paralelo.asignatura else "",
+            )
+            ws.cell(
+                row=i,
+                column=4,
+                value=str(paralelo) if paralelo else "",
+            )
+            ws.cell(row=i, column=5, value=log.evaluacion_info or "")
+            ws.cell(row=i, column=6, value=log.estudiante_info or "")
+            # Cédula: extraemos del snapshot "Nombre (cédula)" si tiene el formato
+            estudiante_info = log.estudiante_info or ""
+            cedula = ""
+            open_paren = estudiante_info.rfind("(")
+            if open_paren >= 0 and estudiante_info.endswith(")"):
+                cedula = estudiante_info[open_paren + 1 : -1]  # noqa: E203
+            ws.cell(row=i, column=7, value=cedula)
+            ws.cell(
+                row=i,
+                column=8,
+                value=float(log.valor_anterior) if log.valor_anterior is not None else "",
+            )
+            ws.cell(
+                row=i,
+                column=9,
+                value=float(log.valor_nuevo) if log.valor_nuevo is not None else "",
+            )
+            realizado_por = log.realizado_por
+            if realizado_por:
+                realizado_por_str = realizado_por.get_full_name() or realizado_por.username
+            else:
+                realizado_por_str = ""
+            ws.cell(row=i, column=10, value=realizado_por_str)
+            ws.cell(row=i, column=11, value=log.ip or "")
+            ws.cell(row=i, column=12, value=log.motivo or "")
+
+        # Auto-size columns
+        for col_idx, header in enumerate(column_headers, start=1):
+            max_length = len(header)
+            column_letter = get_column_letter(col_idx)
+            for row in ws.iter_rows(min_col=col_idx, max_col=col_idx, values_only=True):
+                for cell_value in row:
+                    if cell_value is not None:
+                        cell_str = str(cell_value)
+                        if len(cell_str) > max_length:
+                            max_length = len(cell_str)
+            ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
+
+        # Freeze pane below the column headers
+        ws.freeze_panes = ws.cell(row=header_row_idx + 1, column=1)
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return buffer
+
+    def exportar_pdf(self):
+        """Genera un .pdf con los logs filtrados."""
+        from io import BytesIO
+
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.platypus import (
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(A4),
+            leftMargin=1.5 * cm,
+            rightMargin=1.5 * cm,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm,
+        )
+        styles = getSampleStyleSheet()
+        elements = []
+
+        # Header block
+        for line in self._header_block_rows():
+            elements.append(Paragraph(line, styles["Heading4"]))
+        elements.append(Spacer(1, 0.5 * cm))
+
+        # Data table
+        logs = list(self._query_logs())
+        headers = [
+            "Fecha",
+            "Acción",
+            "Materia",
+            "Paralelo",
+            "Evaluación",
+            "Estudiante",
+            "Ant.",
+            "Nuevo",
+            "Realizado por",
+            "Motivo",
+        ]
+        data = [headers]
+        cell_style = ParagraphStyle("cell", parent=styles["Normal"], fontSize=7, leading=9)
+        for log in logs:
+            paralelo = log.calificacion.evaluacion.paralelo if log.calificacion else None
+            row = [
+                Paragraph(
+                    log.timestamp.strftime("%Y-%m-%d %H:%M") if log.timestamp else "",
+                    cell_style,
+                ),
+                Paragraph(log.get_accion_display(), cell_style),
+                Paragraph(
+                    paralelo.asignatura.nombre if paralelo and paralelo.asignatura else "",
+                    cell_style,
+                ),
+                Paragraph(str(paralelo) if paralelo else "", cell_style),
+                Paragraph(log.evaluacion_info or "", cell_style),
+                Paragraph(log.estudiante_info or "", cell_style),
+                str(log.valor_anterior) if log.valor_anterior is not None else "",
+                str(log.valor_nuevo) if log.valor_nuevo is not None else "",
+                Paragraph(
+                    (log.realizado_por.get_full_name() if log.realizado_por else ""),
+                    cell_style,
+                ),
+                Paragraph(log.motivo or "", cell_style),
+            ]
+            data.append(row)
+        if len(data) == 1:
+            # Sin resultados (R10): tabla vacía con mensaje
+            data.append(["Sin resultados para los filtros aplicados"] + [""] * 9)
+        table = Table(data, repeatRows=1)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 8),
+                    ("FONTSIZE", (0, 1), (-1, -1), 7),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    def _query_logs(self):
+        """Query ``LogCalificacion`` aplicando los filtros del service."""
+        from apps.calificaciones.infrastructure.models import LogCalificacion
+
+        qs = LogCalificacion.objects.select_related(
+            "calificacion__evaluacion__paralelo__asignatura",
+            "calificacion__evaluacion__paralelo__periodo",
+            "realizado_por",
+        ).order_by("-timestamp")
+
+        fecha_inicio = self.filtros.get("fecha_inicio")
+        if fecha_inicio:
+            qs = qs.filter(timestamp__date__gte=fecha_inicio)
+        fecha_fin = self.filtros.get("fecha_fin")
+        if fecha_fin:
+            qs = qs.filter(timestamp__date__lte=fecha_fin)
+        accion = self.filtros.get("accion")
+        if accion:
+            qs = qs.filter(accion=accion)
+        docente = self.filtros.get("docente")
+        if docente:
+            try:
+                docente_id = int(docente)
+            except (TypeError, ValueError):
+                docente_id = None
+            if docente_id:
+                qs = qs.filter(realizado_por_id=docente_id)
+        estudiante = self.filtros.get("estudiante")
+        if estudiante:
+            qs = qs.filter(estudiante_info__icontains=estudiante)
+        return qs
+
+    def _header_block_rows(self):
+        """Filas del header block: título + rango de fechas + generación."""
+        from django.utils import timezone
+
+        rows = [
+            "ECPPP — Reporte de Auditoría",
+        ]
+        fecha_inicio = self.filtros.get("fecha_inicio") or ""
+        fecha_fin = self.filtros.get("fecha_fin") or ""
+        if fecha_inicio or fecha_fin:
+            rows.append(f"Rango: {fecha_inicio or 'sin límite'} → {fecha_fin or 'sin límite'}")
+        else:
+            rows.append("Rango: todos los registros")
+        accion = self.filtros.get("accion")
+        if accion:
+            rows.append(f"Filtro acción: {accion}")
+        rows.append(f"Generado: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        return rows
+
+    def _filename(self, formato: str) -> str:
+        """Filename: ``auditoria_[rango]_<YYYYMMDD>_<HHMMSS>.<ext>``."""
+        from django.utils import timezone
+
+        ext = "xlsx" if formato == "excel" else "pdf"
+        parts = ["auditoria"]
+        fecha_inicio = self.filtros.get("fecha_inicio") or ""
+        fecha_fin = self.filtros.get("fecha_fin") or ""
+        if fecha_inicio or fecha_fin:
+            parts.append(
+                f"{(fecha_inicio or 'inicio').replace('-', '')}_"
+                f"{(fecha_fin or 'hoy').replace('-', '')}"
+            )
+        parts.append(timezone.now().strftime("%Y%m%d_%H%M%S"))
+        return "_".join(parts) + f".{ext}"
