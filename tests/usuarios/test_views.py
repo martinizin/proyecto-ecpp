@@ -14,6 +14,8 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+import json
+import time
 from django.contrib.admin.sites import AdminSite
 from django.test import Client, RequestFactory
 from django.urls import reverse
@@ -668,3 +670,262 @@ class TestUsuarioAdmin:
 
         assert form.is_valid() is False
         assert "email" in form.errors
+
+
+# =============================================================================
+# TestSessionTimeoutMiddleware — HU31 (3 tests in WU1; T4 + T5 added later)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSessionTimeoutMiddleware:
+    """Tests for the middleware that closes the session on idle (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def test_actualiza_last_activity_en_request_autenticado(self):
+        # T1: usuario fresco → la middleware escribe last_activity, no redirige
+        user = _create_active_user("active@test.com", rol="docente")
+        self.client.force_login(user)
+
+        before = int(time.time())
+        response = self.client.get(reverse("usuarios:perfil"))
+        after = int(time.time())
+
+        assert response.status_code == 200
+        assert before <= int(self.client.session["last_activity"]) <= after
+
+    def test_redirige_a_login_expired_si_inactivo_mas_de_timeout(self):
+        # T2: idle > 20 min → 302 a login?session=expired, sesión flusheada
+        user = _create_active_user("idle@test.com", rol="docente")
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1201
+        session.save()
+
+        response = self.client.get(reverse("usuarios:perfil"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:login") + "?session=expired"
+        # session is flushed — anonymous on the next request
+        assert "_auth_user_id" not in self.client.session
+
+    def test_no_hace_nada_para_usuario_anonimo(self):
+        # T3: anónimo → la middleware es no-op (no redirige, no escribe last_activity)
+        response = self.client.get(reverse("usuarios:login"))
+
+        assert response.status_code == 200
+        assert "last_activity" not in self.client.session
+
+    def test_exempt_path_no_redirige(self):
+        # T4: hitting /api/session/extend/ while expired must NOT log the user out
+        user = _create_active_user("exempt@test.com", rol="docente")
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1500  # deep in expired zone
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_extend"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        # last_activity was rewritten by the endpoint
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+    def test_no_redirige_usuario_con_debe_cambiar_password(self):
+        # T5: ordering — ForzarCambioPassword runs first, user goes to cambiar_contrasena
+        # Invarint: aunque la sesión esté vencida (>1200s idle), un usuario con
+        # debe_cambiar_password=True debe terminar en cambiar_contrasena, no en
+        # login?session=expired. Verifica R2.4 y la locked decision #2.
+        user = _create_active_user("temp@test.com", rol="docente")
+        user.debe_cambiar_password = True
+        user.save(update_fields=["debe_cambiar_password"])
+        self.client.force_login(user)
+        session = self.client.session
+        session["last_activity"] = time.time() - 1500  # also expired
+        session.save()
+
+        response = self.client.get(reverse("usuarios:perfil"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:cambiar_contrasena")
+        # NOT the login-expired URL — password-change wins
+        assert "session=expired" not in response.url
+
+    def test_throttle_no_escribe_si_request_dentro_de_60s(self):
+        # T14: si la última escritura de ``last_activity`` fue hace menos
+        # de ``SESSION_UPDATE_INTERVAL_SECONDS`` (default 60s), el
+        # siguiente request NO triggerea UPDATE de ``django_session``.
+        # Verifica la producción: ráfagas de requests no generan N writes.
+        # Para testear esto, ``request.session.modified`` debe ser False
+        # al salir del middleware — no podemos observar eso directamente
+        # desde el test, pero SÍ podemos observar que el valor de
+        # ``last_activity`` no cambió después de un request dentro del
+        # window de throttle.
+        user = _create_active_user("throttle-fresh@test.com", rol="docente")
+        self.client.force_login(user)
+        # Setear ``last_activity`` a un valor MUY reciente (10s atrás).
+        # Cualquier cosa <60s debería skip el write.
+        recent = int(time.time()) - 10
+        session = self.client.session
+        session["last_activity"] = recent
+        session.save()
+
+        self.client.get(reverse("usuarios:perfil"))
+
+        # Después de un request dentro del window de throttle, el valor
+        # de ``last_activity`` no debe haber sido actualizado. Esto
+        # verifica indirectamente que la middleware NO escribió en la
+        # sesión.
+        session = self.client.session
+        assert int(session["last_activity"]) == recent
+
+    def test_throttle_escribe_despues_de_60s(self):
+        # T15: si la última escritura fue hace MÁS de
+        # ``SESSION_UPDATE_INTERVAL_SECONDS`` (default 60s), el siguiente
+        # request SÍ triggerea UPDATE con el valor actualizado.
+        # Complemento de T14.
+        user = _create_active_user("throttle-stale@test.com", rol="docente")
+        self.client.force_login(user)
+        # Setear ``last_activity`` a 90s atrás (mayor al default 60s).
+        stale = int(time.time()) - 90
+        session = self.client.session
+        session["last_activity"] = stale
+        session.save()
+
+        before = int(time.time())
+        self.client.get(reverse("usuarios:perfil"))
+        after = int(time.time())
+
+        # Después de un request fuera del window de throttle, el valor
+        # de ``last_activity`` debe haber sido actualizado a now (entre
+        # ``before`` y ``after``).
+        session = self.client.session
+        assert before <= int(session["last_activity"]) <= after
+        assert int(session["last_activity"]) > stale
+
+
+# =============================================================================
+# TestSessionEndpoints — HU31 (6 tests: T6, T7, T8, T9, T10, T11)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestSessionEndpoints:
+    """Tests para los 3 endpoints JSON bajo /api/session/ (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def _login_fresh(self, email: str = "ep@test.com") -> None:
+        user = _create_active_user(email, rol="docente")
+        self.client.force_login(user)
+
+    def test_check_retorna_warning_false_si_fresco(self):
+        # T6: fresh → warning=False, expired=False, remaining ≈ 1200
+        self._login_fresh()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 200
+        body = json.loads(response.content)
+        assert body == {"warning": False, "expired": False, "remaining": 1200}
+
+    def test_check_retorna_warning_true_si_en_zona_warning(self):
+        # T7: 18:20 idle (1100s) → warning=True, expired=False, remaining=100
+        self._login_fresh("warn@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 1100
+        session.save()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 200
+        body = json.loads(response.content)
+        assert body["warning"] is True
+        assert body["expired"] is False
+        assert 95 <= body["remaining"] <= 105  # tolerance for test execution
+
+    def test_check_retorna_expired_true_si_pasado_timeout(self):
+        # T8: server-side: 1201s idle → middleware flushes BEFORE the view runs
+        # → @login_required returns 302 to login. The client treats 302
+        # as "expired" and redirects to logout (see design.md §5.4).
+        self._login_fresh("exp@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 1201
+        session.save()
+
+        response = self.client.get(reverse("usuarios:session_check"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("usuarios:login") + "?session=expired"
+
+    def test_extend_actualiza_last_activity(self):
+        # T9: POST /api/session/extend/ → 200, last_activity reset
+        self._login_fresh("ext@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 600
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_extend"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+    def test_touch_actualiza_last_activity(self):
+        # T10: POST /api/session/touch/ → 200, last_activity reset
+        self._login_fresh("touch@test.com")
+        session = self.client.session
+        session["last_activity"] = time.time() - 600
+        session.save()
+
+        response = self.client.post(reverse("usuarios:session_touch"))
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == {"status": "ok"}
+        assert self.client.session["last_activity"] >= time.time() - 1
+
+    def test_endpoints_requieren_login(self):
+        # T11: anonymous calls to all 3 endpoints → 302 to login
+        for url_name, method in [
+            ("usuarios:session_check", "get"),
+            ("usuarios:session_extend", "post"),
+            ("usuarios:session_touch", "post"),
+        ]:
+            response = getattr(self.client, method)(reverse(url_name))
+            assert (
+                response.status_code == 302
+            ), f"{url_name} {method} expected 302, got {response.status_code}"
+            assert reverse("usuarios:login") in response.url
+
+
+# =============================================================================
+# TestLoginExpiredBanner — HU31 (1 test: T12)
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestLoginExpiredBanner:
+    """Tests para el banner de sesión expirada en login.html (HU31)."""
+
+    def setup_method(self):
+        self.client = Client()
+
+    def test_login_muestra_banner_si_session_expired_query_param(self):
+        # T12: GET /usuarios/login/?session=expired → role="alert" + texto
+        response = self.client.get(reverse("usuarios:login") + "?session=expired")
+
+        assert response.status_code == 200
+        body = response.content.decode("utf-8")
+        assert 'role="alert"' in body
+        assert "Su sesión ha expirado por inactividad" in body
+
+    def test_login_no_muestra_banner_sin_query_param(self):
+        # Guard de R9: el banner NO aparece si no viene ?session=expired
+        response = self.client.get(reverse("usuarios:login"))
+
+        assert response.status_code == 200
+        body = response.content.decode("utf-8")
+        assert "Su sesión ha expirado por inactividad" not in body

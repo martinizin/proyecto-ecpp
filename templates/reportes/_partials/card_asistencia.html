@@ -1,0 +1,48 @@
+{% comment %} Card Asistencia — HU27b WU4.
+
+   Same shape as card_calificaciones.html. The button hrefs target the
+   /reportes/asistencia/exportar/ endpoint. The parent exportFlow() in
+   hub.html owns the click lifecycle (busy state, download(), toast).
+
+   Progressive enhancement (R19): each <a href> works natively without
+   Alpine. The @click.prevent just calls download() for the enhanced
+   path.
+{% endcomment %}
+<div class="bg-white rounded-lg shadow-md p-6 flex flex-col"
+     id="card-asistencia"
+     data-card-tipo="asistencia">
+    <div class="flex items-start gap-3 mb-3">
+        <span class="text-3xl" aria-hidden="true">📅</span>
+        <div>
+            <h2 class="text-xl font-bold text-gray-900">Asistencia</h2>
+            <p class="text-sm text-gray-600">
+                Porcentaje de asistencia por estudiante y estado
+            </p>
+        </div>
+    </div>
+
+    {% include "reportes/_partials/preview_pane.html" with card_id="asistencia" %}
+
+    <div class="flex gap-2 mt-auto pt-4">
+        <a href="{% url 'reportes:exportar_asistencia' %}?formato=excel&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+           @click.prevent="download('asistencia', 'excel', $event)"
+           :disabled="busy"
+           :aria-busy="busy"
+           :class="busy ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''"
+           class="flex-1 bg-green-600 text-white text-center px-4 py-2 rounded font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors">
+            <span x-show="!busy" aria-hidden="true">📥</span>
+            <span x-show="busy" aria-hidden="true" class="inline-block animate-spin">⏳</span>
+            Excel
+        </a>
+        <a href="{% url 'reportes:exportar_asistencia' %}?formato=pdf&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+           @click.prevent="download('asistencia', 'pdf', $event)"
+           :disabled="busy"
+           :aria-busy="busy"
+           :class="busy ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''"
+           class="flex-1 bg-red-600 text-white text-center px-4 py-2 rounded font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors">
+            <span x-show="!busy" aria-hidden="true">📄</span>
+            <span x-show="busy" aria-hidden="true" class="inline-block animate-spin">⏳</span>
+            PDF
+        </a>
+    </div>
+</div>

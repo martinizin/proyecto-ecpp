@@ -180,6 +180,9 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Auditorías</span>
         </a>
 
+        {# ═══ REPORTES (Inspector) — HU27b WU5 ═══ #}
+        {% include "partials/_sidebar_reportes.html" %}
+
         <!-- ─── SOLICITUDES (Inspector) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
         <p x-show="!sidebarCollapsed" x-cloak
@@ -214,6 +217,9 @@
             </svg>
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Registro de Calificaciones</span>
         </a>
+
+        {# ═══ REPORTES (Docente) — HU27b WU5 ═══ #}
+        {% include "partials/_sidebar_reportes.html" %}
 
         <!-- ─── SOLICITUDES (Docente) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
@@ -425,6 +431,9 @@
             </svg>
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Rendimiento</span>
         </a>
+
+        {# ═══ REPORTES (Secretaría) — HU27b WU5 ═══ #}
+        {% include "partials/_sidebar_reportes.html" %}
 
         <a href="{% url 'calificaciones:pendientes_validacion' %}"
            class="flex items-center rounded-lg text-sm font-medium transition-colors py-2.5

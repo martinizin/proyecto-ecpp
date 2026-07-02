@@ -291,6 +291,13 @@
     </div>
   </form>
 
+  {# ═══ REPORTES — Inline export buttons (Inspector + Secretaría) — HU27b WU5 (R21) ═══ #}
+  {% if user.rol == "inspector" or user.rol == "secretaria" %}
+  <div class="flex justify-end mb-6">
+    {% include "reportes/_partials/_inline_export.html" with periodo=periodo_seleccionado paralelo=paralelo_seleccionado show_asistencia=False %}
+  </div>
+  {% endif %}
+
   {% if not periodo_seleccionado %}
   <!-- Sin período seleccionado aún -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center text-gray-400">

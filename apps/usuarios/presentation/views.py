@@ -2,10 +2,14 @@
 Views for the Usuarios bounded context.
 Auth views (HU02-HU03): login, logout, 2FA, dashboard, password recovery.
 Profile views (HU04): personal data update, password change.
+Session views (HU31): JSON endpoints for the Alpine session-timeout pop-up.
 
 NOTE: Public registration was removed — users are created by staff via Django Admin.
 """
 
+import time
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -15,9 +19,11 @@ from django.contrib.auth.views import (
     PasswordResetDoneView,
     PasswordResetView,
 )
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.http import require_http_methods
 
 from apps.usuarios.application.services import LoginAppService, Login2FAService, PerfilAppService
 from apps.usuarios.domain.exceptions import (
@@ -95,6 +101,11 @@ class LoginView(View):
 
         # Secretaría — direct login (2FA pending until real email is configured)
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        # HU31 — Inicializar el reloj de inactividad acá para que la
+        # primera request post-login NO triggeree un init write en la
+        # SessionTimeoutMiddleware (ahorra 3 queries: SAVEPOINT + UPDATE
+        # + RELEASE sobre ``django_session``).
+        request.session["last_activity"] = int(time.time())
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
 
@@ -147,6 +158,9 @@ class Verificacion2FAView(View):
 
         del request.session["2fa_user_id"]
         login(request, user, backend="apps.usuarios.infrastructure.auth_backend.ECPPPAuthBackend")
+        # HU31 — Inicializar el reloj de inactividad post-OTP-verify
+        # (mismo rationale que en LoginView).
+        request.session["last_activity"] = int(time.time())
         messages.success(request, f"Bienvenido/a, {user.get_full_name() or user.username}.")
         return redirect("usuarios:dashboard")
 
@@ -301,3 +315,63 @@ class ECPPPPasswordResetConfirmView(PasswordResetConfirmView):
 
 class ECPPPPasswordResetCompleteView(PasswordResetCompleteView):
     template_name = "registration/password_reset_complete.html"
+
+
+# =============================================================================
+# Session JSON endpoints — HU31
+# =============================================================================
+
+
+@method_decorator(login_required, name="dispatch")
+class SessionCheckView(View):
+    """GET /api/session/check/ — devuelve estado de inactividad como JSON.
+
+    El cliente Alpine popula la cuenta regresiva y decide si muestra
+    el warning. Contrato (R4.1):
+        {"warning": <bool>, "expired": <bool>, "remaining": <int>}
+    """
+
+    def get(self, request):
+        now = int(time.time())
+        last = int(request.session.get("last_activity") or now)
+        idle = now - last
+        timeout = settings.SESSION_TIMEOUT_SECONDS
+        warning_at = timeout - settings.SESSION_WARNING_SECONDS
+        return JsonResponse(
+            {
+                "warning": idle > warning_at,
+                "expired": idle > timeout,
+                "remaining": max(0, timeout - idle),
+            }
+        )
+
+
+@method_decorator(login_required, name="dispatch")
+@method_decorator(require_http_methods(["POST"]), name="dispatch")
+class SessionExtendView(View):
+    """POST /api/session/extend/ — handler del botón "Continuar sesión".
+
+    Resetea ``last_activity`` y devuelve 200 + ``{"status": "ok"}``.
+    Equivalente semántico a ``SessionTouchView`` (R5 + R6.3).
+    """
+
+    def post(self, request):
+        request.session["last_activity"] = int(time.time())
+        request.session.modified = True
+        return JsonResponse({"status": "ok"})
+
+
+@method_decorator(login_required, name="dispatch")
+@method_decorator(require_http_methods(["POST"]), name="dispatch")
+class SessionTouchView(View):
+    """POST /api/session/touch/ — keep-alive ping del lado del cliente.
+
+    Llamado por eventos ``click``/``keypress``/``mousemove`` (throttled).
+    Comportamiento idéntico a ``SessionExtendView`` (R6.3): ambos URLs
+    existen para que la API sea semánticamente clara desde el front.
+    """
+
+    def post(self, request):
+        request.session["last_activity"] = int(time.time())
+        request.session.modified = True
+        return JsonResponse({"status": "ok"})
