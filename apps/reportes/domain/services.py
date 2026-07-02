@@ -1,13 +1,62 @@
 """
-Servicios de dominio para el bounded context de reportes (HU27b).
+Servicios de dominio para el bounded context de reportes.
 
-D2 del design: ``ReportesDisponibilidadService`` encapsula el filtrado
-role-aware de ``Periodo``, ``Paralelo`` y ``Asignatura`` para el hub y el
-endpoint ``/reportes/preview/``. Mantiene la vista delgada y la DDD
-layering limpia (sin ``HttpResponse`` ni ``View``).
+- ``ReporteANTService`` (HU26): lógica pura de cálculo para el reporte
+  normativo ANT (estado del estudiante, hash de integridad, totales).
+- ``ReportesDisponibilidadService`` (HU27b): filtrado role-aware de
+  ``Periodo``, ``Paralelo`` y ``Asignatura`` para el hub y el endpoint
+  ``/reportes/preview/``. Mantiene la vista delgada y la DDD layering
+  limpia (sin ``HttpResponse`` ni ``View``).
 """
 
+import hashlib
+from decimal import Decimal
+
 from apps.academico.infrastructure.models import Asignatura, Paralelo, Periodo
+from apps.reportes.domain.entities import DatosEstudianteReporte, TotalesReporte
+
+NOTA_APROBACION = Decimal("16.00")
+PORCENTAJE_ASISTENCIA_MINIMO = Decimal("70.00")
+
+
+class ReporteANTService:
+    """Pure domain logic for ANT report calculations."""
+
+    @staticmethod
+    def calcular_estado_estudiante(
+        promedio_final: Decimal | None,
+        porcentaje_asistencia: Decimal,
+        es_desertor: bool = False,
+    ) -> str:
+        """Determine the student's final state for the report."""
+        if es_desertor:
+            return "desertor"
+        if promedio_final is None:
+            return "en_curso"
+        if (
+            promedio_final >= NOTA_APROBACION
+            and porcentaje_asistencia >= PORCENTAJE_ASISTENCIA_MINIMO
+        ):
+            return "aprobado"
+        return "reprobado"
+
+    @staticmethod
+    def computar_hash(contenido_bytes: bytes) -> str:
+        """Return the SHA-256 hex digest of the given bytes."""
+        return hashlib.sha256(contenido_bytes).hexdigest()
+
+    @staticmethod
+    def consolidar_totales(
+        estudiantes: list[DatosEstudianteReporte],
+    ) -> TotalesReporte:
+        """Aggregate counters for the report header."""
+        return TotalesReporte(
+            total=len(estudiantes),
+            aprobados=sum(1 for e in estudiantes if e.estado == "aprobado"),
+            reprobados=sum(1 for e in estudiantes if e.estado == "reprobado"),
+            desertores=sum(1 for e in estudiantes if e.estado == "desertor"),
+            en_curso=sum(1 for e in estudiantes if e.estado == "en_curso"),
+        )
 
 
 class ReportesDisponibilidadService:

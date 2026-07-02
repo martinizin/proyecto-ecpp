@@ -1,9 +1,10 @@
 """
-AppConfig for the reportes bounded context (HU27).
+AppConfig for the reportes bounded context (HU26 + HU27).
 
-Provides on-demand Excel/PDF export of calificaciones and asistencia.
-No new model is created in this app — generation is in-memory and
-streamed directly to the client.
+HU27: on-demand Excel/PDF export of calificaciones and asistencia,
+generated in-memory and streamed directly to the client.
+HU26: regulatory ANT reports (Resolucion 005-DIR-2022) persisted as
+immutable snapshots with SHA-256 integrity hash.
 """
 
 from django.apps import AppConfig
