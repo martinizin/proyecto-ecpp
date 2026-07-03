@@ -1,14 +1,14 @@
-# ECPPP — Plataforma Academica
+# ECPPP — Plataforma Académica
 
-Sistema de gestion academica para el control de calificaciones, asistencia y solicitudes estudiantiles.
+Sistema de gestión académica para el control de calificaciones, asistencia y solicitudes estudiantiles.
 
-## Requisitos Previos
+## Requisitos previos
 
 - Python 3.12.x
 - PostgreSQL 18.x
 - Git
 
-## Instalacion
+## Instalación
 
 ```bash
 # 1. Clonar el repositorio
@@ -32,21 +32,21 @@ cp .env.example .env
 # Editar .env con tus credenciales locales de PostgreSQL
 ```
 
-## Variables de Entorno
+## Variables de entorno
 
-| Variable | Descripcion | Ejemplo |
+| Variable | Descripción | Ejemplo |
 |----------|-------------|---------|
 | `DJANGO_SECRET_KEY` | Clave secreta de Django | `tu-clave-secreta-aqui` |
 | `DJANGO_DEBUG` | Modo debug | `True` |
-| `DJANGO_SETTINGS_MODULE` | Modulo de settings | `config.settings.development` |
-| `DJANGO_ALLOWED_HOSTS` | Hosts permitidos (produccion) | `example.com,www.example.com` |
+| `DJANGO_SETTINGS_MODULE` | Módulo de settings | `config.settings.development` |
+| `DJANGO_ALLOWED_HOSTS` | Hosts permitidos (producción) | `example.com,www.example.com` |
 | `DATABASE_NAME` | Nombre de la base de datos | `ecppp_db` |
 | `DATABASE_USER` | Usuario de PostgreSQL | `ecppp_user` |
-| `DATABASE_PASSWORD` | Contrasena de PostgreSQL | `tu-contrasena` |
+| `DATABASE_PASSWORD` | Contraseña de PostgreSQL | `tu-contrasena` |
 | `DATABASE_HOST` | Host de PostgreSQL | `localhost` |
 | `DATABASE_PORT` | Puerto de PostgreSQL | `5432` |
 
-## Ejecucion Local
+## Ejecución local
 
 ```bash
 # Aplicar migraciones
@@ -59,16 +59,16 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-El servidor estara disponible en `http://localhost:8000`.
-El panel de administracion en `http://localhost:8000/admin/`.
+El servidor estará disponible en `http://localhost:8000`.
+El panel de administración en `http://localhost:8000/admin/`.
 
-## Tests
+## Pruebas
 
 ```bash
-# Ejecutar tests
+# Ejecutar pruebas
 pytest
 
-# Ejecutar tests con cobertura
+# Ejecutar pruebas con cobertura
 coverage run -m pytest
 coverage report
 
@@ -80,7 +80,7 @@ coverage html
 # Abrir htmlcov/index.html en el navegador
 ```
 
-## Linting y Formato
+## Linting y formato
 
 ```bash
 # Verificar estilo con flake8
@@ -97,42 +97,49 @@ black .
 
 El proyecto usa GitHub Actions (`.github/workflows/ci.yml`) que ejecuta en cada push y pull request:
 
-1. `flake8 .` — verificacion de estilo
-2. `black --check .` — verificacion de formato
+1. `flake8 .` — verificación de estilo
+2. `black --check .` — verificación de formato
 3. `python manage.py migrate` — migraciones
-4. `coverage run -m pytest` — tests con cobertura
+4. `coverage run -m pytest` — pruebas con cobertura
 5. `coverage report --fail-under=70` — umbral de cobertura
 
-## Estructura del Proyecto
+## Documentación
+
+- [Manual de Arquitectura](docs/manuales/architecture-manual.md)
+- [Manual de Base de Datos](docs/manuales/database-manual.md)
+- [Manual de Usuario](docs/manuales/user-manual.md)
+- [Guía de recursos de documentación](docs/manuales/assets/README.md)
+
+## Estructura del proyecto
 
 ```
 proyecto-ecpp/
-├── config/                 # Configuracion Django
+├── config/                 # Configuración Django
 │   ├── settings/
 │   │   ├── base.py         # Settings compartidos
 │   │   ├── development.py  # Settings de desarrollo
-│   │   └── production.py   # Settings de produccion
+│   │   └── production.py   # Settings de producción
 │   ├── urls.py
 │   ├── wsgi.py
 │   └── asgi.py
 ├── apps/                   # Aplicaciones (DDD)
-│   ├── usuarios/           # Gestion de usuarios
-│   ├── academico/          # Periodos, asignaturas, paralelos
+│   ├── usuarios/           # Gestión de usuarios
+│   ├── academico/          # Períodos, asignaturas, paralelos
 │   ├── calificaciones/     # Evaluaciones
 │   ├── asistencia/         # Control de asistencia
 │   └── solicitudes/        # Solicitudes estudiantiles
-├── templates/              # Templates HTML
-├── static/                 # Archivos estaticos
-├── tests/                  # Tests
-├── docs/                   # Documentacion
+├── templates/              # Plantillas HTML
+├── static/                 # Archivos estáticos
+├── tests/                  # Pruebas
+├── docs/                   # Documentación
 ├── requirements.txt
 ├── pyproject.toml
 └── manage.py
 ```
 
-Cada aplicacion sigue la arquitectura DDD con capas: `domain/`, `application/`, `infrastructure/`, `presentation/`.
+Cada aplicación sigue la arquitectura DDD con capas: `domain/`, `application/`, `infrastructure/`, `presentation/`.
 
-## Contribucion
+## Contribución
 
 1. Crear rama desde `develop`: `git checkout -b feature/mi-feature develop`
 2. Implementar cambios siguiendo las convenciones del proyecto
