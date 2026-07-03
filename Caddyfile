@@ -1,0 +1,26 @@
+# Caddy reverse proxy for ECPPP.
+#
+# The site address comes from DJANGO_DOMAIN:
+#   - local  -> "localhost"        (Caddy issues an internal self-signed cert)
+#   - prod   -> "ecppp.edu.ec"     (Caddy issues a Let's Encrypt cert automatically)
+#
+# /media/* is served directly from the shared media volume (mounted at /srv/media);
+# everything else is proxied to the Gunicorn web service.
+
+{$DJANGO_DOMAIN:localhost} {
+	encode gzip zstd
+
+	@media path /media/*
+	handle @media {
+		root * /srv
+		file_server
+	}
+
+	handle {
+		reverse_proxy web:8000 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {remote_host}
+			header_up Host {host}
+		}
+	}
+}
