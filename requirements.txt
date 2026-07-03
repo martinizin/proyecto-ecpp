@@ -17,3 +17,9 @@ reportlab>=4.0.0
 
 # Test de PDFs generados (HU27 auditoría)
 pypdf>=6.0.0
+
+# HU30 — Deployment (Docker/Compose, WSGI server, static, cache, DB URL)
+gunicorn==23.0.0
+whitenoise==6.8.2
+django-redis==5.4.0
+dj-database-url==2.3.0

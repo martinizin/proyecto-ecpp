@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Secrets — never bake into the image
+.env
+.env.*
+
+# Local data / build output (provided by volumes at runtime)
+media/
+staticfiles/
+*.sqlite3
+*.log
+
+# VCS and tooling
+.git/
+.github/
+.vscode/
+.idea/
+.pi/
+.atl/
+openspec/
+
+# Node
+node_modules/
+package.json
+pnpm-lock.yaml
+
+# Docs and tests are not needed in the runtime image
+docs/
+tests/
