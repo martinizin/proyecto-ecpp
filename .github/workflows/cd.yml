@@ -1,0 +1,70 @@
+name: CD
+
+# Deploy on merge to develop: build the ARM64 image, push to GHCR, then pull &
+# restart the stack on the host over SSH. Rollback = re-run with a previous SHA.
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for arm64 cross-build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:develop
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_IMAGE: ${{ env.IMAGE }}:${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: DEPLOY_IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
+          script: |
+            set -eu
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            cd "$DEPLOY_PATH"
+            # Pin the image tag for this deploy (immutable SHA) for easy rollback.
+            echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
+            docker compose --env-file .env --env-file .env.image pull web
+            docker compose --env-file .env --env-file .env.image up -d
+            docker image prune -f
