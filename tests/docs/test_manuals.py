@@ -30,7 +30,7 @@ def test_manual_files_and_asset_structure_exist():
         assert path.exists(), f"Missing documentation artifact: {path.relative_to(ROOT)}"
 
     for path in required_dirs:
-        assert path.exists() and path.is_dir(), f"Missing asset directory: {path.relative_to(ROOT)}"
+        assert path.is_dir(), f"Missing asset directory: {path.relative_to(ROOT)}"
 
 
 @pytest.mark.parametrize(
