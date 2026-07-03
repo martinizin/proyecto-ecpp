@@ -46,6 +46,12 @@ services:
     build: .
     image: ${ECPPP_IMAGE:-ecppp:local}
     restart: unless-stopped
+    # Forward every var from .env (EMAIL_*, COPILOT_MODEL, etc.). Optional so
+    # local runs without a .env still work. The explicit `environment:` below
+    # takes precedence for service wiring (e.g. DATABASE_HOST=db).
+    env_file:
+      - path: .env
+        required: false
     environment:
       DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.development}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required - set it in .env}
