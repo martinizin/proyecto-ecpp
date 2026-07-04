@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU (for arm64 cross-build)
+      - name: Set up QEMU (for multi-arch cross-build)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -35,11 +35,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image (arm64)
+      - name: Build and push image (multi-arch)
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/arm64
+          # amd64 for Hetzner CPX (x86), arm64 for Oracle A1 / Hetzner CAX.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}

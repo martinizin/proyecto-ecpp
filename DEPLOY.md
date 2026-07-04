@@ -90,12 +90,23 @@ Elegí **una** opción. Las dos usan exactamente el mismo `docker-compose.yml`.
 > ```
 > Si te salteás esto, el sitio "no carga" aunque todo lo demás esté bien.
 
-### Opción B (pago, ~€4/mes, cero fricción): Hetzner Cloud
+### Opción B (pago, ~€4-8/mes, cero fricción): Hetzner Cloud
 
-1. Registrate en https://www.hetzner.com/cloud.
-2. Creá un servidor **CX22** con **Ubuntu 22.04**, subí tu clave SSH.
-3. En **Firewalls**, permití entrada TCP en `22`, `80` y `443`.
-4. Anotá la **IP pública**.
+1. Registrate en https://www.hetzner.com/cloud y entrá a la Hetzner Cloud Console.
+2. **Add Server** y configurá:
+   - **Location:** **Ashburn, VA (US East)** — es el datacenter de Hetzner más
+     cercano a Ecuador (mejor latencia que Alemania/Finlandia).
+   - **Image:** Ubuntu 22.04.
+   - **Type:** familia **CPX** (AMD/x86 — la que hay en US).
+     - `CPX21` (3 vCPU / 4 GB) → recomendado, cómodo para el stack (~€8/mes).
+     - `CPX11` (2 vCPU / 2 GB) → mínimo viable si querés gastar menos (~€4/mes).
+   - **SSH keys:** subí tu clave pública (o generá una y guardá la privada).
+   - **Firewalls:** creá uno que permita entrada TCP en `22`, `80` y `443`.
+3. **Create & Buy now**. Anotá la **IP pública** que te asigna.
+
+> **Importante (arquitectura):** la familia CPX es **x86/amd64**. El pipeline de
+> CD construye la imagen multi-arquitectura (amd64 + arm64), así que corre en
+> Hetzner CPX sin cambios. El usuario SSH por defecto en Hetzner es `root`.
 
 ### Conectarte al servidor
 
