@@ -1,116 +1,121 @@
-# Deployment (HU30)
+# Despliegue (HU30)
 
-Single-host Docker Compose stack: **web** (Gunicorn) · **db** (PostgreSQL) ·
-**redis** (cache / HU27 rate-limit store) · **caddy** (reverse proxy + automatic
-HTTPS). Only Caddy is publicly exposed; `db` and `redis` stay on the internal
-network.
+Stack Docker Compose en un solo servidor: **web** (Gunicorn) · **db** (PostgreSQL) ·
+**redis** (caché / rate-limit de HU27) · **caddy** (reverse proxy + HTTPS
+automático). Solo Caddy está expuesto públicamente; `db` y `redis` quedan en la
+red interna.
 
-Primary target: Oracle Cloud Always Free ARM. Fallback: Hetzner CX22. The same
-Compose file and image run on both.
+Objetivo primario: Oracle Cloud Always Free ARM. Alternativa: Hetzner CX22. El
+mismo Compose y la misma imagen corren en los dos.
 
-## Run locally
+> Para la guía completa paso a paso desde cero, ver **`DEPLOY.md`** en la raíz del
+> repo. Este archivo es la referencia técnica rápida.
 
-Compose reads secrets from a git-ignored `.env` at the repo root — no passwords
-are hardcoded in `docker-compose.yml`. Create a minimal local `.env`:
+## Correr en local
+
+Compose lee los secretos de un `.env` (git-ignored) en la raíz del repo — no hay
+contraseñas hardcodeadas en `docker-compose.yml`. Creá un `.env` mínimo:
 
 ```sh
-# .env (repo root, git-ignored)
+# .env (raíz del repo, git-ignored)
 DJANGO_SECRET_KEY=dev-only-change-me
 DATABASE_PASSWORD=dev-only-change-me
 ```
 
-Then:
+Luego:
 
 ```sh
 docker compose up --build
 ```
 
-Open `https://localhost` (Caddy serves a local self-signed cert; accept the
-warning or use `curl -k`). Compose defaults target `config.settings.development`;
-only `DJANGO_SECRET_KEY` and `DATABASE_PASSWORD` are required.
+Abrí `https://localhost` (Caddy sirve un certificado self-signed local; aceptá la
+advertencia o usá `curl -k`). Los defaults apuntan a `config.settings.development`;
+solo `DJANGO_SECRET_KEY` y `DATABASE_PASSWORD` son obligatorios.
 
-## Environment variables
+## Variables de entorno
 
-Set these in a git-ignored `.env` at the repo root. On the production host, also
-set `DJANGO_SETTINGS_MODULE=config.settings.production`.
+Definilas en un `.env` (git-ignored) en la raíz del repo. En el servidor de
+producción, además seteá `DJANGO_SETTINGS_MODULE=config.settings.production`.
 
-| Variable | Example | Notes |
+| Variable | Ejemplo | Notas |
 |----------|---------|-------|
-| `DJANGO_SETTINGS_MODULE` | `config.settings.production` | Local default is `development`. |
-| `DJANGO_SECRET_KEY` | `<50-char random>` | Required. `python -c "import secrets;print(secrets.token_urlsafe(50))"`. |
-| `DJANGO_ALLOWED_HOSTS` | `ecppp.edu.ec,www.ecppp.edu.ec` | Comma-separated. |
-| `DJANGO_DOMAIN` | `ecppp.edu.ec` | Caddy site address; drives Let's Encrypt. Local: `localhost`. |
-| `DATABASE_NAME` | `ecppp` | Postgres database name. |
-| `DATABASE_USER` | `ecppp` | Postgres user. |
-| `DATABASE_PASSWORD` | `<strong password>` | Postgres password. |
-| `REDIS_URL` | `redis://redis:6379/0` | Wired into `CACHES` in PR2. |
-| `OPENAI_API_KEY` | `sk-...` | Copilot (HU22). |
-| `EMAIL_HOST` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | — | SMTP for notifications. |
-| `GUNICORN_WORKERS` | `3` | Worker count. |
-| `DJANGO_COLLECTSTATIC` | `1` | Set to `1` in production so WhiteNoise has static files. |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.production` | En local, el default es `development`. |
+| `DJANGO_SECRET_KEY` | `<50 chars aleatorios>` | Obligatoria. `python -c "import secrets;print(secrets.token_urlsafe(50))"`. |
+| `DJANGO_ALLOWED_HOSTS` | `ecppp.edu.ec,www.ecppp.edu.ec` | Separadas por coma. |
+| `DJANGO_DOMAIN` | `ecppp.edu.ec` | Dominio de Caddy; dispara Let's Encrypt. En local: `localhost`. |
+| `DATABASE_NAME` | `ecppp` | Nombre de la base Postgres. |
+| `DATABASE_USER` | `ecppp` | Usuario de Postgres. |
+| `DATABASE_PASSWORD` | `<contraseña fuerte>` | Contraseña de Postgres. |
+| `REDIS_URL` | `redis://redis:6379/0` | Usada por `CACHES` en producción. |
+| `OPENAI_API_KEY` | `sk-...` | Copiloto (HU22). |
+| `EMAIL_HOST` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | — | SMTP para notificaciones. |
+| `GUNICORN_WORKERS` | `3` | Cantidad de workers. |
+| `DJANGO_COLLECTSTATIC` | `1` | Poné `1` en producción para que WhiteNoise tenga los estáticos. |
 
-> `DATABASE_HOST` and `DATABASE_PORT` are fixed to `db` / `5432` by Compose
-> (the internal Postgres service); do not override them in the container.
+> `DATABASE_HOST` y `DATABASE_PORT` los fija Compose a `db` / `5432` (el servicio
+> interno de Postgres); no los sobreescribas en el contenedor.
 
-## Provision the host (one-time)
+## Provisionar el servidor (una sola vez)
 
-Oracle A1 primary, Hetzner CX22 fallback — same steps.
+Oracle A1 primario, Hetzner CX22 alternativa — mismos pasos.
 
-1. Install Docker + Compose plugin.
-2. Clone the repo to the deploy path (e.g. `/home/deploy/proyecto-ecpp`).
-3. Create the production `.env` (git-ignored) with `DJANGO_SETTINGS_MODULE=config.settings.production`,
-   `DJANGO_COLLECTSTATIC=1`, a real `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`,
+1. Instalar Docker + plugin de Compose.
+2. Clonar el repo en la ruta de deploy (ej. `/home/deploy/proyecto-ecpp`).
+3. Crear el `.env` de producción (git-ignored) con `DJANGO_SETTINGS_MODULE=config.settings.production`,
+   `DJANGO_COLLECTSTATIC=1`, una `DJANGO_SECRET_KEY` real, `DJANGO_ALLOWED_HOSTS`,
    `DJANGO_DOMAIN`, `DATABASE_*`, `REDIS_URL`, `OPENAI_API_KEY`, `EMAIL_*`.
-4. Point DNS (`DJANGO_DOMAIN`) at the host; Caddy issues the TLS cert on first boot.
-5. First boot: `docker compose --env-file .env up -d`.
+4. Apuntar el DNS (`DJANGO_DOMAIN`) al servidor; Caddy emite el certificado TLS en el primer arranque.
+5. Primer arranque: `docker compose --env-file .env up -d`.
 
-## Continuous deployment
+## Despliegue continuo (CD)
 
-`.github/workflows/cd.yml` runs on every push to `develop`: it builds the ARM64
-image, pushes it to GHCR (`ghcr.io/<owner>/<repo>:<sha>` and `:develop`), then
-SSHes to the host to pull that SHA tag and restart the stack.
+`.github/workflows/cd.yml` corre en cada push a `develop`: construye la imagen
+ARM64, la publica en GHCR (`ghcr.io/<owner>/<repo>:<sha>` y `:develop`), y luego
+entra por SSH al servidor para bajar ese tag SHA y reiniciar el stack.
 
-Required GitHub repository secrets:
+Secrets requeridos en el repositorio de GitHub:
 
-| Secret | Purpose |
-|--------|---------|
-| `SSH_HOST` | Host IP/DNS. **Switch Oracle↔Hetzner by changing this one value.** |
-| `SSH_USER` | Deploy user (e.g. `deploy`). |
-| `SSH_KEY` | Private key for the deploy user. |
-| `DEPLOY_PATH` | Path to the repo/compose on the host. |
+| Secret | Para qué |
+|--------|----------|
+| `SSH_HOST` | IP/DNS del servidor. **Cambiar Oracle↔Hetzner = cambiar solo este valor.** |
+| `SSH_USER` | Usuario de deploy (ej. `deploy`). |
+| `SSH_KEY` | Clave privada del usuario de deploy. |
+| `DEPLOY_PATH` | Ruta al repo/compose en el servidor. |
 
-`GITHUB_TOKEN` (built-in) is used to push to and pull from GHCR — no extra token
-needed. If the GHCR package is private, the deploy user must be able to read it.
+El `GITHUB_TOKEN` (incorporado) se usa para publicar y bajar de GHCR — no hace
+falta otro token. Si el paquete de GHCR es privado, el usuario de deploy tiene que
+poder leerlo.
 
 ### Rollback
 
-Deploys use immutable `:<sha>` image tags. To roll back, re-deploy a previous
-SHA on the host:
+Los deploys usan tags de imagen inmutables (`:<sha>`). Para volver atrás,
+re-desplegá un SHA anterior en el servidor:
 
 ```sh
 cd "$DEPLOY_PATH"
-echo "ECPPP_IMAGE=ghcr.io/<owner>/<repo>:<previous-sha>" > .env.image
+echo "ECPPP_IMAGE=ghcr.io/<owner>/<repo>:<sha-anterior>" > .env.image
 docker compose --env-file .env --env-file .env.image up -d
 ```
 
 ## Backups (cron)
 
-`scripts/backup_db.sh` and `scripts/backup_media.sh` write to `/var/backups/ecppp/`
-with 30-day retention. Install on the host crontab (run from the deploy path):
+`scripts/backup_db.sh` y `scripts/backup_media.sh` escriben en `/var/backups/ecppp/`
+con retención de 30 días. Instalalos en el crontab del servidor (corriendo desde la
+ruta de deploy):
 
 ```cron
 0 */6  * * * cd /home/deploy/proyecto-ecpp && ./scripts/backup_db.sh    >> /var/log/ecppp-backup.log 2>&1
 0 */12 * * * cd /home/deploy/proyecto-ecpp && ./scripts/backup_media.sh >> /var/log/ecppp-backup.log 2>&1
 ```
 
-Restore procedure: see `scripts/restore.md` (validate it once during rollout).
+Procedimiento de restauración: ver `scripts/restore.md` (validalo una vez durante el rollout).
 
-## Post-deploy smoke test
+## Smoke test post-deploy
 
 ```sh
 BASE_URL=https://ecppp.edu.ec ./scripts/smoke_e2e.sh
 ```
 
-Checks `/health/`, the login page (WhiteNoise static), and the auth redirect gate.
-The full functional flow (login → libreta → ANT report → export) is in the manual
-post-deploy checklist (PRD §4.5.4).
+Verifica `/health/`, la página de login (estáticos de WhiteNoise) y el redirect del
+gate de autenticación. El flujo funcional completo (login → libreta → reporte ANT →
+export) está en el checklist manual post-deploy (PRD §4.5.4).

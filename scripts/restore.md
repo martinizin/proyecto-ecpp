@@ -1,21 +1,21 @@
-# Restore procedure (HU30)
+# Procedimiento de restauración (HU30)
 
-Run from the deploy directory (where `docker-compose.yml` lives). The stack must
-be up (`docker compose up -d`).
+Ejecutar desde el directorio de deploy (donde vive `docker-compose.yml`). El stack
+tiene que estar arriba (`docker compose up -d`).
 
-## Restore the database
+## Restaurar la base de datos
 
 ```sh
-# Pick the dump to restore.
+# Elegí el dump a restaurar.
 DUMP=/var/backups/ecppp/db/ecppp_db_YYYYMMDD_HHMMSS.sql.gz
 
-# Restore into the running db container (credentials come from the container).
+# Restaurar dentro del contenedor db (las credenciales vienen del contenedor).
 gunzip -c "$DUMP" | docker compose exec -T db sh -c \
     'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
-For a clean restore, drop and recreate the database first (WARNING: destroys
-current data):
+Para una restauración limpia, borrá y recreá la base primero (ATENCIÓN: destruye
+los datos actuales):
 
 ```sh
 docker compose exec -T db sh -c \
@@ -26,7 +26,7 @@ gunzip -c "$DUMP" | docker compose exec -T db sh -c \
     'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
-## Restore media
+## Restaurar media
 
 ```sh
 ARCHIVE=/var/backups/ecppp/media/media_YYYYMMDD_HHMMSS.tar.gz
@@ -38,9 +38,9 @@ docker run --rm \
     sh -c "cd /data && tar -xzf /backup/$(basename "$ARCHIVE")"
 ```
 
-## Validation (do this once during rollout)
+## Validación (hacerlo una vez durante el rollout)
 
-1. Create a backup: `./scripts/backup_db.sh` and `./scripts/backup_media.sh`.
-2. Restore into a scratch database (or a staging stack) using the steps above.
-3. Confirm row counts / a known record exist after restore.
-4. Confirm a known media file is present and downloadable via `/media/`.
+1. Crear un backup: `./scripts/backup_db.sh` y `./scripts/backup_media.sh`.
+2. Restaurar en una base scratch (o en un stack de staging) con los pasos de arriba.
+3. Confirmar que la cantidad de filas / un registro conocido existen tras restaurar.
+4. Confirmar que un archivo de media conocido está presente y se descarga vía `/media/`.
