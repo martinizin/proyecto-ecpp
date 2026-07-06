@@ -207,3 +207,40 @@ class Matricula(models.Model):
             f"{self.estudiante.get_full_name()} — "
             f"{self.paralelo} ({self.get_estado_display()})"
         )
+
+
+class CierrePeriodo(models.Model):
+    """
+    Frozen snapshot of the closing-dashboard metrics for a period (HU28).
+    Generated automatically when the period ends (fecha_fin passes) or is
+    deactivated, so the dashboard always reflects data as of that date.
+    """
+
+    class Motivo(models.TextChoices):
+        FIN_PERIODO = "fin_periodo", "Fin de período"
+        DESACTIVACION = "desactivacion", "Desactivación"
+
+    periodo = models.OneToOneField(
+        Periodo,
+        on_delete=models.CASCADE,
+        related_name="cierre",
+    )
+    motivo = models.CharField(max_length=15, choices=Motivo.choices)
+    fecha_corte = models.DateField()
+    generado_en = models.DateTimeField(auto_now_add=True)
+    generado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cierres_generados",
+    )
+    datos = models.JSONField()
+
+    class Meta:
+        verbose_name = "Cierre de Período"
+        verbose_name_plural = "Cierres de Período"
+        ordering = ["-generado_en"]
+
+    def __str__(self):
+        return f"Cierre {self.periodo} — {self.get_motivo_display()} ({self.fecha_corte})"

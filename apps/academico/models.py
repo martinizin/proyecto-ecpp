@@ -5,6 +5,7 @@ Actual model code lives in apps/academico/infrastructure/models.py
 
 from apps.academico.infrastructure.models import (  # noqa: F401
     Asignatura,
+    CierrePeriodo,
     Paralelo,
     Periodo,
     TipoLicencia,

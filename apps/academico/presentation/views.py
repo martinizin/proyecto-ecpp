@@ -1628,3 +1628,84 @@ class HorarioEstudianteView(RolRequeridoMixin, View):
         contexto["titulo"] = "Mi Horario de Clases"
         contexto["subtitulo"] = "Período académico vigente"
         return render(request, self.template_name, contexto)
+
+
+# =============================================================================
+# Dashboard de Cierre de Período (HU28)
+# =============================================================================
+
+
+class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
+    """
+    Institutional closing dashboard (HU28). Shows the frozen snapshot that is
+    generated automatically when a period ends (fecha_fin passes) or is
+    deactivated. Hidden while no period has closed yet.
+    """
+
+    roles_permitidos = ["inspector", "director_academico"]
+    template_name = "academico/cierre_periodo.html"
+
+    def get(self, request):
+        import json
+        from datetime import date
+
+        from django.db.models import Q
+
+        from apps.academico.application.services import CierrePeriodoAppService
+
+        hoy = date.today()
+
+        # Eligible = already ended by date, or deactivated (has a snapshot).
+        # Periods created inactive but never activated are NOT eligible.
+        periodos = (
+            Periodo.objects.select_related("tipo_licencia")
+            .filter(Q(fecha_fin__lt=hoy) | Q(cierre__isnull=False))
+            .order_by("-fecha_inicio")
+        )
+
+        if not periodos.exists():
+            return render(
+                request,
+                self.template_name,
+                {
+                    "sin_periodos_elegibles": True,
+                    "periodos": periodos,
+                    "periodo_seleccionado": None,
+                },
+            )
+
+        periodo_seleccionado = None
+        try:
+            periodo_seleccionado = periodos.filter(pk=int(request.GET.get("periodo", ""))).first()
+        except (ValueError, TypeError):
+            pass
+        if not periodo_seleccionado:
+            periodo_seleccionado = periodos.first()
+
+        svc = CierrePeriodoAppService()
+        snapshot = svc.obtener_o_generar_snapshot(periodo_seleccionado, hoy)
+        dashboard = svc.obtener_dashboard_desde_snapshot(snapshot)
+        asistencias = dashboard["asistencias"]
+        calificaciones = dashboard["calificaciones"]
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "periodos": periodos,
+                "periodo_seleccionado": periodo_seleccionado,
+                "snapshot": snapshot,
+                "total_estudiantes": dashboard["total_estudiantes"],
+                "asistencias": asistencias,
+                "calificaciones": calificaciones,
+                "solicitudes": dashboard["solicitudes"],
+                "calificaciones_json": json.dumps(calificaciones["por_paralelo"]),
+                "asistencias_json": json.dumps(
+                    {
+                        "presentes": asistencias.presentes,
+                        "ausentes": asistencias.ausentes,
+                        "justificados": asistencias.justificados,
+                    }
+                ),
+            },
+        )
