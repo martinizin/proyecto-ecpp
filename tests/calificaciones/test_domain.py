@@ -1,4 +1,5 @@
-"""Tests for HU13: Nota VO and CalificacionValidationService."""
+"""Tests for HU13: Nota VO and CalificacionValidationService.
+Tests for HU32: SubNotaValidationService."""
 
 from decimal import Decimal
 
@@ -7,8 +8,12 @@ import pytest
 from apps.calificaciones.domain.exceptions import (
     NotaFueraDeRangoError,
     PesosInvalidosError,
+    SubNotasFueraDeRangoError,
 )
-from apps.calificaciones.domain.services import CalificacionValidationService
+from apps.calificaciones.domain.services import (
+    CalificacionValidationService,
+    SubNotaValidationService,
+)
 from apps.calificaciones.domain.value_objects import Nota
 
 
@@ -157,3 +162,84 @@ class TestCalificacionValidationService:
     )
     def test_estado_aprobacion(self, promedio, esperado):
         assert CalificacionValidationService.estado_aprobacion(promedio) == esperado
+
+
+# ---------------------------------------------------------------------------
+# SubNotaValidationService (HU32)
+# ---------------------------------------------------------------------------
+
+
+class TestSubNotaValidationService:
+    """Tests for SubNotaValidationService (HU32: sub-notas 3-5 por parcial)."""
+
+    @pytest.mark.parametrize("cantidad", [3, 4, 5])
+    def test_cantidad_valida(self, cantidad):
+        SubNotaValidationService.validar_cantidad(cantidad)  # no exception
+
+    @pytest.mark.parametrize("cantidad", [0, 1, 2, 6, 10])
+    def test_cantidad_fuera_de_rango(self, cantidad):
+        with pytest.raises(SubNotasFueraDeRangoError):
+            SubNotaValidationService.validar_cantidad(cantidad)
+
+    def test_cantidad_invalida_incluye_limites_en_mensaje(self):
+        with pytest.raises(SubNotasFueraDeRangoError) as exc_info:
+            SubNotaValidationService.validar_cantidad(2)
+        assert exc_info.value.cantidad == 2
+        assert exc_info.value.minimo == 3
+        assert exc_info.value.maximo == 5
+
+    def test_promedio_tres_sub_notas(self):
+        notas = [Decimal("15"), Decimal("18"), Decimal("12")]
+        resultado = SubNotaValidationService.calcular_nota_final_sub_notas(notas)
+        assert resultado == Decimal("15.00")
+
+    def test_promedio_con_decimales_redondea_dos_cifras(self):
+        notas = [Decimal("10"), Decimal("10"), Decimal("11")]
+        resultado = SubNotaValidationService.calcular_nota_final_sub_notas(notas)
+        assert resultado == Decimal("10.33")
+
+    def test_promedio_cinco_sub_notas(self):
+        notas = [
+            Decimal("20"),
+            Decimal("18"),
+            Decimal("16"),
+            Decimal("14"),
+            Decimal("12"),
+        ]
+        resultado = SubNotaValidationService.calcular_nota_final_sub_notas(notas)
+        assert resultado == Decimal("16.00")
+
+    def test_promedio_lista_vacia_retorna_cero(self):
+        resultado = SubNotaValidationService.calcular_nota_final_sub_notas([])
+        assert resultado == Decimal("0.00")
+
+    def test_promedio_acepta_strings_numericos(self):
+        """El servicio normaliza valores con Decimal(str(...)) como el resto del dominio."""
+        resultado = SubNotaValidationService.calcular_nota_final_sub_notas(
+            ["15.50", "16.50", "17.00"]
+        )
+        assert resultado == Decimal("16.33")
+
+    def test_override_igual_al_promedio_no_requiere_justificacion(self):
+        assert (
+            SubNotaValidationService.requiere_justificacion_override(
+                Decimal("15.00"), Decimal("15.00")
+            )
+            is False
+        )
+
+    def test_override_distinto_al_promedio_requiere_justificacion(self):
+        assert (
+            SubNotaValidationService.requiere_justificacion_override(
+                Decimal("15.00"), Decimal("16.00")
+            )
+            is True
+        )
+
+    def test_override_diferencia_minima_requiere_justificacion(self):
+        assert (
+            SubNotaValidationService.requiere_justificacion_override(
+                Decimal("15.00"), Decimal("15.01")
+            )
+            is True
+        )

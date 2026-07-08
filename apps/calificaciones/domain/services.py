@@ -5,7 +5,10 @@ Pure Python — NO Django imports allowed in this layer.
 
 from decimal import Decimal
 
-from apps.calificaciones.domain.exceptions import PesosInvalidosError
+from apps.calificaciones.domain.exceptions import (
+    PesosInvalidosError,
+    SubNotasFueraDeRangoError,
+)
 from apps.calificaciones.domain.value_objects import NOTA_APROBACION, Nota
 
 TOLERANCIA_PESOS = Decimal("0.01")
@@ -62,3 +65,29 @@ class CalificacionValidationService:
         if Decimal(str(promedio)) >= NOTA_APROBACION:
             return "aprobado"
         return "reprobado"
+
+
+class SubNotaValidationService:
+    """Domain service: validates sub-grades within a parcial (HU32)."""
+
+    MIN_SUB_NOTAS = 3
+    MAX_SUB_NOTAS = 5
+
+    @classmethod
+    def validar_cantidad(cls, cantidad: int) -> None:
+        """Raise SubNotasFueraDeRangoError if the count is outside 3–5."""
+        if not (cls.MIN_SUB_NOTAS <= cantidad <= cls.MAX_SUB_NOTAS):
+            raise SubNotasFueraDeRangoError(cantidad, cls.MIN_SUB_NOTAS, cls.MAX_SUB_NOTAS)
+
+    @staticmethod
+    def calcular_nota_final_sub_notas(notas: list[Decimal]) -> Decimal:
+        """Arithmetic average of the sub-grades, rounded to 2 decimals."""
+        if not notas:
+            return Decimal("0.00")
+        total = sum(Decimal(str(n)) for n in notas)
+        return (total / len(notas)).quantize(Decimal("0.01"))
+
+    @staticmethod
+    def requiere_justificacion_override(promedio: Decimal, override: Decimal) -> bool:
+        """The manual override requires justification if it differs from the average."""
+        return Decimal(str(promedio)) != Decimal(str(override))

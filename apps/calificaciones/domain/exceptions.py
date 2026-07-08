@@ -18,3 +18,15 @@ class EvaluacionDuplicadaError(CalificacionesError):
 
 class PesosInvalidosError(CalificacionesError):
     """Raised when evaluation weights do not sum to 100."""
+
+
+class SubNotasFueraDeRangoError(CalificacionesError):
+    """Raised when the sub-grade count is outside the allowed 3–5 range."""
+
+    def __init__(self, cantidad: int, minimo: int, maximo: int):
+        self.cantidad = cantidad
+        self.minimo = minimo
+        self.maximo = maximo
+        super().__init__(
+            f"La cantidad de sub-notas ({cantidad}) debe estar " f"entre {minimo} y {maximo}."
+        )
