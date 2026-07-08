@@ -67,6 +67,9 @@
     <!-- Alpine.js 3.15.9 CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.9/dist/cdn.min.js"></script>
 
+    <!-- htmx 2.0.4 CDN — boosted (SPA-like) navigation between modules -->
+    <script defer src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+
     <style>
         [x-cloak] { display: none !important; }
 
@@ -358,7 +361,8 @@
           this.sidebarCollapsed = !this.sidebarCollapsed;
           localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
         }
-      }"{% endif %}>
+      }"
+      hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML show:window:top"{% endif %}>
 
     {% if user.is_authenticated %}
     {# ═══════════════ AUTHENTICATED: Sidebar + Topbar ═══════════════ #}
@@ -393,6 +397,9 @@
         <div class="flex-1">
             <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {% endif %}
+
+                {# ═══ Boosted content region — htmx swaps only this on navigation ═══ #}
+                <div id="main-content">
 
                 {% if messages %}
                 <div class="mb-4 space-y-2">
@@ -439,6 +446,8 @@
 
                 {% block content %}{% endblock %}
 
+                </div>{# /#main-content #}
+
         {% if user.is_authenticated %}
             </div>
         </div>
@@ -471,11 +480,20 @@
     {# ═══════ Session timeout pop-up — HU31 ═══════ #}
     {% include "partials/session_timeout.html" %}
 
+    {# ═══ Top progress bar for boosted navigation ═══ #}
+    <div id="nav-progress"
+         class="fixed top-0 left-0 h-0.5 bg-accent z-[100] w-0 opacity-0 transition-all duration-300"
+         aria-hidden="true"></div>
+
     <!-- Tom Select 2.3.1 -->
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('select.form-select:not([data-ts-skip])').forEach(function (el) {
+        // Initialize Tom Select on every matching <select> within a root element.
+        // Called on first load AND after each htmx swap (DOMContentLoaded does not
+        // fire again on boosted navigation).
+        function initTomSelects(root) {
+            (root || document).querySelectorAll('select.form-select:not([data-ts-skip])').forEach(function (el) {
+                if (el.tomselect) return; // already initialized — avoid double-init
                 var useSearch = el.hasAttribute('data-ts-search');
                 new TomSelect(el, {
                     allowEmptyOption: true,
@@ -489,7 +507,52 @@
                     }
                 });
             });
+        }
+
+        // The sidebar is not re-rendered on boosted swaps, so refresh its active
+        // highlight client-side using a longest-prefix match against the current path.
+        function refreshSidebarActive() {
+            var current = window.location.pathname;
+            var links = document.querySelectorAll('aside nav.sidebar-nav a[href]');
+            var best = null, bestLen = -1;
+            links.forEach(function (a) {
+                var path = new URL(a.href, window.location.origin).pathname;
+                var matches = path === '/' ? current === '/' : current === path || current.indexOf(path) === 0;
+                if (matches && path.length > bestLen) { best = a; bestLen = path.length; }
+            });
+            links.forEach(function (a) {
+                var active = a === best;
+                a.classList.toggle('bg-white/10', active);
+                a.classList.toggle('text-white', active);
+                a.classList.toggle('text-white/70', !active);
+                if (active) { a.setAttribute('aria-current', 'page'); }
+                else { a.removeAttribute('aria-current'); }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initTomSelects(document);
         });
+
+        // Re-initialize dynamic widgets and refresh navigation state after a boosted swap.
+        document.body.addEventListener('htmx:afterSettle', function (evt) {
+            initTomSelects(evt.target);
+            refreshSidebarActive();
+        });
+
+        // Top progress bar feedback during boosted navigation.
+        (function () {
+            var bar = document.getElementById('nav-progress');
+            if (!bar) return;
+            document.body.addEventListener('htmx:beforeRequest', function () {
+                bar.style.opacity = '1';
+                bar.style.width = '35%';
+            });
+            document.body.addEventListener('htmx:afterRequest', function () {
+                bar.style.width = '100%';
+                setTimeout(function () { bar.style.opacity = '0'; bar.style.width = '0'; }, 250);
+            });
+        })();
     </script>
 </body>
 </html>
