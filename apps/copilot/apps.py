@@ -5,3 +5,7 @@ class CopilotConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.copilot"
     verbose_name = "Copilot"
+
+    def ready(self):
+        # Register signal receivers (logout → reset conversation).
+        from apps.copilot import signals  # noqa: F401
