@@ -175,7 +175,18 @@
                                 } catch (e) { /* silent */ }
                             }
                             if (n.url) {
-                                window.location.href = n.url;
+                                this.open = false;
+                                // Boosted navigation: swap only #main-content instead of full reload.
+                                if (window.htmx) {
+                                    history.pushState({}, '', n.url);
+                                    htmx.ajax('GET', n.url, {
+                                        target: '#main-content',
+                                        select: '#main-content',
+                                        swap: 'outerHTML show:window:top',
+                                    });
+                                } else {
+                                    window.location.href = n.url;
+                                }
                             }
                         },
 

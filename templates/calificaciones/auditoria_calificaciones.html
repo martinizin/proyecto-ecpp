@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -22,13 +22,13 @@
         {# ═══ REPORTES — Inline export buttons del Reporte de Auditoría (HU27b follow-up 2026-06-24) ═══ #}
         {# Propaga los filtros de la página al endpoint de export (fecha_inicio, fecha_fin, accion, docente, estudiante). #}
         <div class="flex items-center gap-2 flex-wrap">
-            <a href="{% url 'calificaciones:auditoria_exportar' %}?formato=excel&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
+            <a hx-boost="false" href="{% url 'calificaciones:auditoria_exportar' %}?formato=excel&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
                class="inline-flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
                aria-label="Descargar reporte de auditoría en Excel">
                 <span aria-hidden="true">📋</span>
                 <span>Excel</span>
             </a>
-            <a href="{% url 'calificaciones:auditoria_exportar' %}?formato=pdf&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
+            <a hx-boost="false" href="{% url 'calificaciones:auditoria_exportar' %}?formato=pdf&amp;fecha_inicio={{ request.GET.fecha_inicio }}&amp;fecha_fin={{ request.GET.fecha_fin }}&amp;accion={{ request.GET.accion }}&amp;docente={{ request.GET.docente }}&amp;estudiante={{ request.GET.estudiante }}"
                class="inline-flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
                aria-label="Descargar reporte de auditoría en PDF">
                 <span aria-hidden="true">📄</span>
@@ -49,6 +49,7 @@
     <!-- Filtros -->
     <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
         <form method="get" id="filtros-form"
+              hx-boost="true"
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
               x-data="auditoriaBusqueda()"
               x-init="init()"
@@ -58,19 +59,19 @@
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Desde</label>
                 <input type="date" name="fecha_inicio" value="{{ filtros.fecha_inicio }}"
-                       @change="$el.form.submit()"
+                       @change="$el.form.requestSubmit()"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             </div>
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Hasta</label>
                 <input type="date" name="fecha_fin" value="{{ filtros.fecha_fin }}"
-                       @change="$el.form.submit()"
+                       @change="$el.form.requestSubmit()"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             </div>
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Tipo de acción</label>
                 <select name="accion"
-                        @change="$el.form.submit()"
+                        @change="$el.form.requestSubmit()"
                         class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todas</option>
                     {% for value, label in acciones %}
@@ -81,7 +82,7 @@
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-medium text-gray-600">Docente</label>
                 <select name="docente"
-                        @change="$el.form.submit()"
+                        @change="$el.form.requestSubmit()"
                         class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todos</option>
                     {% for d in docentes %}
@@ -99,8 +100,8 @@
                        name="estudiante"
                        x-model="valor"
                        @input="validar()"
-                       @blur="validar(); if (puedeEnviar && valor.trim().length >= 2) $el.form.submit()"
-                       @keydown.enter.prevent="validar(); if (puedeEnviar) $el.form.submit()"
+                       @blur="validar(); if (puedeEnviar && valor.trim().length >= 2) $el.form.requestSubmit()"
+                       @keydown.enter.prevent="validar(); if (puedeEnviar) $el.form.requestSubmit()"
                        :class="error
                            ? 'border-red-400 focus:ring-red-300/30'
                            : 'border-gray-300 focus:ring-primary/30'"

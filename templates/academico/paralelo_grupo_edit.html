@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>

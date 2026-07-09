@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -24,7 +24,7 @@
     {% endfor %}
 {% endif %}
 
-<div class="bg-white rounded-xl shadow-md overflow-hidden">
+<div class="bg-white rounded-xl shadow-md overflow-hidden" hx-boost="true">
     <!-- Header -->
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <div>
@@ -89,6 +89,7 @@
                     </td>
                     <td class="px-6 py-4">
                         <a href="{% url 'reportes:ant_descargar' reporte.pk %}"
+                           hx-boost="false"
                            class="inline-flex items-center gap-1 text-primary hover:text-secondary font-medium text-sm transition-colors">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round"

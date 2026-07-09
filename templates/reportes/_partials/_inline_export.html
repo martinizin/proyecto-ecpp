@@ -39,26 +39,26 @@
 <div class="inline-flex flex-wrap gap-2"
      role="group"
      aria-label="Exportar reportes">
-    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+    <a hx-boost="false" href="{% url 'reportes:exportar_calificaciones' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
        class="inline-flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
        aria-label="Descargar calificaciones en Excel">
         <span aria-hidden="true">📥</span>
         <span>Excel</span>
     </a>
-    <a href="{% url 'reportes:exportar_calificaciones' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+    <a hx-boost="false" href="{% url 'reportes:exportar_calificaciones' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
        class="inline-flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
        aria-label="Descargar calificaciones en PDF">
         <span aria-hidden="true">📄</span>
         <span>PDF</span>
     </a>
     {% if show_asistencia %}
-    <a href="{% url 'reportes:exportar_asistencia' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+    <a hx-boost="false" href="{% url 'reportes:exportar_asistencia' %}?formato=excel{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
        class="inline-flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
        aria-label="Descargar asistencia en Excel">
         <span aria-hidden="true">📊</span>
         <span>Asist. Excel</span>
     </a>
-    <a href="{% url 'reportes:exportar_asistencia' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
+    <a hx-boost="false" href="{% url 'reportes:exportar_asistencia' %}?formato=pdf{% if periodo %}&amp;periodo={{ periodo }}{% endif %}{% if paralelo %}&amp;paralelo={{ paralelo }}{% endif %}{% if materia %}&amp;materia={{ materia }}{% endif %}"
        class="inline-flex items-center gap-1.5 bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-colors"
        aria-label="Descargar asistencia en PDF">
         <span aria-hidden="true">📊</span>

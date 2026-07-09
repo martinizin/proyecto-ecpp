@@ -398,8 +398,10 @@
             <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {% endif %}
 
-                {# ═══ Boosted content region — htmx swaps only this on navigation ═══ #}
-                <div id="main-content">
+                {# ═══ Boosted content region — htmx swaps only this on navigation. ═══ #}
+                {# hx-boost here makes all in-content links + GET forms navigate via AJAX. #}
+                {# Downloads/logout opt out with hx-boost="false"; target=_blank is auto-skipped. #}
+                <div id="main-content" hx-boost="true">
 
                 {% if messages %}
                 <div class="mb-4 space-y-2">

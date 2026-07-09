@@ -4,7 +4,7 @@
 
 {% block content %}
 {# ──────────────── Breadcrumb / header ──────────────── #}
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -166,7 +166,7 @@
                          style="max-width: 100%; max-height: 500px;"
                          class="rounded-lg border border-gray-200 object-contain">
                 {% else %}
-                    <a href="{{ solicitud.archivo_adjunto.url }}" class="text-primary hover:underline">
+                    <a href="{{ solicitud.archivo_adjunto.url }}" hx-boost="false" class="text-primary hover:underline">
                         Descargar {{ solicitud.archivo_adjunto.name }}
                     </a>
                 {% endif %}
@@ -189,7 +189,7 @@
                          style="max-width: 100%; max-height: 500px;"
                          class="rounded-lg border border-gray-200 object-contain">
                 {% else %}
-                    <a href="{{ archivo.archivo.url }}" class="text-primary hover:underline">
+                    <a href="{{ archivo.archivo.url }}" hx-boost="false" class="text-primary hover:underline">
                         Descargar {{ archivo.nombre_original|default:"archivo" }}
                     </a>
                 {% endif %}
