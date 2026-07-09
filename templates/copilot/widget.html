@@ -264,25 +264,26 @@
             isStreaming: false,
             streamingContent: '',
             async init() {
-                const saved = sessionStorage.getItem('copilot_messages');
-                if (saved) {
-                    try {
-                        this.messages = JSON.parse(saved);
-                        this.open = true;
-                    } catch (_) {}
-                    sessionStorage.removeItem('copilot_messages');
-                    return;
-                }
-                // Reset backend session on every page load so conversation never persists across reloads
+                // Restore the panel open/closed state across full page reloads.
+                this.open = sessionStorage.getItem('copilot_open') === '1';
+                this.$watch('open', v => sessionStorage.setItem('copilot_open', v ? '1' : '0'));
+                // Restore the active conversation from the backend. The chat only
+                // resets on logout (server-side signal) or when the user starts a
+                // new conversation manually — never on navigation or page reload.
+                await this.loadHistory();
+            },
+            async loadHistory() {
                 try {
-                    await fetch('{% url "copilot:nueva_conversacion" %}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': this._csrf(),
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
+                    const res = await fetch('{% url "copilot:chat" %}', {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         credentials: 'same-origin',
                     });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    this.messages = (data.mensajes || []).map(m => ({
+                        rol: m.rol,
+                        contenido: m.contenido,
+                    }));
                 } catch (_) { /* non-critical */ }
             },
             openChat() {

@@ -151,9 +151,11 @@ class TestObtenerHistorial:
         roles = [m["rol"] for m in mensajes]
         assert roles == ["user", "assistant", "user", "assistant"]
 
-    def test_crea_conversacion_si_no_hay(self, service, estudiante):
+    def test_no_crea_conversacion_si_no_hay(self, service, estudiante):
+        # A GET-style history read must stay idempotent: no active conversation
+        # → return empty without spawning a row.
         assert not ConversacionCopilot.objects.filter(usuario=estudiante).exists()
         conv_id, mensajes = service.obtener_historial(estudiante)
-        assert conv_id is not None
+        assert conv_id == ""
         assert mensajes == []
-        assert ConversacionCopilot.objects.filter(usuario=estudiante).count() == 1
+        assert not ConversacionCopilot.objects.filter(usuario=estudiante).exists()

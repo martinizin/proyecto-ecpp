@@ -714,8 +714,25 @@ class CopilotAppService:
                 yield replacement_marker
 
     def obtener_historial(self, usuario) -> tuple[str, list[dict]]:
-        """Return the active conversation id and its messages."""
-        conversacion = self.obtener_o_crear_conversacion(usuario)
+        """Return the active conversation id and its messages (read-only).
+
+        Does not create a conversation: merely loading a page to restore the
+        chat history must not spawn empty conversations for users who never
+        chat (a GET must stay idempotent). Returns ("", []) when the user has
+        no active conversation.
+        """
+        timeout = timezone.now() - timedelta(hours=self.SESION_TIMEOUT_HORAS)
+        conversacion = (
+            ConversacionCopilot.objects.filter(
+                usuario=usuario,
+                activa=True,
+                ultima_actividad__gte=timeout,
+            )
+            .order_by("-ultima_actividad")
+            .first()
+        )
+        if conversacion is None:
+            return "", []
         mensajes = list(
             conversacion.mensajes.order_by("timestamp").values("rol", "contenido", "timestamp")
         )
