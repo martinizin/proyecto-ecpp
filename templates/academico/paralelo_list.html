@@ -5,7 +5,7 @@
 {% block content %}
 {% csrf_token %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -14,7 +14,7 @@
 </nav>
 
 <!-- Header with actions -->
-<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6" hx-boost="true">
     <h1 class="text-xl font-semibold text-gray-800">Paralelos</h1>
     {% if user.rol != 'director_academico' %}
     <div class="flex items-center gap-3">
@@ -36,7 +36,7 @@
 
 {% if paralelo_groups %}
 <!-- Grouped cards -->
-<div class="space-y-5">
+<div class="space-y-5" hx-boost="true">
     {% for group in paralelo_groups %}
     <div class="bg-white rounded-xl shadow-md overflow-hidden">
         <!-- Group header -->
@@ -281,7 +281,7 @@
                         class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                     Cancelar
                 </button>
-                <form :action="url" method="post" class="inline">
+                <form :action="url" method="post" hx-boost="false" class="inline">
                     {% csrf_token %}
                     <button type="submit"
                             class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">

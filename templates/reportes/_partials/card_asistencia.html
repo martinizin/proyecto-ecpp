@@ -24,7 +24,7 @@
     {% include "reportes/_partials/preview_pane.html" with card_id="asistencia" %}
 
     <div class="flex gap-2 mt-auto pt-4">
-        <a href="{% url 'reportes:exportar_asistencia' %}?formato=excel&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+        <a hx-boost="false" href="{% url 'reportes:exportar_asistencia' %}?formato=excel&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
            @click.prevent="download('asistencia', 'excel', $event)"
            :disabled="busy"
            :aria-busy="busy"
@@ -34,7 +34,7 @@
             <span x-show="busy" aria-hidden="true" class="inline-block animate-spin">⏳</span>
             Excel
         </a>
-        <a href="{% url 'reportes:exportar_asistencia' %}?formato=pdf&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
+        <a hx-boost="false" href="{% url 'reportes:exportar_asistencia' %}?formato=pdf&amp;periodo={{ periodo_actual.id|default_if_none:'' }}"
            @click.prevent="download('asistencia', 'pdf', $event)"
            :disabled="busy"
            :aria-busy="busy"
