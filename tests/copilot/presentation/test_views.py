@@ -174,18 +174,14 @@ class TestGetHistorial:
 # Logout resets the conversation (Issue 2 — persistence)
 # -------------------------------------------------------------------- #
 class TestLogoutCierraConversacion:
-    def test_logout_marca_conversacion_activa_como_inactiva(
-        self, client_estudiante, estudiante
-    ):
+    def test_logout_marca_conversacion_activa_como_inactiva(self, client_estudiante, estudiante):
         conv = ConversacionCopilot.objects.create(usuario=estudiante)
         MensajeCopilot.objects.create(conversacion=conv, rol="user", contenido="hola")
         client_estudiante.get(reverse("usuarios:logout"))
         conv.refresh_from_db()
         assert conv.activa is False
 
-    def test_get_historial_tras_logout_arranca_vacio(
-        self, client_estudiante, estudiante
-    ):
+    def test_get_historial_tras_logout_arranca_vacio(self, client_estudiante, estudiante):
         conv = ConversacionCopilot.objects.create(usuario=estudiante)
         MensajeCopilot.objects.create(conversacion=conv, rol="user", contenido="hola")
         client_estudiante.get(reverse("usuarios:logout"))
