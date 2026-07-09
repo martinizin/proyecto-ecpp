@@ -32,13 +32,6 @@ from apps.copilot.infrastructure.openai_client import OpenAIClient
 
 logger = logging.getLogger("apps.copilot.moderation")
 
-_LINK_POR_TIPO = {
-    "calificaciones": {"url": "/calificaciones/mi-libreta/", "label": "Ver mis calificaciones"},
-    "asistencia": {"url": "/asistencia/mi-asistencia/", "label": "Ver mi asistencia"},
-    "solicitudes": {"url": "/solicitudes/mis-solicitudes/", "label": "Ver mis solicitudes"},
-    "horario": {"url": "/academico/mis-horarios/estudiante/", "label": "Ver mi horario"},
-}
-
 
 class AcademicDataServiceProtocol(Protocol):
     """Protocol that the AcademicDataService must implement.
@@ -642,17 +635,13 @@ class CopilotAppService:
             conversacion.mensajes.order_by("timestamp").values("rol", "contenido")[:20]
         )
 
-        return self._stream_openai(
-            conversacion, system_prompt, historial, tipo_consulta=consulta.tipo
-        )
+        return self._stream_openai(conversacion, system_prompt, historial)
 
     def _stream_openai(
         self,
         conversacion,
         system_prompt: str,
         historial: list[dict],
-        *,
-        tipo_consulta: str = "general",
     ):
         """Generator: yield text deltas from OpenAI, save full reply when done.
 
@@ -723,10 +712,6 @@ class CopilotAppService:
 
             if replacement_marker is not None:
                 yield replacement_marker
-
-            link = _LINK_POR_TIPO.get(tipo_consulta)
-            if link:
-                yield {"type": "link", "url": link["url"], "label": link["label"]}
 
     def obtener_historial(self, usuario) -> tuple[str, list[dict]]:
         """Return the active conversation id and its messages."""
