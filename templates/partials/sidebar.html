@@ -11,13 +11,17 @@
     x-transition:leave="transition-opacity ease-in duration-200"
     x-transition:leave-start="opacity-100"
     x-transition:leave-end="opacity-0"
-    @click="sidebarOpen = false"
+    @click="sidebarOpen = false; $nextTick(() => $refs.hamburger && $refs.hamburger.focus())"
     class="fixed inset-0 bg-black/50 z-30 lg:hidden"
     x-cloak
     aria-hidden="true"
 ></div>
 
 <!-- Sidebar panel -->
+<!-- Dialog semantics (role/aria-modal) are gated to the open mobile drawer
+     state — sidebarOpen is only ever set true by the mobile-only hamburger,
+     so the persistent lg+ desktop nav keeps its plain "navigation" role and
+     is never announced as a modal dialog to screen readers. -->
 <aside
     :class="{
         'translate-x-0': sidebarOpen,
@@ -28,7 +32,11 @@
     class="fixed left-0 top-0 h-screen bg-sidebar text-white flex flex-col z-40
            lg:translate-x-0 transition-all duration-300 ease-in-out overflow-hidden"
     role="navigation"
+    :role="sidebarOpen ? 'dialog' : 'navigation'"
+    :aria-modal="sidebarOpen ? 'true' : 'false'"
     aria-label="Menú principal"
+    @keydown.escape.window="if (sidebarOpen) { sidebarOpen = false; $nextTick(() => $refs.hamburger && $refs.hamburger.focus()) }"
+    @keydown.tab="trapFocus($event)"
 >
     <!-- ═══ Header: Logo / Brand ═══ -->
     <div
@@ -47,7 +55,7 @@
 
         <!-- Mobile close button -->
         <button
-            @click="sidebarOpen = false"
+            @click="sidebarOpen = false; $nextTick(() => $refs.hamburger && $refs.hamburger.focus())"
             class="ml-auto lg:hidden p-1 rounded-md hover:bg-white/10 transition-colors"
             aria-label="Cerrar menú"
         >
@@ -58,8 +66,12 @@
     </div>
 
     <!-- ═══ Navigation ═══ -->
+    <!-- @click closes the mobile drawer on nav-link tap. Runs on bubble, after
+         htmx has already issued the boosted request — it only mutates Alpine
+         state (no preventDefault), so it coexists with hx-boost. -->
     <nav class="sidebar-nav flex-1 overflow-y-auto px-3 py-4 space-y-0.5" aria-label="Navegación principal"
-         hx-boost="true">
+         hx-boost="true"
+         @click="sidebarOpen = false; $nextTick(() => $refs.hamburger && $refs.hamburger.focus())">
 
         <!-- GENERAL -->
         <p x-show="!sidebarCollapsed" x-cloak
