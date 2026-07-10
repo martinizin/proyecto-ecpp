@@ -1,0 +1,18 @@
+# Base Kustomize resources for the `web` workload. Environment-specific
+# values (namespace, real domain, replicas, secrets) are supplied by the
+# prod/staging overlays (task 3.7 / P5, out of scope for this slice) —
+# see design.md §4 for the full layout.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - postgres-endpoints.yaml
+  - redis-endpoints.yaml
+  - migrate-job.yaml
+  - media-pv.yaml
+  - media-pvc.yaml
+  - media-server.yaml
+  - ingress.yaml

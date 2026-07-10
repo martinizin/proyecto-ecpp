@@ -1,0 +1,40 @@
+# Argo CD PreSync hook Job — runs `manage.py migrate` exactly once per sync,
+# decoupled from pod boot (fixes the multi-replica migration race). A stable
+# name + BeforeHookCreation delete policy guarantees Argo CD deletes the prior
+# Job right before recreating it, so each sync produces exactly one fresh Job
+# (spec `migration-runs-once-per-deploy`, design.md §5).
+#
+# This Job invokes `manage.py migrate` directly instead of relying on
+# entrypoint.sh's RUN_MIGRATIONS_ON_BOOT gate, so it does not depend on the
+# gate's default value.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: web-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: migrate
+          image: ghcr.io/martinizin/proyecto-ecpp:develop
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: web-config
+            - secretRef:
+                name: web-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
