@@ -88,6 +88,23 @@ class SubNotaValidationService:
         return (total / len(notas)).quantize(Decimal("0.01"))
 
     @staticmethod
+    def validar_pesos_sub_notas(pesos: list[Decimal]) -> bool:
+        """Los pesos porcentuales de las sub-notas deben sumar exactamente 100."""
+        if not pesos:
+            return False
+        if any(Decimal(str(p)) <= 0 for p in pesos):
+            return False
+        return sum(Decimal(str(p)) for p in pesos) == Decimal("100")
+
+    @staticmethod
+    def calcular_nota_final_ponderada(notas: list[Decimal], pesos: list[Decimal]) -> Decimal:
+        """Weighted final grade: sum(nota * peso) / 100, rounded to 2 decimals."""
+        if not notas:
+            return Decimal("0.00")
+        total = sum(Decimal(str(nota)) * Decimal(str(peso)) for nota, peso in zip(notas, pesos))
+        return (total / Decimal("100")).quantize(Decimal("0.01"))
+
+    @staticmethod
     def requiere_justificacion_override(promedio: Decimal, override: Decimal) -> bool:
         """The manual override requires justification if it differs from the average."""
         return Decimal(str(promedio)) != Decimal(str(override))

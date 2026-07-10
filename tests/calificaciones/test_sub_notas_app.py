@@ -111,6 +111,45 @@ class TestConfigurarSubNotas:
         resultado = service.configurar_sub_notas(99999, ["A", "B", "C"])
         assert resultado["ok"] is False
 
+    def test_configura_con_pesos_validos(self, service, evaluacion):
+        resultado = service.configurar_sub_notas(
+            evaluacion.id, ["Tarea", "Quiz", "Examen"], pesos=["20", "30", "50"]
+        )
+        assert resultado["ok"] is True
+        items = service.obtener_configuracion(evaluacion.id)
+        assert [i.peso for i in items] == [
+            Decimal("20.00"),
+            Decimal("30.00"),
+            Decimal("50.00"),
+        ]
+
+    def test_pesos_que_no_suman_cien_rechazados(self, service, evaluacion):
+        resultado = service.configurar_sub_notas(
+            evaluacion.id, ["A", "B", "C"], pesos=["20", "30", "40"]
+        )
+        assert resultado["ok"] is False
+        assert "sumar" in resultado["error"]
+        assert not ConfiguracionSubNotas.objects.filter(evaluacion=evaluacion).exists()
+
+    def test_pesos_invalidos_no_numericos_rechazados(self, service, evaluacion):
+        resultado = service.configurar_sub_notas(
+            evaluacion.id, ["A", "B", "C"], pesos=["20", "abc", "50"]
+        )
+        assert resultado["ok"] is False
+        assert "válidos" in resultado["error"]
+
+    def test_cantidad_de_pesos_distinta_a_nombres_rechazada(self, service, evaluacion):
+        resultado = service.configurar_sub_notas(
+            evaluacion.id, ["A", "B", "C"], pesos=["50", "50"]
+        )
+        assert resultado["ok"] is False
+
+    def test_sin_pesos_guarda_peso_none(self, service, evaluacion):
+        resultado = service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
+        assert resultado["ok"] is True
+        items = service.obtener_configuracion(evaluacion.id)
+        assert all(i.peso is None for i in items)
+
 
 class TestRegistrarSubNotas:
     """Tests for SubNotaParcialAppService.registrar_sub_notas."""
@@ -246,6 +285,39 @@ class TestRegistrarSubNotas:
         log = LogCalificacion.objects.filter(realizado_por=docente).first()
         assert "Override manual: 17" in log.motivo
         assert "Ajuste por proyecto adicional." in log.motivo
+
+    def test_registra_y_consolida_ponderado(self, service, evaluacion, matricula):
+        service.configurar_sub_notas(
+            evaluacion.id, ["Tarea", "Quiz", "Examen"], pesos=["20", "30", "50"]
+        )
+        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18", "12"])
+        assert resultado["ok"] is True
+        # 15*0.20 + 18*0.30 + 12*0.50 = 14.40
+        assert resultado["promedio"] == Decimal("14.40")
+        assert resultado["nota_final"] == Decimal("14.40")
+        calificacion = Calificacion.objects.get(
+            evaluacion=evaluacion, estudiante=matricula.estudiante
+        )
+        assert calificacion.nota == Decimal("14.40")
+
+    def test_sub_notas_guardan_peso_de_config(self, service, evaluacion, matricula):
+        service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"], pesos=["25", "25", "50"])
+        service.registrar_sub_notas(evaluacion.id, matricula.id, ["10", "12", "14"])
+        pesos = list(
+            SubNotaParcial.objects.filter(evaluacion=evaluacion, matricula=matricula)
+            .order_by("orden")
+            .values_list("peso", flat=True)
+        )
+        assert pesos == [Decimal("25.00"), Decimal("25.00"), Decimal("50.00")]
+
+    def test_notas_incompletas_rechazadas(self, service, evaluacion, matricula):
+        service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
+        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "", "12"])
+        assert resultado["ok"] is False
+        assert "completar" in resultado["error"].lower()
+        assert not SubNotaParcial.objects.filter(
+            evaluacion=evaluacion, matricula=matricula
+        ).exists()
 
 
 class TestObtenerSubNotas:

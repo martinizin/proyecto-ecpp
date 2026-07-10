@@ -3,6 +3,7 @@ from django.urls import path
 from apps.calificaciones.presentation.views import (
     AprobarCalificacionesView,
     AuditoriaCalificacionesView,
+    ConfigurarSubNotasView,
     DetalleValidacionView,
     EditarEvaluacionView,
     EliminarEvaluacionView,
@@ -44,6 +45,11 @@ urlpatterns = [
         "paralelo/<int:paralelo_id>/evaluaciones/<int:evaluacion_id>/eliminar/",
         EliminarEvaluacionView.as_view(),
         name="eliminar_evaluacion",
+    ),
+    path(
+        "paralelo/<int:paralelo_id>/evaluaciones/<int:evaluacion_id>/sub-notas/",
+        ConfigurarSubNotasView.as_view(),
+        name="configurar_sub_notas",
     ),
     path(
         "paralelo/<int:paralelo_id>/enviar-validacion/",

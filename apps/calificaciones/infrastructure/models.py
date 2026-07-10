@@ -195,6 +195,13 @@ class SubNotaConfig(models.Model):
         help_text="Nombre de la sub-nota (ej. 'Tarea 1', 'Exposición')",
     )
     orden = models.PositiveSmallIntegerField()
+    peso = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Peso porcentual de la sub-nota; los pesos deben sumar 100",
+    )
 
     class Meta:
         verbose_name = "Item de Configuracion de Sub-Notas"
@@ -232,6 +239,13 @@ class SubNotaParcial(models.Model):
         ],
     )
     orden = models.PositiveSmallIntegerField()
+    peso = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Peso porcentual de la sub-nota al momento del registro",
+    )
     nota_final_parcial_override = models.DecimalField(
         max_digits=5,
         decimal_places=2,

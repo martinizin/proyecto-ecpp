@@ -410,8 +410,14 @@ class SubNotaParcialAppService:
         )
 
     @transaction.atomic
-    def configurar_sub_notas(self, evaluacion_id: int, nombres: list[str]) -> dict:
-        """Define (or replace) the 3-5 sub-grade names for a parcial."""
+    def configurar_sub_notas(
+        self, evaluacion_id: int, nombres: list[str], pesos: list[str] = None
+    ) -> dict:
+        """Define (or replace) the 3-5 sub-grade names (and optional weights) for a parcial.
+
+        Si se proveen pesos, cada sub-nota tiene un peso porcentual y los
+        pesos deben sumar 100. Sin pesos, la nota final es el promedio simple.
+        """
         try:
             evaluacion = Evaluacion.objects.get(pk=evaluacion_id)
         except Evaluacion.DoesNotExist:
@@ -441,6 +447,27 @@ class SubNotaParcialAppService:
         except SubNotasFueraDeRangoError as exc:
             return {"ok": False, "error": str(exc)}
 
+        pesos_decimales = None
+        if pesos:
+            if len(pesos) != len(nombres_limpios):
+                return {
+                    "ok": False,
+                    "error": "Cada sub-nota debe tener su peso porcentual.",
+                }
+            try:
+                pesos_decimales = [Decimal(str(p).strip()) for p in pesos]
+            except InvalidOperation:
+                return {"ok": False, "error": "Los pesos deben ser números válidos."}
+            if not SubNotaValidationService.validar_pesos_sub_notas(pesos_decimales):
+                suma = sum(pesos_decimales)
+                return {
+                    "ok": False,
+                    "error": (
+                        "Los pesos deben ser mayores a 0 y sumar exactamente "
+                        f"100% (actualmente suman {suma}%)."
+                    ),
+                }
+
         # Reemplazar configuración previa; las sub-notas registradas con la
         # estructura anterior dejan de ser válidas y se eliminan.
         ConfiguracionSubNotas.objects.filter(evaluacion=evaluacion).delete()
@@ -448,7 +475,12 @@ class SubNotaParcialAppService:
 
         config = ConfiguracionSubNotas.objects.create(evaluacion=evaluacion)
         for orden, nombre in enumerate(nombres_limpios, start=1):
-            SubNotaConfig.objects.create(configuracion=config, nombre=nombre, orden=orden)
+            SubNotaConfig.objects.create(
+                configuracion=config,
+                nombre=nombre,
+                orden=orden,
+                peso=pesos_decimales[orden - 1] if pesos_decimales else None,
+            )
 
         return {
             "ok": True,
@@ -514,6 +546,15 @@ class SubNotaParcialAppService:
                 ),
             }
 
+        if any(not str(n or "").strip() for n in notas):
+            return {
+                "ok": False,
+                "error": (
+                    f"Debe completar las {len(items_config)} sub-notas "
+                    "del parcial antes de guardar."
+                ),
+            }
+
         valores = []
         for item, nota_str in zip(items_config, notas):
             try:
@@ -525,7 +566,11 @@ class SubNotaParcialAppService:
                 }
             valores.append(nota_vo.valor)
 
-        promedio = SubNotaValidationService.calcular_nota_final_sub_notas(valores)
+        pesos = [item.peso for item in items_config]
+        if all(p is not None for p in pesos):
+            promedio = SubNotaValidationService.calcular_nota_final_ponderada(valores, pesos)
+        else:
+            promedio = SubNotaValidationService.calcular_nota_final_sub_notas(valores)
 
         override = None
         justificacion = justificacion.strip()
@@ -559,6 +604,7 @@ class SubNotaParcialAppService:
                 nombre=item.nombre,
                 nota=valor,
                 orden=item.orden,
+                peso=item.peso,
                 nota_final_parcial_override=override,
                 justificacion_override=justificacion if override is not None else "",
             )

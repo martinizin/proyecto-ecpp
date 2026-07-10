@@ -243,3 +243,55 @@ class TestSubNotaValidationService:
             )
             is True
         )
+
+    def test_pesos_que_suman_cien_son_validos(self):
+        pesos = [Decimal("20"), Decimal("30"), Decimal("50")]
+        assert SubNotaValidationService.validar_pesos_sub_notas(pesos) is True
+
+    def test_pesos_que_no_suman_cien_son_invalidos(self):
+        pesos = [Decimal("20"), Decimal("30"), Decimal("40")]
+        assert SubNotaValidationService.validar_pesos_sub_notas(pesos) is False
+
+    def test_pesos_con_cero_o_negativos_son_invalidos(self):
+        assert (
+            SubNotaValidationService.validar_pesos_sub_notas(
+                [Decimal("0"), Decimal("50"), Decimal("50")]
+            )
+            is False
+        )
+        assert (
+            SubNotaValidationService.validar_pesos_sub_notas(
+                [Decimal("-10"), Decimal("60"), Decimal("50")]
+            )
+            is False
+        )
+
+    def test_pesos_lista_vacia_invalida(self):
+        assert SubNotaValidationService.validar_pesos_sub_notas([]) is False
+
+    def test_pesos_con_decimales_validos(self):
+        pesos = [Decimal("33.33"), Decimal("33.33"), Decimal("33.34")]
+        assert SubNotaValidationService.validar_pesos_sub_notas(pesos) is True
+
+    def test_nota_final_ponderada(self):
+        notas = [Decimal("15"), Decimal("18"), Decimal("12")]
+        pesos = [Decimal("20"), Decimal("30"), Decimal("50")]
+        resultado = SubNotaValidationService.calcular_nota_final_ponderada(notas, pesos)
+        # 15*0.20 + 18*0.30 + 12*0.50 = 3 + 5.4 + 6 = 14.40
+        assert resultado == Decimal("14.40")
+
+    def test_nota_final_ponderada_redondea_dos_cifras(self):
+        notas = [Decimal("10"), Decimal("10"), Decimal("11")]
+        pesos = [Decimal("33.33"), Decimal("33.33"), Decimal("33.34")]
+        resultado = SubNotaValidationService.calcular_nota_final_ponderada(notas, pesos)
+        assert resultado == Decimal("10.33")
+
+    def test_nota_final_ponderada_lista_vacia_retorna_cero(self):
+        resultado = SubNotaValidationService.calcular_nota_final_ponderada([], [])
+        assert resultado == Decimal("0.00")
+
+    def test_nota_final_ponderada_acepta_strings(self):
+        resultado = SubNotaValidationService.calcular_nota_final_ponderada(
+            ["20", "10"], ["50", "50"]
+        )
+        assert resultado == Decimal("15.00")
