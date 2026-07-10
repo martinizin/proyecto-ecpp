@@ -20,8 +20,10 @@ spec:
       verifyImages:
         - imageReferences:
             - "ghcr.io/martinizin/proyecto-ecpp*"
-          # Rewrite the verified tag to its immutable digest on admission.
-          mutateDigest: true
+          # Audit only reports; it must not mutate. mutateDigest stays false here
+          # (Kyverno rejects the policy otherwise) and is true in the Enforce
+          # variant, where pinning the verified digest is wanted.
+          mutateDigest: false
           required: true
           attestors:
             - count: 1
