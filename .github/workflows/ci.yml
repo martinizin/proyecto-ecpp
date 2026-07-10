@@ -43,7 +43,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # requirements-dev.txt pulls in requirements.txt via `-r`.
+        run: pip install -r requirements-dev.txt
 
       - name: Lint with flake8
         run: flake8 .
@@ -76,7 +77,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # requirements-dev.txt pulls in requirements.txt via `-r`.
+        run: pip install -r requirements-dev.txt
 
       - name: Run Bandit (all severities, non-blocking report)
         # --exit-zero: this invocation never fails the job by itself; it only

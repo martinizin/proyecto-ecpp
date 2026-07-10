@@ -24,8 +24,9 @@ python -m venv .venv
 # Linux/Mac:
 source .venv/bin/activate
 
-# 4. Instalar dependencias
-pip install -r requirements.txt
+# 4. Instalar dependencias (incluye linters y herramientas de test;
+#    requirements.txt por sí solo instala únicamente lo que corre en producción)
+pip install -r requirements-dev.txt
 
 # 5. Configurar variables de entorno
 cp .env.example .env
