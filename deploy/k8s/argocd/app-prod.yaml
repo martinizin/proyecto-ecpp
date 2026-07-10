@@ -1,0 +1,26 @@
+# Argo CD Application: pulls the prod overlay from git and keeps ecppp-prod in
+# sync with it. The overlay pins the Cosign-signed digest that the `bump` job
+# writes on every release, so Argo CD deploys exactly the artifact that was
+# scanned and signed -- git is the source of truth for cluster state.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/martinizin/proyecto-ecpp.git
+    targetRevision: develop
+    path: deploy/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ecppp-prod
+  syncPolicy:
+    automated:
+      # prune removes resources dropped from git; selfHeal reverts manual edits.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The namespace is created out-of-band during bootstrap, not by Argo CD.
+      - CreateNamespace=false
