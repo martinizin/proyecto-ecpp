@@ -1,0 +1,27 @@
+# Non-secret application configuration for the `web` workload.
+# Secrets (DJANGO_SECRET_KEY, DATABASE_PASSWORD, OPENAI_API_KEY,
+# EMAIL_HOST_PASSWORD) live in the out-of-band `web-secrets` Secret
+# (created manually — see design.md §6 and task 3.9).
+#
+# DJANGO_ALLOWED_HOSTS / DJANGO_DOMAIN / DATABASE_NAME are environment-
+# specific placeholders here; the prod/staging overlays patch them
+# (see design.md §4, task 3.7 — out of scope for this slice).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+data:
+  DJANGO_SETTINGS_MODULE: "config.settings.production"
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: "PLACEHOLDER_HOST"
+  DJANGO_DOMAIN: "PLACEHOLDER_HOST"
+  DJANGO_COLLECTSTATIC: "1"
+  # Reached via the selector-less Service + EndpointSlice pointing at the
+  # flannel host gateway 10.42.0.1 (see postgres-endpoints.yaml / redis-endpoints.yaml).
+  DATABASE_HOST: "postgres-host"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "ecppp"
+  DATABASE_USER: "ecppp"
+  REDIS_URL: "redis://redis-host:6379/0"
+  GUNICORN_WORKERS: "3"
+  COPILOT_MODEL: "gpt-4o-mini"

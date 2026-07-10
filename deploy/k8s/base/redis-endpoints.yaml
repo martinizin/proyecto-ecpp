@@ -1,0 +1,28 @@
+# Selector-less Service + EndpointSlice pointing pods at the host's Redis
+# container, reached through the flannel cni0 gateway (10.42.0.1). See
+# postgres-endpoints.yaml and design.md §3 for the full rationale.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-host
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: redis-host-1
+  labels:
+    kubernetes.io/service-name: redis-host
+addressType: IPv4
+ports:
+  - name: redis
+    port: 6379
+    protocol: TCP
+endpoints:
+  - addresses: ["10.42.0.1"]
+    conditions:
+      ready: true

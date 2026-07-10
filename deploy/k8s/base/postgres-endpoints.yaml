@@ -1,0 +1,34 @@
+# Selector-less Service + EndpointSlice pointing pods at the host's Postgres
+# container, reached through the flannel cni0 gateway (10.42.0.1), since a
+# pod's 127.0.0.1 is the pod itself, not the host. See design.md §3.
+#
+# NOTE: the compose-side bind of `db` to 10.42.0.1:5432 ships in P2/P3b — this
+# file only declares the in-cluster wiring; nothing is applied to a live
+# cluster by this change.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-host
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: postgres-host-1
+  labels:
+    kubernetes.io/service-name: postgres-host
+addressType: IPv4
+ports:
+  - name: postgres
+    port: 5432
+    protocol: TCP
+endpoints:
+  - addresses: ["10.42.0.1"]
+    # Nothing probes a hand-written endpoint, and an unset condition is only
+    # "unknown". State it, so kube-proxy programmes the address.
+    conditions:
+      ready: true
