@@ -1,10 +1,24 @@
 name: CD
 
-# Deploy on merge to develop: build the amd64 image, push to GHCR, then pull &
-# restart the stack on the host over SSH. Rollback = re-run with a previous SHA.
+# Release leg on merge to develop: build the amd64 image, scan it for CVEs and
+# generate an SBOM (Trivy), sign it keylessly via GitHub OIDC (Cosign), push
+# everything to GHCR, then deploy over SSH. Once the k8s manifests and Argo CD
+# land (see deploy/k8s/), the SSH deploy job is removed and Argo CD pulls the
+# signed, digest-pinned image instead.
+#
+# `deploy-legacy` remains the active deploy path (SSH + compose) until the
+# k3s/Argo CD path lands and is proven across a real deploy cycle. It now runs
+# only after the image has been scanned and signed, so nothing reaches the host
+# unless it passed the CVE gate.
+#
+# `rollback-legacy` is the escape hatch: dispatch this workflow manually at a
+# previous commit to redeploy that SHA's already-built image. It deliberately
+# skips build/scan/sign so a newly disclosed CVE in an old image cannot block
+# an emergency rollback.
 on:
   push:
     branches: [develop]
+  workflow_dispatch:
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -14,11 +28,17 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  build-and-deploy:
+  build:
+    # Skipped on workflow_dispatch: a dispatch is a rollback to an already-built
+    # image, so rebuilding (and re-scanning) that SHA would be pointless at best
+    # and would block the rollback at worst.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +53,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -44,6 +65,116 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  trivy:
+    # Scans the immutable digest just pushed by `build` (not the mutable
+    # `:develop` tag), so the scan result always matches what gets signed.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read # the image lives in a private GHCR package; Trivy must pull it
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        # Trivy pulls the image from GHCR to scan it; it reads the ambient
+        # Docker credential store populated by this login step.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy scan (SARIF, non-blocking) for full-visibility report
+        # exit-code 0 here: this is the full-severity report used for the
+        # Security tab. The blocking gate is the separate step below.
+        uses: aquasecurity/trivy-action@v0.36.0 # NOTE: audit/bump this pin periodically
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
+
+      - name: Enforce HIGH/CRITICAL CVE gate
+        # Blocking scan: fails the job (and therefore the release leg, since
+        # `sign` needs this job) on any HIGH or CRITICAL CVE. SARIF and SBOM
+        # above are still uploaded even if this step fails (spec
+        # `trivy-scan-and-sbom`).
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  sign:
+    # Cosign keyless (Sigstore) signing + SBOM attestation on the immutable
+    # digest. Only runs once Trivy has passed, so an unsigned image is the
+    # observable result of a failed/blocked scan (defense in depth with
+    # Kyverno's verifyImages admission policy, added in a later slice).
+    needs: [build, trivy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # required for Cosign keyless OIDC signing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-cyclonedx
+
+      - name: Sign image (keyless)
+        run: cosign sign --yes "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+
+      - name: Attest SBOM (CycloneDX, keyless)
+        run: |
+          cosign attest --yes --type cyclonedx \
+            --predicate sbom.cdx.json \
+            "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+
+  deploy-legacy:
+    # Active deploy path on merge to develop, gated behind the CVE scan and the
+    # Cosign signature. Replaced by Argo CD once deploy/k8s/ exists.
+    needs: [build, trivy, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
         env:
@@ -61,6 +192,37 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             cd "$DEPLOY_PATH"
             # Pin the image tag for this deploy (immutable SHA) for easy rollback.
+            echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
+            docker compose --env-file .env --env-file .env.image pull web
+            docker compose --env-file .env --env-file .env.image up -d
+            docker image prune -f
+
+  rollback-legacy:
+    # Emergency rollback (spec `legacy-rollback-path-preserved`). Dispatch this
+    # workflow at a previous commit to redeploy that SHA's existing image. It has
+    # no `needs:` on purpose: a CVE disclosed after that image was built must not
+    # stand between an operator and a working production.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Redeploy a previously built image over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_IMAGE: ${{ env.IMAGE }}:${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: DEPLOY_IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
+          script: |
+            set -eu
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            cd "$DEPLOY_PATH"
             echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
             docker compose --env-file .env --env-file .env.image pull web
             docker compose --env-file .env --env-file .env.image up -d

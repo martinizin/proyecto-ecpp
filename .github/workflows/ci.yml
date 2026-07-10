@@ -5,6 +5,8 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -57,3 +59,78 @@ jobs:
 
       - name: Check coverage threshold
         run: coverage report --fail-under=70
+
+  bandit:
+    # SAST for our own code. Reports ALL severities as an artifact + step
+    # summary for visibility, but only fails the job on HIGH severity
+    # (MEDIUM/LOW are visible, non-blocking — see spec.md `bandit-static-scan`
+    # and design.md ADR notes on this assumption).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Bandit (all severities, non-blocking report)
+        # --exit-zero: this invocation never fails the job by itself; it only
+        # produces the full-visibility SARIF report. The actual blocking gate
+        # is the "Enforce HIGH-severity gate" step further below.
+        run: |
+          bandit -r apps config -f sarif -o bandit.sarif --exit-zero \
+            --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+
+      - name: Bandit step summary (all severities)
+        if: always()
+        run: |
+          {
+            echo "## Bandit SAST results (all severities)"
+            echo '```'
+            bandit -r apps config -f txt --exit-zero \
+              --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Bandit SARIF report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-sarif
+          path: bandit.sarif
+          retention-days: 30
+
+      - name: Enforce HIGH-severity gate
+        # Only HIGH-severity findings block the PR/push. This is a separate
+        # bandit invocation (no --exit-zero) filtered to --severity-level
+        # high, so its exit code is 1 iff a HIGH finding exists (verified
+        # locally: 0 with only LOW findings, 1 with a planted
+        # `subprocess(..., shell=True)`).
+        run: |
+          bandit -r apps config --severity-level high \
+            --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Perform CodeQL analysis
+        # `analyze` builds the SARIF results and uploads them to
+        # Security -> Code scanning for this commit SHA internally.
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
