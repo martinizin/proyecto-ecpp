@@ -609,6 +609,22 @@ class TestHubUrl:
         assert 'id="paralelos-data"' in html, "paralelos-data script tag must be present"
         assert 'type="application/json"' in html, "Script must be application/json"
 
+    def test_paralelos_json_no_repite_el_periodo_en_la_etiqueta(
+        self, docente_client, hub_periodo_con_docente
+    ):
+        """El label del Curso no arrastra el período (ya elegido en el paso 1)."""
+        import json as _json
+
+        response = _render_hub(docente_client)
+        paralelos = _json.loads(response.context["paralelos_json"])
+        assert paralelos, "Fixture must expose at least one paralelo"
+        periodo = str(hub_periodo_con_docente)
+        for p in paralelos:
+            assert periodo not in p["nombre"], (
+                f"Curso option {p['nombre']!r} leaks the period into its label — "
+                "use Paralelo.etiqueta_curso, not str(paralelo)"
+            )
+
     def test_hub_usa_patron_3_steps(self, docente_client):
         """El filtro visual usa 3 círculos numerados (patrón rendimiento)."""
         response = _render_hub(docente_client)
