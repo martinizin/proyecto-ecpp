@@ -8,18 +8,18 @@ kind: Kustomization
 namespace: ecppp-prod
 
 resources:
-  - ../../base
+- ../../base
 
 # `bump` replaces this with `digest: sha256:...` via `kustomize edit set image`.
 # It starts on the mutable :develop tag so the overlay is valid before the first
 # automated bump; once bumped, Kyverno can verify the pinned digest's signature.
 images:
-  - name: ghcr.io/martinizin/proyecto-ecpp
-    newTag: develop
+- digest: sha256:a387c3dca101aacbdc7a9ffa732e52789dd31d3199e6b7320ba0398f3eea2b78
+  name: ghcr.io/martinizin/proyecto-ecpp
 
 patches:
-  - path: configmap-patch.yaml
-  - path: ingress-patch.yaml
-    target:
-      kind: Ingress
-      name: web
+- path: configmap-patch.yaml
+- path: ingress-patch.yaml
+  target:
+    kind: Ingress
+    name: web
