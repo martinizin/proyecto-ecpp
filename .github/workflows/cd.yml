@@ -181,6 +181,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # GITHUB_TOKEN travels to the host and logs in to GHCR there. Without this
+      # scope `docker login` still succeeds and the pull returns 403.
+      packages: read
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
@@ -213,6 +216,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read # same GHCR pull as deploy-legacy
     steps:
       - name: Redeploy a previously built image over SSH
         uses: appleboy/ssh-action@v1
