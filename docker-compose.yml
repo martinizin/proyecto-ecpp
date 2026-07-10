@@ -70,6 +70,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-dummy-key-not-used-for-real-calls}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       DJANGO_COLLECTSTATIC: ${DJANGO_COLLECTSTATIC:-0}
+      # This stack runs one web container, so booting is the only place
+      # migrations can happen. Kubernetes sets 0 and runs them in a Job.
+      RUN_MIGRATIONS_ON_BOOT: "1"
     volumes:
       - media:/app/media
     depends_on:
