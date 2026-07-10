@@ -76,6 +76,13 @@
     <style>
         [x-cloak] { display: none !important; }
 
+        /* Sidebar height. 100vh on mobile browsers measures the *large* viewport
+           (URL bar hidden), so the panel footer — which holds the logout link —
+           renders below the visible area and cannot be reached because the panel
+           is overflow-hidden. 100dvh tracks the visible viewport; the 100vh line
+           above it is the fallback for browsers without dvh support. */
+        .sidebar-panel { height: 100vh; height: 100dvh; }
+
         /* Sidebar scrollbar */
         .sidebar-nav::-webkit-scrollbar { width: 3px; }
         .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
