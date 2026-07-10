@@ -16,10 +16,12 @@ Cubre:
     - T4.3  La view existe, está montada en ``/reportes/`` con name
             ``hub`` y renderiza ``templates/reportes/hub.html``.
     - T4.6  El template define ``function exportFlow()`` + tokens clave
-            (3 ramas de toast, ``URL.createObjectURL`` / revoke).
+            (3 ramas de respuesta, ``URL.createObjectURL`` / revoke).
     - T4.7  Los botones de export son progressive enhancement: cada
             uno es un ``<a href="...">`` con también un ``@click``
-            que llama a ``download()``.
+            que abre el modal de confirmación.
+    - I4    (Issue 4) La descarga se confirma en un modal; no hay
+            notificación flotante (``toast:show``) ni emojis en el módulo.
 
 Spec: R12, R13, R15, R17, R18, R19, R24, R26.
 """
@@ -71,6 +73,14 @@ HUB_HTML = REPO_ROOT / "templates" / "reportes" / "hub.html"
 CARD_CAL = REPO_ROOT / "templates" / "reportes" / "_partials" / "card_calificaciones.html"
 CARD_ASI = REPO_ROOT / "templates" / "reportes" / "_partials" / "card_asistencia.html"
 PREVIEW_PANE = REPO_ROOT / "templates" / "reportes" / "_partials" / "preview_pane.html"
+CONFIRM_MODAL = REPO_ROOT / "templates" / "reportes" / "_partials" / "confirm_export_modal.html"
+INLINE_EXPORT = REPO_ROOT / "templates" / "reportes" / "_partials" / "_inline_export.html"
+
+# Emojis that used to decorate the reportes UI before Issue 4 replaced them
+# with inline SVG icons. Listed explicitly so box-drawing characters used in
+# the template comment banners (═ ─) and typographic glyphs (→ › × —) don't
+# trip the guard.
+_BANNED_EMOJIS = "📊📥📄📅📋📈⏳⏱✅❌⚠"
 
 
 def _read(path: Path) -> str:
@@ -255,9 +265,10 @@ class TestExportFlowComponent:
             "busy:",
             "URL.createObjectURL",
             "URL.revokeObjectURL",
-            "toast:show",
             "Content-Disposition",
-            "window.dispatchEvent",
+            "pedirDescarga",
+            "confirmarDescarga",
+            "confirmOpen",
         ],
     )
     def test_export_flow_partial_source_contains_token(self, token):
@@ -277,6 +288,111 @@ class TestExportFlowComponent:
         """El source hace ``.blob()`` sobre la respuesta exitosa."""
         html = _read(HUB_HTML)
         assert ".blob()" in html, "exportFlow() must call .blob() on success (D8)"
+
+
+# ---------------------------------------------------------------------------
+# I4 — Modal de confirmación reemplaza al toast flotante
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmExportModal:
+    """Issue 4: la descarga se confirma en un modal, no notifica con un toast."""
+
+    def test_confirm_modal_partial_exists(self):
+        """``confirm_export_modal.html`` existe."""
+        assert CONFIRM_MODAL.exists(), f"Confirm modal partial missing: {CONFIRM_MODAL}"
+
+    def test_hub_includes_confirm_modal(self):
+        """hub.html incluye el partial del modal de confirmación."""
+        html = _read(HUB_HTML)
+        assert '{% include "reportes/_partials/confirm_export_modal.html" %}' in html
+
+    def test_confirm_modal_has_dialog_semantics(self):
+        """El modal es un ``role="dialog"`` con ``aria-modal`` y cierre por Escape."""
+        html = _read(CONFIRM_MODAL)
+        assert 'role="dialog"' in html
+        assert 'aria-modal="true"' in html
+        assert "@keydown.escape.window" in html
+
+    def test_confirm_modal_has_confirm_and_cancel_actions(self):
+        """El modal ofrece confirmar (dispara la descarga) y cancelar."""
+        html = _read(CONFIRM_MODAL)
+        assert "confirmarDescarga()" in html, "Confirm button must call confirmarDescarga()"
+        assert "cerrarConfirmacion()" in html, "Cancel path must call cerrarConfirmacion()"
+        assert "Descargar" in html and "Cancelar" in html
+
+    def test_confirm_modal_surfaces_errors_inline(self):
+        """El 429 y los errores se muestran dentro del modal (no en un toast)."""
+        html = _read(CONFIRM_MODAL)
+        assert "exportError" in html, "Modal must render the exportError state"
+        assert "retrySeconds" in html, "Modal must render the 429 retry countdown"
+        assert 'role="alert"' in html, "Error region must be announced assertively"
+
+    def test_export_buttons_open_modal_instead_of_downloading(self, docente_client):
+        """Los botones de las cards abren el modal; no descargan directo."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert "pedirDescarga(" in html, "Card buttons must call pedirDescarga() on click"
+
+    def test_hub_no_longer_dispatches_toast_events(self):
+        """Regresión: el hub no emite ``toast:show`` al generar un reporte."""
+        for path in (HUB_HTML, CARD_CAL, CARD_ASI, CONFIRM_MODAL):
+            html = _read(path)
+            assert "toast:show" not in html, f"{path.name} must not dispatch toast:show"
+
+    def test_download_only_runs_after_confirmation(self):
+        """``download()`` se invoca desde ``confirmarDescarga()``, no desde el click."""
+        html = _read(HUB_HTML)
+        assert re.search(
+            r"async confirmarDescarga\(\)\s*\{\s*await this\.download\(", html
+        ), "download() must be reachable only through confirmarDescarga()"
+
+
+# ---------------------------------------------------------------------------
+# I4 — Convención de UI: sin emojis, colores del branding
+# ---------------------------------------------------------------------------
+
+
+class TestReportesUiConvention:
+    """Issue 4: el módulo usa iconos SVG y la paleta de marca."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [HUB_HTML, CARD_CAL, CARD_ASI, PREVIEW_PANE, CONFIRM_MODAL, INLINE_EXPORT],
+        ids=lambda p: p.name,
+    )
+    def test_no_emojis_in_reportes_templates(self, path):
+        """Ningún template del módulo usa emojis como iconografía."""
+        html = _read(path)
+        found = [ch for ch in _BANNED_EMOJIS if ch in html]
+        assert not found, f"{path.name} still contains emoji icons: {found}"
+
+    @pytest.mark.parametrize(
+        "path",
+        [HUB_HTML, CARD_CAL, CARD_ASI, INLINE_EXPORT],
+        ids=lambda p: p.name,
+    )
+    def test_no_offbrand_palette_in_reportes_templates(self, path):
+        """Las clases de color usan los tokens de marca, no la paleta cruda."""
+        html = _read(path)
+        offbrand = re.findall(
+            r"\b(?:bg|text|border|ring)-(?:blue|violet|emerald|rose|green)-\d{2,3}\b", html
+        )
+        assert not offbrand, f"{path.name} uses off-brand color classes: {sorted(set(offbrand))}"
+
+    def test_hub_uses_page_card_convention(self, docente_client):
+        """El hub usa el header de card estándar (``text-xl font-semibold``)."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert (
+            '<h1 class="text-xl font-semibold text-gray-800">Reportes</h1>' in html
+        ), "Hub title must follow the shared page-header convention"
+
+    def test_hub_has_breadcrumb(self, docente_client):
+        """El hub tiene el breadcrumb ``Inicio › Reportes`` como el resto."""
+        response = _render_hub(docente_client)
+        html = response.content.decode("utf-8")
+        assert 'aria-label="Breadcrumb"' in html, "Hub must render the shared breadcrumb"
 
 
 # ---------------------------------------------------------------------------

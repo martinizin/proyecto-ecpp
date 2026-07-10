@@ -6,236 +6,237 @@
 {% block content %}
 {% comment %} ═══════════════ Hub de Reportes — HU27b WU4 ═══════════════
 
-   Layout: title + filter form + 2 export cards in a grid.
-   Pattern B from explore: title → filter form → action grid.
+   Layout: breadcrumb → card (header + filtros) → grid de 2 cards de export.
+   Sigue la convención de UI del resto de módulos (auditoria_calificaciones,
+   reportes/ant/listado): card blanca `rounded-xl shadow-md`, header con
+   `text-xl font-semibold text-gray-800`, filtros sobre `bg-gray-50`.
 
-   - 2 roles gate: MultiRolRequeridoMixin in ReportesHubView (R12).
-   - Smart defaults: ?periodo=N > first available (server side).
-     localStorage 'ecppp_last_periodo' > server default (client side
-     in init()).
-   - Progressive enhancement: each button is a native <a href> that
-     works without Alpine. The @click.prevent just calls download()
-     for the fetch+blob path.
-   - exportFlow() Alpine component (R17):
-     busy state, fetch + .blob() + URL.createObjectURL + synthetic
-     <a download> click. 3 branches: 200 / 429 / other-error.
-   - Toast events: dispatches to the global toast() component from
-     WU3 (single global setInterval).
+   - 2 roles gate: MultiRolRequeridoMixin en ReportesHubView (R12).
+   - Smart defaults: ?periodo=N > primer período disponible (server side).
+     localStorage 'ecppp_last_periodo' > default del server (client side
+     en init()).
+   - Progressive enhancement: cada botón es un <a href> nativo que funciona
+     sin Alpine. El @click.prevent abre el modal de confirmación.
+   - exportFlow() Alpine component (R17): estado del filtro en cascada,
+     preview en vivo, modal de confirmación y descarga vía fetch + blob.
+     Los errores (429 / 5xx / red) se muestran dentro del modal, no como
+     notificación flotante.
 {% endcomment %}
-<div class="max-w-7xl mx-auto px-4 py-6"
-     x-data="exportFlow()"
-     x-init="init()">
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">Reportes</h1>
-    <p class="text-gray-600 mb-6">
-        Exporta listados de calificaciones y asistencia en Excel o PDF.
-    </p>
 
-    {% comment %} ─── Filter card (3-step cascade: Período > Curso > Materia) ────
-       Patrón tomado del módulo de rendimiento (dashboard_rendimiento.html).
-       Paralelos cargados como JSON para filtrado client-side por Período.
-    {% endcomment %}
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+        <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+        <li class="text-gray-300">›</li>
+        <li class="text-gray-800 font-medium">Reportes</li>
+    </ol>
+</nav>
+
+<div x-data="exportFlow()" x-init="init()">
+
     <script id="paralelos-data" type="application/json">{{ paralelos_json|safe }}</script>
 
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6 border border-gray-100"
-         aria-label="Filtros de exportación">
-        <div class="flex items-center gap-2 mb-5">
-            <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24"
-                 stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-            </svg>
-            <h2 class="text-lg font-semibold text-gray-900">Filtros</h2>
-            <span class="text-xs text-gray-500 ml-2 hidden sm:inline">Cascade: Período → Curso → Materia</span>
-            <button type="button"
-                    @click="resetFilters()"
-                    x-show="activeFiltersCount() > 1"
-                    class="ml-auto text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors focus:outline-none focus:underline">
-                Limpiar filtros
-            </button>
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">Reportes</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Exporte listados de calificaciones y asistencia en Excel o PDF.
+            </p>
         </div>
 
-        <div class="space-y-5">
-            {# ─── Step 1: Período ──────────────────────────── #}
-            <div class="flex gap-3 items-stretch">
-                <div class="flex flex-col items-center flex-shrink-0">
-                    <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center bg-blue-600 text-white">1</span>
-                    <div class="w-px flex-1 bg-blue-200 mt-1 min-h-[2rem]"></div>
-                </div>
-                <div class="flex-1 pb-3">
-                    <label for="id_periodo" class="block text-sm font-semibold text-gray-700 mb-0.5">
-                        Período académico
-                    </label>
-                    <p class="text-xs text-gray-500 mb-2">Requerido — los demás filtros dependen de esto.</p>
-                    <div class="relative">
-                        <select id="id_periodo" name="periodo"
-                                x-model.number="filters.periodo"
-                                @change="alCambiarPeriodo()"
-                                class="appearance-none block w-full sm:max-w-md pl-3.5 pr-10 py-2.5 text-base border border-gray-300 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md shadow-sm transition-colors">
-                            <option value="">- Elige un período -</option>
-                            {% for p in periodos_disponibles %}
-                                <option value="{{ p.id }}" {% if periodo_actual and p.id == periodo_actual.id %}selected{% endif %}>
-                                    {{ p.nombre }}{% if p.activo %} (activo){% endif %}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                 stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
+        {% comment %} ─── Filtros (cascada: Período → Curso → Materia) ─── {% endcomment %}
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200" aria-label="Filtros de exportación">
+            <div class="flex items-center gap-2 mb-5">
+                <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                </svg>
+                <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h2>
+                <span class="text-xs text-gray-500 ml-2 hidden sm:inline">Cascade: Período → Curso → Materia</span>
+                <button type="button"
+                        @click="resetFilters()"
+                        x-show="activeFiltersCount() > 1"
+                        x-cloak
+                        class="ml-auto text-sm font-medium text-primary hover:text-secondary transition-colors focus:outline-none focus:underline">
+                    Limpiar filtros
+                </button>
             </div>
 
-            {# ─── Step 2: Curso (Paralelo) ───────────────── #}
-            <div class="flex gap-3 items-stretch">
-                <div class="flex flex-col items-center flex-shrink-0">
-                    <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center transition-colors"
-                          :class="filters.periodo ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'">2</span>
-                    <div class="w-px flex-1 bg-blue-200 mt-1 min-h-[2rem]"></div>
-                </div>
-                <div class="flex-1 pb-3">
-                    <label for="id_paralelo" class="block text-sm font-semibold text-gray-700 mb-0.5">
-                        Curso
-                        <span class="text-xs text-gray-500 font-normal">(opcional)</span>
-                    </label>
-                    <p class="text-xs text-gray-500 mb-2">
-                        <span x-show="!filters.periodo">Primero selecciona un período.</span>
-                        <span x-show="filters.periodo && paralelosFiltrados.length === 0">Sin cursos disponibles para este período.</span>
-                        <span x-show="filters.periodo && paralelosFiltrados.length > 0"
-                              x-text="`${paralelosFiltrados.length} curso(s) disponibles. Deja en blanco para ver todos.`"></span>
-                    </p>
-                    <div class="relative">
-                        <select id="id_paralelo" name="paralelo"
-                                x-model="filters.paralelo"
-                                @change="alCambiarParalelo()"
-                                :disabled="!filters.periodo || paralelosFiltrados.length === 0"
-                                class="appearance-none block w-full sm:max-w-md pl-3.5 pr-10 py-2.5 text-base border border-gray-300 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md shadow-sm transition-colors disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-                            <option value="">- Todos los cursos del período -</option>
-                            <template x-for="p in paralelosFiltrados" :key="p.id">
-                                <option :value="p.id" x-text="p.nombre" :selected="String(p.id) === String(filters.paralelo)"></option>
-                            </template>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                 stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </div>
+            <div class="space-y-5">
+                {# ─── Step 1: Período ──────────────────────────── #}
+                <div class="flex gap-3 items-stretch">
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center bg-primary text-white">1</span>
+                        <div class="w-px flex-1 bg-primary/20 mt-1 min-h-[2rem]"></div>
                     </div>
-                </div>
-            </div>
-
-            {# ─── Step 3: Materia ───────────────────────── #}
-            <div class="flex gap-3 items-stretch">
-                <div class="flex flex-col items-center flex-shrink-0">
-                    <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center transition-colors"
-                          :class="filters.periodo ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'">3</span>
-                </div>
-                <div class="flex-1">
-                    <div class="rounded-lg border border-gray-100 p-3 transition-opacity"
-                         :class="filters.periodo ? 'bg-gray-50' : 'bg-gray-50 opacity-50'">
-                        <label for="id_materia" class="block text-xs font-semibold text-gray-600 mb-0.5">
-                            Por materia
+                    <div class="flex-1 pb-3 min-w-0">
+                        <label for="id_periodo" class="block text-sm font-semibold text-gray-700 mb-0.5">
+                            Período académico
                         </label>
-                        <p class="text-[11px] text-gray-400 mb-2">
-                            <span x-show="!filters.periodo">Selecciona primero un período.</span>
-                            <span x-show="filters.periodo && filters.paralelo">Fijada por el curso seleccionado.</span>
-                            <span x-show="filters.periodo && !filters.paralelo">Filtra todos los cursos del período por materia.</span>
+                        <p class="text-xs text-gray-500 mb-2">Requerido — los demás filtros dependen de esto.</p>
+                        <div class="w-full sm:max-w-md">
+                            <select id="id_periodo" name="periodo"
+                                    data-ts-skip
+                                    x-model.number="filters.periodo"
+                                    @change="alCambiarPeriodo()"
+                                    class="form-select">
+                                <option value="">- Elija un período -</option>
+                                {% for p in periodos_disponibles %}
+                                    <option value="{{ p.id }}" {% if periodo_actual and p.id == periodo_actual.id %}selected{% endif %}>
+                                        {{ p.nombre }}{% if p.activo %} (activo){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {# ─── Step 2: Curso (Paralelo) ───────────────── #}
+                <div class="flex gap-3 items-stretch">
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center transition-colors"
+                              :class="filters.periodo ? 'bg-primary text-white' : 'bg-gray-200 text-gray-400'">2</span>
+                        <div class="w-px flex-1 bg-primary/20 mt-1 min-h-[2rem]"></div>
+                    </div>
+                    <div class="flex-1 pb-3 min-w-0">
+                        <label for="id_paralelo" class="block text-sm font-semibold text-gray-700 mb-0.5">
+                            Curso
+                            <span class="text-xs text-gray-500 font-normal">(opcional)</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mb-2">
+                            <span x-show="!filters.periodo">Primero seleccione un período.</span>
+                            <span x-show="filters.periodo && paralelosFiltrados.length === 0">Sin cursos disponibles para este período.</span>
+                            <span x-show="filters.periodo && paralelosFiltrados.length > 0"
+                                  x-text="`${paralelosFiltrados.length} curso(s) disponibles. Deje en blanco para ver todos.`"></span>
                         </p>
-                        <div class="relative">
-                            <select id="id_materia" name="materia"
-                                    x-model="filters.materia"
-                                    @change="onFilterChange()"
-                                    :disabled="!filters.periodo || materiasFiltradas.length === 0"
-                                    class="appearance-none block w-full sm:max-w-md pl-3.5 pr-10 py-2 text-sm border border-gray-200 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md shadow-sm transition-colors disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-                                <option value="">- Todas las materias -</option>
-                                <template x-for="m in materiasFiltradas" :key="m.id">
-                                    <option :value="m.id" x-text="m.nombre" :selected="String(m.id) === String(filters.materia)"></option>
+                        <div class="w-full sm:max-w-md">
+                            <select id="id_paralelo" name="paralelo"
+                                    data-ts-skip
+                                    x-model="filters.paralelo"
+                                    @change="alCambiarParalelo()"
+                                    :disabled="!filters.periodo || paralelosFiltrados.length === 0"
+                                    class="form-select">
+                                <option value="">- Todos los cursos del período -</option>
+                                <template x-for="p in paralelosFiltrados" :key="p.id">
+                                    <option :value="p.id" x-text="p.nombre" :selected="String(p.id) === String(filters.paralelo)"></option>
                                 </template>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                     stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                                </svg>
+                        </div>
+                    </div>
+                </div>
+
+                {# ─── Step 3: Materia ───────────────────────── #}
+                <div class="flex gap-3 items-stretch">
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <span class="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center transition-colors"
+                              :class="filters.periodo ? 'bg-primary text-white' : 'bg-gray-200 text-gray-400'">3</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="rounded-lg border border-gray-200 bg-white p-3 transition-opacity"
+                             :class="filters.periodo ? '' : 'opacity-50'">
+                            <label for="id_materia" class="block text-sm font-semibold text-gray-700 mb-0.5">
+                                Por materia
+                            </label>
+                            <p class="text-xs text-gray-500 mb-2">
+                                <span x-show="!filters.periodo">Seleccione primero un período.</span>
+                                <span x-show="filters.periodo && filters.paralelo">Fijada por el curso seleccionado.</span>
+                                <span x-show="filters.periodo && !filters.paralelo">Filtra todos los cursos del período por materia.</span>
+                            </p>
+                            <div class="w-full sm:max-w-md">
+                                <select id="id_materia" name="materia"
+                                        data-ts-skip
+                                        x-model="filters.materia"
+                                        @change="onFilterChange()"
+                                        :disabled="!filters.periodo || materiasFiltradas.length === 0"
+                                        class="form-select">
+                                    <option value="">- Todas las materias -</option>
+                                    <template x-for="m in materiasFiltradas" :key="m.id">
+                                        <option :value="m.id" x-text="m.nombre" :selected="String(m.id) === String(filters.materia)"></option>
+                                    </template>
+                                </select>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {# ─── Active filter chips ──────────────────── #}
+            <div class="mt-5 flex flex-wrap items-center gap-2 pt-4 border-t border-gray-200"
+                 x-show="activeFiltersCount() > 0"
+                 x-cloak>
+                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Filtros activos:</span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    <span>Período:</span>
+                    <span class="font-semibold" x-text="periodoLabel()"></span>
+                </span>
+                <template x-if="filters.paralelo">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary/10 text-secondary">
+                        <span>Curso:</span>
+                        <span class="font-semibold" x-text="paraleloLabel()"></span>
+                        <button type="button" @click="filters.paralelo = ''; alCambiarParalelo()"
+                                aria-label="Quitar filtro de curso"
+                                class="ml-1 text-secondary hover:text-primary-dark focus:outline-none">×</button>
+                    </span>
+                </template>
+                <template x-if="filters.materia">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/25 text-primary-dark">
+                        <span>Materia:</span>
+                        <span class="font-semibold" x-text="materiaLabel()"></span>
+                        <button type="button" @click="filters.materia = ''; onFilterChange()"
+                                aria-label="Quitar filtro de materia"
+                                class="ml-1 text-primary-dark hover:text-primary focus:outline-none">×</button>
+                    </span>
+                </template>
+            </div>
         </div>
 
-        {# ─── Active filter chips ──────────────────── #}
-        <div class="mt-5 flex flex-wrap items-center gap-2 pt-4 border-t border-gray-100"
-             x-show="activeFiltersCount() > 0">
-            <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Filtros activos:</span>
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                <span>Período:</span>
-                <span class="font-semibold" x-text="periodoLabel()"></span>
-            </span>
-            <template x-if="filters.paralelo">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-800">
-                    <span>Curso:</span>
-                    <span class="font-semibold" x-text="paraleloLabel()"></span>
-                    <button type="button" @click="filters.paralelo = ''; alCambiarParalelo()"
-                            aria-label="Quitar filtro de curso"
-                            class="ml-1 text-violet-600 hover:text-violet-900 focus:outline-none">×</button>
-                </span>
-            </template>
-            <template x-if="filters.materia">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                    <span>Materia:</span>
-                    <span class="font-semibold" x-text="materiaLabel()"></span>
-                    <button type="button" @click="filters.materia = ''; onFilterChange()"
-                            aria-label="Quitar filtro de materia"
-                            class="ml-1 text-emerald-600 hover:text-emerald-900 focus:outline-none">×</button>
-                </span>
-            </template>
+        {% comment %} ─── 2 export cards en grid ───────────────────────── {% endcomment %}
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% include "reportes/_partials/card_calificaciones.html" %}
+            {% include "reportes/_partials/card_asistencia.html" %}
         </div>
     </div>
 
-    {% comment %} ─── 2 export cards in a grid ───────────────────────── {% endcomment %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {% include "reportes/_partials/card_calificaciones.html" %}
-        {% include "reportes/_partials/card_asistencia.html" %}
-    </div>
+    {% include "reportes/_partials/confirm_export_modal.html" %}
 </div>
 
 <script>
     /* eslint-disable no-undef */
-    {% comment %} exportFlow() — HU27b WU4 design §4.6.
+    {% comment %} exportFlow() — HU27b WU4, revisado en Issue 4.
 
-       Owns the export click lifecycle for the hub. On click:
-         1. Show "Generando…" info toast.
-         2. fetch() the export URL with credentials='same-origin'.
-         3. Branch on response.status:
-            - 200 → blob + URL.createObjectURL + synthetic <a download>
-              + "Listo" success toast with re-download link.
-            - 429 → "Límite alcanzado" error toast with live countdown
-              (consumed by the global toast() from WU3).
-            - other → "Error" error toast.
-         4. Set busy=false in finally, restore aria-busy on originating btn.
+       Owns the export lifecycle for the hub. Clicking an export button no
+       longer downloads directly: it opens a confirmation modal. Only after
+       the user confirms does the fetch run, and the file is then saved
+       automatically.
 
-       Smart defaults: init() reads localStorage 'ecppp_last_periodo'
-       and, if found and the server didn't pre-select a periodo, applies
-       it. Server-side ?periodo=N always wins (R12).
+         1. pedirDescarga(tipo, formato) → abre el modal.
+         2. confirmarDescarga() → fetch() con credentials='same-origin'.
+         3. Branch por response.status:
+            - 200 → blob + URL.createObjectURL + <a download> sintético,
+              se cierra el modal.
+            - 429 → el modal muestra el aviso de límite con cuenta regresiva.
+            - otro → el modal muestra el mensaje de error y permite reintentar.
 
-       Toasts are global: this component does NOT manage its own
-       intervals (D9). It only dispatches `toast:show` events; the
-       toast() component from WU3 owns the setInterval.
+       No hay notificaciones flotantes: todo el feedback vive en el modal.
 
-       Blob URL lifecycle (D8): this component creates the object URL
-       with `URL.createObjectURL(blob)` and passes it to the success
-       toast via `retryUrl`. The global toast() component in
-       `templates/partials/_toast.html` is responsible for calling
-       `URL.revokeObjectURL(retryUrl)` on dismiss — this component
-       never revokes the URL itself. This contract is what makes
-       in-session re-downloads work without leaking blob URLs. {% endcomment %}
+       Blob URL lifecycle: el object URL se revoca con un timer corto tras
+       disparar la descarga; nadie más conserva la referencia.
+
+       Smart defaults: init() lee localStorage 'ecppp_last_periodo' y, si
+       existe y el server no preseleccionó período, lo aplica. El
+       ?periodo=N del server siempre gana (R12). {% endcomment %}
     function exportFlow() {
         return {
             busy: false,
+            confirmOpen: false,
+            confirmTipo: null,
+            confirmFormato: null,
+            exportError: null,
+            retrySeconds: null,
+            previewCounts: { calificaciones: null, asistencia: null },
+            _retryInterval: null,
             filters: {
                 periodo: {% if periodo_actual %}{{ periodo_actual.id }}{% else %}null{% endif %},
                 paralelo: '{{ paralelo_preseleccionado|default:"" }}',
@@ -382,7 +383,10 @@
             },
 
             async _fetchOnePreview(tipo) {
-                if (!this.filters.periodo) return;
+                if (!this.filters.periodo) {
+                    this.previewCounts[tipo] = null;
+                    return;
+                }
                 const url = new URL('/reportes/preview/', window.location.origin);
                 url.searchParams.set('tipo', tipo);
                 url.searchParams.set('periodo', String(this.filters.periodo));
@@ -396,40 +400,61 @@
                     const res = await fetch(url, { credentials: 'same-origin' });
                     if (res.ok) {
                         const data = await res.json();
-                        const card = document.getElementById(
-                            'card-' + (tipo === 'calificaciones'
-                                ? 'calificaciones' : 'asistencia')
-                        );
-                        if (card) {
-                            const counter = card.querySelector(
-                                '[data-preview-count]'
-                            );
-                            if (counter) counter.textContent = data.count;
-                        }
+                        this.previewCounts[tipo] = data.count;
                     }
                 } catch (e) {
-                    // Network error: leave the counter at '—'. Don't toast.
+                    // Network error: leave the counter untouched.
                 }
             },
 
-            async download(tipo, formato, event) {
+            // ── Confirmation modal ────────────────────────────────────
+
+            tipoLabel(tipo) {
+                return tipo === 'asistencia' ? 'Asistencia' : 'Calificaciones';
+            },
+
+            formatoLabel(formato) {
+                return formato === 'excel' ? 'Excel (.xlsx)' : 'PDF (.pdf)';
+            },
+
+            confirmCount() {
+                const n = this.previewCounts[this.confirmTipo];
+                return (n === null || n === undefined) ? '—' : n;
+            },
+
+            pedirDescarga(tipo, formato) {
                 if (this.busy) return;
-                this.busy = true;
-                const btn = event && event.currentTarget
-                    ? event.currentTarget : null;
-
-                // 1. "Generando…" info toast.
-                window.dispatchEvent(new CustomEvent('toast:show', {
-                    detail: {
-                        type: 'info',
-                        title: 'Generando…',
-                        message: `${tipo} en ${formato.toUpperCase()}.`,
-                        icon: '⏳',
-                        autoDismissMs: 2000
+                this._detenerCuentaRegresiva();
+                this.exportError = null;
+                this.confirmTipo = tipo;
+                this.confirmFormato = formato;
+                this.confirmOpen = true;
+                this.$nextTick(() => {
+                    if (this.$refs.confirmarDescargaBtn) {
+                        this.$refs.confirmarDescargaBtn.focus();
                     }
-                }));
+                });
+            },
 
-                // 2. Build the export URL.
+            cerrarConfirmacion() {
+                if (this.busy) return;
+                this.confirmOpen = false;
+                this.exportError = null;
+                this._detenerCuentaRegresiva();
+            },
+
+            async confirmarDescarga() {
+                await this.download(this.confirmTipo, this.confirmFormato);
+            },
+
+            // ── Download ──────────────────────────────────────────────
+
+            async download(tipo, formato) {
+                if (this.busy || !tipo || !formato) return;
+                this.busy = true;
+                this.exportError = null;
+                this._detenerCuentaRegresiva();
+
                 const url = new URL(
                     `/reportes/${tipo}/exportar/`, window.location.origin
                 );
@@ -445,75 +470,44 @@
                 }
 
                 try {
-                    // 3. fetch + .blob() + URL.createObjectURL.
                     const res = await fetch(url, { credentials: 'same-origin' });
                     if (res.status === 429) {
-                        // 3a. 429 → countdown toast (consumed by WU3 toast()).
                         const data = await res.json().catch(() => ({}));
-                        this._show429Toast(data.retry_after_seconds || 60);
+                        this.exportError = 'Alcanzó el límite de descargas.';
+                        this._iniciarCuentaRegresiva(data.retry_after_seconds || 60);
                     } else if (!res.ok) {
-                        // 3b. other non-200 → red error toast.
-                        this._showErrorToast(
-                            'Error al generar archivo. Reintentá.'
-                        );
+                        this.exportError = 'No se pudo generar el archivo. Intente nuevamente.';
                     } else {
-                        // 3c. 200 → blob + synthetic download + success toast.
                         const blob = await res.blob();
                         const filename = this._extractFilename(res)
                             || `${tipo}_${Date.now()}.${formato === 'excel' ? 'xlsx' : 'pdf'}`;
-                        const objectUrl = URL.createObjectURL(blob);
-                        this._triggerDownload(objectUrl, filename);
-                        // Success toast with re-download link (D8: URL revoked
-                        // on dismiss by the global toast() component).
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: {
-                                type: 'success',
-                                title: 'Listo',
-                                message: filename,
-                                icon: '✅',
-                                retryUrl: objectUrl,
-                                retryFilename: filename,
-                                retryLabel: 'Re-descargar',
-                                autoDismissMs: 5000
-                            }
-                        }));
+                        this._triggerDownload(URL.createObjectURL(blob), filename);
+                        this.confirmOpen = false;
                     }
                 } catch (e) {
-                    // 3d. network failure → error toast.
-                    this._showErrorToast(
-                        'No se pudo conectar al servidor. Reintentá.'
-                    );
+                    this.exportError = 'No se pudo conectar al servidor. Intente nuevamente.';
                 } finally {
                     this.busy = false;
-                    if (btn) btn.setAttribute('aria-busy', 'false');
                 }
             },
 
-            _show429Toast(seconds) {
-                const baseMessage = 'Límite alcanzado — reintentar en';
-                window.dispatchEvent(new CustomEvent('toast:show', {
-                    detail: {
-                        type: 'error',
-                        title: 'Límite de descargas',
-                        message: `${baseMessage} 0:${String(seconds).padStart(2, '0')}`,
-                        icon: '⏱',
-                        autoDismissMs: 0,
-                        countdownSeconds: seconds,
-                        _baseMessage: baseMessage
+            _iniciarCuentaRegresiva(seconds) {
+                this.retrySeconds = seconds;
+                this._retryInterval = setInterval(() => {
+                    this.retrySeconds -= 1;
+                    if (this.retrySeconds <= 0) {
+                        this._detenerCuentaRegresiva();
+                        this.exportError = null;
                     }
-                }));
+                }, 1000);
             },
 
-            _showErrorToast(message) {
-                window.dispatchEvent(new CustomEvent('toast:show', {
-                    detail: {
-                        type: 'error',
-                        title: 'Error',
-                        message: message,
-                        icon: '⚠',
-                        autoDismissMs: 0
-                    }
-                }));
+            _detenerCuentaRegresiva() {
+                if (this._retryInterval) {
+                    clearInterval(this._retryInterval);
+                    this._retryInterval = null;
+                }
+                this.retrySeconds = null;
             },
 
             _extractFilename(res) {
@@ -529,6 +523,9 @@
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
+                // Give the browser time to start the transfer before releasing
+                // the blob; nothing else holds a reference to this URL.
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
             }
         };
     }
