@@ -1487,7 +1487,7 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
             [
                 {
                     "id": p.id,
-                    "nombre": str(p),
+                    "nombre": p.etiqueta_curso,
                     "periodo_id": p.periodo_id,
                     "asignatura_id": p.asignatura_id,
                     "tipo_licencia_id": p.tipo_licencia_id,

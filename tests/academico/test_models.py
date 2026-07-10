@@ -97,6 +97,18 @@ class TestParalelo:
         expected = f"{paralelo.asignatura.codigo} - {paralelo.nombre} ({paralelo.periodo})"
         assert str(paralelo) == expected
 
+    def test_etiqueta_curso_omite_el_periodo(self):
+        """Course pickers already sit under a period filter — don't repeat it."""
+        paralelo = ParaleloFactory()
+        assert paralelo.etiqueta_curso == f"{paralelo.asignatura.codigo} - {paralelo.nombre}"
+        assert str(paralelo.periodo) not in paralelo.etiqueta_curso
+
+    def test_etiqueta_curso_distingue_paralelos_homonimos(self):
+        """Two paralelos of the same period may share ``nombre``; the code splits them."""
+        paralelo = ParaleloFactory(nombre="NRC 5557")
+        otro = ParaleloFactory(nombre="NRC 5557", periodo=paralelo.periodo)
+        assert paralelo.etiqueta_curso != otro.etiqueta_curso
+
     def test_unique_together(self):
         """Same periodo + tipo_licencia + asignatura + nombre should be rejected."""
         paralelo = ParaleloFactory(nombre="A")
