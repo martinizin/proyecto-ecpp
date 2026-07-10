@@ -174,6 +174,46 @@ jobs:
             --predicate sbom.cdx.json \
             "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
 
+  bump:
+    # Writes the signed digest into overlays/prod so Argo CD (P4) promotes
+    # exactly the artifact that was scanned and signed -- git is the source of
+    # truth for cluster state. Runs only on a real release, never on a manual
+    # rollback dispatch.
+    if: github.event_name == 'push'
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Install Kustomize
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Pin the signed digest into overlays/prod
+        working-directory: deploy/k8s/overlays/prod
+        run: kustomize edit set image ghcr.io/martinizin/proyecto-ecpp@${{ needs.build.outputs.digest }}
+
+      - name: Commit and push the digest bump
+        run: |
+          set -eu
+          if git diff --quiet; then
+            echo "Digest unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deploy/k8s/overlays/prod/kustomization.yaml
+          # [skip ci] keeps this commit from re-triggering this same workflow.
+          git commit -m "chore(deploy): pin prod image to ${{ needs.build.outputs.digest }} [skip ci]"
+          # A concurrent merge could have advanced develop since checkout.
+          git pull --rebase origin develop
+          git push origin HEAD:develop
+
   deploy-legacy:
     # Active deploy path on merge to develop, gated behind the CVE scan and the
     # Cosign signature. Replaced by Argo CD once deploy/k8s/ exists.
@@ -203,8 +243,17 @@ jobs:
             cd "$DEPLOY_PATH"
             # Pin the image tag for this deploy (immutable SHA) for easy rollback.
             echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
-            docker compose --env-file .env --env-file .env.image pull web
-            docker compose --env-file .env --env-file .env.image up -d
+            # On the k3s host, docker-compose.k3s.yml also binds db/redis to the
+            # flannel gateway 10.42.0.1 so in-cluster pods can reach them. Include
+            # it when present; omitting it would recreate db/redis without that
+            # bind and cut the cluster off from the database. A non-k3s host has
+            # no such file and just uses the base compose file.
+            compose_files="-f docker-compose.yml"
+            if [ -f docker-compose.k3s.yml ]; then
+              compose_files="$compose_files -f docker-compose.k3s.yml"
+            fi
+            docker compose $compose_files --env-file .env --env-file .env.image pull web
+            docker compose $compose_files --env-file .env --env-file .env.image up -d
             docker image prune -f
 
   rollback-legacy:
@@ -235,6 +284,11 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             cd "$DEPLOY_PATH"
             echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
-            docker compose --env-file .env --env-file .env.image pull web
-            docker compose --env-file .env --env-file .env.image up -d
+            # Match deploy-legacy: keep the k3s db/redis gateway bind if present.
+            compose_files="-f docker-compose.yml"
+            if [ -f docker-compose.k3s.yml ]; then
+              compose_files="$compose_files -f docker-compose.k3s.yml"
+            fi
+            docker compose $compose_files --env-file .env --env-file .env.image pull web
+            docker compose $compose_files --env-file .env --env-file .env.image up -d
             docker image prune -f

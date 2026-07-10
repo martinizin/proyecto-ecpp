@@ -1,0 +1,24 @@
+# k3s-host override. Publishes the host Postgres and Redis on the flannel
+# gateway (10.42.0.1) so in-cluster pods can reach them through the selector-less
+# Services in deploy/k8s/base. Apply it ALONGSIDE the base file, only on the k3s
+# host:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.k3s.yml up -d
+#
+# Do NOT apply it anywhere without k3s. 10.42.0.1 is the cni0 gateway k3s
+# creates; binding to it before k3s exists fails with "cannot assign requested
+# address". That is exactly why this is a separate override and not part of
+# docker-compose.yml -- the base file must stay bootable for local dev and for
+# the current pre-k3s production host.
+#
+# Compose concatenates `ports`, so db keeps its existing 127.0.0.1 bind and
+# gains the gateway one; redis (no published port in the base file) gains only
+# the gateway bind.
+services:
+  db:
+    ports:
+      - "10.42.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "10.42.0.1:6379:6379"

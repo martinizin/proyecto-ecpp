@@ -1,0 +1,9 @@
+# Real production host, replacing the base PLACEHOLDER_HOST. Merged into
+# web-config; every other key stays as declared in base/configmap.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+data:
+  DJANGO_ALLOWED_HOSTS: "escuelaecppp.duckdns.org"
+  DJANGO_DOMAIN: "escuelaecppp.duckdns.org"
