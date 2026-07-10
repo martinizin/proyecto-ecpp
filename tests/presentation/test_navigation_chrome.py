@@ -102,3 +102,38 @@ class TestSidebarAlturaViewportVisible:
         assert (
             ".sidebar-panel { height: 100vh; height: 100dvh; }" in css
         ), "base.html must define .sidebar-panel with a 100vh fallback before 100dvh"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Orden de los items del sidebar
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSidebarOrdenReportes:
+    """Issue 4: el hub de Reportes se ubica debajo de Reportes ANT."""
+
+    _INCLUDE = '{% include "partials/_sidebar_reportes.html" %}'
+
+    def test_reportes_hub_va_debajo_de_reportes_ant(self):
+        """En el bloque de secretaría, el include del hub sigue al link de ANT."""
+        html = _read(SIDEBAR)
+        ant = html.index("{% url 'reportes:ant_listado' %}")
+        includes = [i for i in range(len(html)) if html.startswith(self._INCLUDE, i)]
+        assert includes, "sidebar.html must include _sidebar_reportes.html"
+        assert any(
+            i > ant for i in includes
+        ), "The Reportes hub link must be rendered after the Reportes ANT link"
+
+    def test_reportes_hub_no_queda_dentro_de_calificaciones(self):
+        """El include ya no cuelga de la sección Calificaciones de secretaría."""
+        html = _read(SIDEBAR)
+        validar = html.index("{% url 'calificaciones:pendientes_validacion' %}")
+        ant = html.index("{% url 'reportes:ant_listado' %}")
+        assert (
+            self._INCLUDE not in html[validar:ant]
+        ), "Reportes hub must not sit between Validar Calificaciones and Reportes ANT"
+
+    def test_secretaria_ve_hub_y_ant(self, secretaria_dashboard):
+        """Secretaría ve ambos links renderizados."""
+        assert reverse("reportes:hub") in secretaria_dashboard
+        assert reverse("reportes:ant_listado") in secretaria_dashboard

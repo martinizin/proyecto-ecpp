@@ -193,7 +193,11 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Auditorías</span>
         </a>
 
-        {# ═══ REPORTES (Inspector) — HU27b WU5 ═══ #}
+        <!-- ─── REPORTES (Inspector + Director Académico) ─── -->
+        <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
+        <p x-show="!sidebarCollapsed" x-cloak
+           class="px-3 mt-4 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Reportes</p>
+
         {% include "partials/_sidebar_reportes.html" %}
 
         <!-- ─── SOLICITUDES (Inspector) ─── -->
@@ -231,7 +235,11 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Registro de Calificaciones</span>
         </a>
 
-        {# ═══ REPORTES (Docente) — HU27b WU5 ═══ #}
+        <!-- ─── REPORTES (Docente) ─── -->
+        <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
+        <p x-show="!sidebarCollapsed" x-cloak
+           class="px-3 mt-4 mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/40">Reportes</p>
+
         {% include "partials/_sidebar_reportes.html" %}
 
         <!-- ─── SOLICITUDES (Docente) ─── -->
@@ -427,9 +435,6 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Rendimiento</span>
         </a>
 
-        {# ═══ REPORTES (Secretaría) — HU27b WU5 ═══ #}
-        {% include "partials/_sidebar_reportes.html" %}
-
         <a href="{% url 'calificaciones:pendientes_validacion' %}"
            class="flex items-center rounded-lg text-sm font-medium transition-colors py-2.5
                   {% if request.resolver_match.url_name == 'pendientes_validacion' or request.resolver_match.url_name == 'detalle_validacion' %}bg-white/10 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}"
@@ -457,6 +462,9 @@
             </svg>
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Reportes ANT</span>
         </a>
+
+        {# ═══ REPORTES (Secretaría) — HU27b WU5. Sits directly below Reportes ANT. ═══ #}
+        {% include "partials/_sidebar_reportes.html" %}
         {% endif %}
 
         <!-- ─── SOLICITUDES (Secretaría) ─── -->
