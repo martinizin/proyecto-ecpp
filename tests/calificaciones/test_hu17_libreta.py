@@ -6,7 +6,10 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from apps.calificaciones.application.services import LibretaCalificacionesAppService
+from apps.calificaciones.application.services import (
+    LibretaCalificacionesAppService,
+    SubNotaParcialAppService,
+)
 from apps.calificaciones.infrastructure.models import RegistroCalificacionParalelo
 from tests.factories import (
     CalificacionFactory,
@@ -323,3 +326,119 @@ class TestMiLibretaView:
 
         assert response.status_code == 200
         assert "No tiene materias matriculadas" in response.content.decode()
+
+
+# =============================================================================
+# C. Sub-notas en la libreta (HU32-T5)
+# =============================================================================
+
+
+def _setup_materia_con_sub_notas(estudiante=None, pesos=None, override_str=None, justificacion=""):
+    """Helper: materia VALIDADA cuyo parcial fue consolidado desde sub-notas."""
+    tipo_lic = TipoLicenciaFactory()
+    periodo = PeriodoFactory(tipo_licencia=tipo_lic, activo=True)
+    paralelo = ParaleloFactory(periodo=periodo, tipo_licencia=tipo_lic)
+    est = estudiante or EstudianteFactory()
+    est.save()
+    matricula = MatriculaFactory(paralelo=paralelo, estudiante=est)
+    ev = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("100.00"))
+    service = SubNotaParcialAppService()
+    service.configurar_sub_notas(ev.id, ["Tarea", "Quiz", "Examen"], pesos=pesos)
+    service.registrar_sub_notas(
+        ev.id,
+        matricula.id,
+        ["15", "18", "12"],
+        override_str=override_str,
+        justificacion=justificacion,
+    )
+    RegistroCalificacionParaleloFactory(
+        paralelo=paralelo,
+        estado=RegistroCalificacionParalelo.Estado.VALIDADO,
+    )
+    return paralelo, est, ev
+
+
+class TestLibretaSubNotas:
+    """La libreta muestra el desglose de sub-notas del parcial (HU32-T5)."""
+
+    def test_libreta_incluye_sub_notas(self):
+        paralelo, est, ev = _setup_materia_con_sub_notas(pesos=["20", "30", "50"])
+        libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+
+        fila = libreta["materias"][0]["evaluaciones"][0]
+        assert fila["sub_notas"] == [
+            {"nombre": "Tarea", "peso": Decimal("20.00"), "nota": Decimal("15.00")},
+            {"nombre": "Quiz", "peso": Decimal("30.00"), "nota": Decimal("18.00")},
+            {"nombre": "Examen", "peso": Decimal("50.00"), "nota": Decimal("12.00")},
+        ]
+        # 15*0.20 + 18*0.30 + 12*0.50 = 14.40
+        assert fila["nota"] == Decimal("14.40")
+        assert fila["override"] is None
+
+    def test_evaluacion_sin_sub_notas_lista_vacia(self):
+        paralelo, est, ev = _setup_materia_validada()
+        est.save()
+        libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+
+        fila = libreta["materias"][0]["evaluaciones"][0]
+        assert fila["sub_notas"] == []
+        assert fila["override"] is None
+
+    def test_libreta_incluye_override_y_justificacion(self):
+        paralelo, est, ev = _setup_materia_con_sub_notas(
+            override_str="16", justificacion="Trabajo de recuperación."
+        )
+        libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+
+        fila = libreta["materias"][0]["evaluaciones"][0]
+        assert fila["override"] == Decimal("16.00")
+        assert fila["justificacion_override"] == "Trabajo de recuperación."
+        assert fila["nota"] == Decimal("16.00")
+
+    def test_sub_notas_ocultas_si_notas_no_publicadas(self):
+        tipo_lic = TipoLicenciaFactory()
+        periodo = PeriodoFactory(tipo_licencia=tipo_lic, activo=True)
+        paralelo = ParaleloFactory(periodo=periodo, tipo_licencia=tipo_lic)
+        est = EstudianteFactory()
+        est.save()
+        matricula = MatriculaFactory(paralelo=paralelo, estudiante=est)
+        ev = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("100.00"))
+        service = SubNotaParcialAppService()
+        service.configurar_sub_notas(ev.id, ["Tarea", "Quiz", "Examen"])
+        service.registrar_sub_notas(ev.id, matricula.id, ["15", "18", "12"])
+        RegistroCalificacionParaleloFactory(
+            paralelo=paralelo,
+            estado=RegistroCalificacionParalelo.Estado.BORRADOR,
+        )
+
+        libreta = LibretaCalificacionesAppService.obtener_libreta(est)
+        fila = libreta["materias"][0]["evaluaciones"][0]
+        assert fila["sub_notas"] == []
+
+    def test_vista_muestra_desglose_de_sub_notas(self):
+        est = _saved(EstudianteFactory())
+        _setup_materia_con_sub_notas(estudiante=est, pesos=["20", "30", "50"])
+
+        client = Client()
+        client.force_login(est)
+        response = client.get(reverse("calificaciones:mi_libreta"))
+        content = response.content.decode()
+
+        assert response.status_code == 200
+        assert "3 sub-notas" in content
+        assert "Tarea" in content
+        assert "Quiz" in content
+
+    def test_vista_muestra_override(self):
+        est = _saved(EstudianteFactory())
+        _setup_materia_con_sub_notas(
+            estudiante=est, override_str="16", justificacion="Trabajo de recuperación."
+        )
+
+        client = Client()
+        client.force_login(est)
+        response = client.get(reverse("calificaciones:mi_libreta"))
+        content = response.content.decode()
+
+        assert "Nota final ajustada por el docente" in content
+        assert "Trabajo de recuperación." in content

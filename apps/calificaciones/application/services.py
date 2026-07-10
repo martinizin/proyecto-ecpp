@@ -882,6 +882,7 @@ class LibretaCalificacionesAppService:
 
         evaluaciones = paralelo.evaluaciones.order_by("tipo")
         calificaciones_map = {}
+        sub_notas_map = {}
         if notas_visibles:
             calificaciones_map = {
                 cal.evaluacion_id: cal
@@ -890,6 +891,13 @@ class LibretaCalificacionesAppService:
                     estudiante=estudiante,
                 )
             }
+            sub_notas = SubNotaParcial.objects.filter(
+                evaluacion__paralelo=paralelo,
+                matricula__estudiante=estudiante,
+                matricula__paralelo=paralelo,
+            ).order_by("evaluacion_id", "orden")
+            for sub in sub_notas:
+                sub_notas_map.setdefault(sub.evaluacion_id, []).append(sub)
 
         filas_evaluaciones = []
         notas_con_pesos = []
@@ -897,11 +905,19 @@ class LibretaCalificacionesAppService:
         for ev in evaluaciones:
             cal = calificaciones_map.get(ev.id)
             nota = cal.nota if cal else None
+            subs_ev = sub_notas_map.get(ev.id, [])
             filas_evaluaciones.append(
                 {
                     "tipo": ev.get_tipo_display(),
                     "peso": ev.peso,
                     "nota": nota,
+                    "sub_notas": [
+                        {"nombre": s.nombre, "peso": s.peso, "nota": s.nota} for s in subs_ev
+                    ],
+                    "override": (subs_ev[0].nota_final_parcial_override if subs_ev else None),
+                    "justificacion_override": (
+                        subs_ev[0].justificacion_override if subs_ev else ""
+                    ),
                 }
             )
             if nota is not None:
