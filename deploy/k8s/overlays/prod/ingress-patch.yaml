@@ -1,0 +1,9 @@
+# JSON6902: set the real host in both the TLS block and the routing rule.
+# A strategic merge would have to restate the whole rules/tls lists (including
+# the media-server route), so a targeted replace is safer.
+- op: replace
+  path: /spec/tls/0/hosts/0
+  value: escuelaecppp.duckdns.org
+- op: replace
+  path: /spec/rules/0/host
+  value: escuelaecppp.duckdns.org
