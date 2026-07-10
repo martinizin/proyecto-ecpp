@@ -4,7 +4,7 @@
 <header
     class="fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-30
            left-0 transition-all duration-300"
-    :style="{ 'left': sidebarCollapsed ? '4rem' : '16rem' }"
+    :class="sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'"
     role="banner"
     hx-boost="true"
 >
@@ -12,7 +12,9 @@
         <!-- Left: Hamburger (mobile) + Page title -->
         <div class="flex items-center gap-3">
             <!-- Hamburger button — mobile only -->
+            <!-- x-ref target for focus restore when the mobile drawer closes -->
             <button
+                x-ref="hamburger"
                 @click="sidebarOpen = true; sidebarCollapsed = false"
                 class="lg:hidden p-2 -ml-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                 aria-label="Abrir menú"

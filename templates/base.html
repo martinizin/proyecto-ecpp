@@ -58,6 +58,9 @@
                     },
                 },
             },
+            // JIT safelist fallback — belt-and-suspenders in case the Play CDN's
+            // text-scan JIT misses these classes inside Alpine `:class` ternaries.
+            safelist: ['lg:ml-16', 'lg:ml-64', 'lg:left-16', 'lg:left-64'],
         }
     </script>
 
@@ -360,6 +363,25 @@
         toggleCollapse() {
           this.sidebarCollapsed = !this.sidebarCollapsed;
           localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
+        },
+        // Minimal hand-rolled focus trap for the mobile drawer — bound via
+        // @keydown.tab on the sidebar aside element. No-ops at >=1024px
+        // (desktop persistent nav is never a modal, so nothing to trap).
+        trapFocus(e) {
+          if (window.innerWidth >= 1024) return;
+          const focusables = e.currentTarget.querySelectorAll(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex=\'-1\'])'
+          );
+          if (!focusables.length) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
         }
       }"
       hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML show:window:top"{% endif %}>
@@ -390,7 +412,7 @@
 
     {# ═══════════════ MAIN CONTENT AREA ═══════════════ #}
     <main class="{% if user.is_authenticated %}pt-16 min-h-screen flex flex-col transition-all duration-300{% else %}flex-1 container mx-auto px-4 py-8{% endif %}"
-          {% if user.is_authenticated %}:style="{ 'margin-left': sidebarCollapsed ? '4rem' : '16rem' }"{% endif %}>
+          {% if user.is_authenticated %}:class="sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'"{% endif %}>
 
         {% if user.is_authenticated %}
         {# Authenticated ViewContainer: constrained width + responsive padding #}
