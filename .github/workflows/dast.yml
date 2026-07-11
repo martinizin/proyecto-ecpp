@@ -54,18 +54,25 @@ jobs:
         run: |
           nohup python manage.py runserver 0.0.0.0:8000 > runserver.log 2>&1 &
           for i in $(seq 1 30); do
-            curl -sf "${{ env.TARGET_URL }}/health/" && break
+            if curl -sf "${{ env.TARGET_URL }}/health/" >/dev/null; then
+              echo "App is up."; exit 0
+            fi
             sleep 2
           done
+          echo "App never became ready. runserver log:"; cat runserver.log; exit 1
 
-      # ZAP runs with the host network so it can reach the app on localhost.
-      # exit code is ignored: a baseline scan returns non-zero on warnings, and
-      # the report is the deliverable regardless.
+      # World-writable output dir: the ZAP container runs as a non-root user and
+      # cannot write reports into the workspace otherwise.
+      - name: Prepare ZAP output directory
+        run: mkdir -p zap-out && chmod 777 zap-out
+
+      # Host network so ZAP reaches the app on localhost. exit code ignored: a
+      # baseline returns non-zero on warnings, and the report is the deliverable.
       - name: OWASP ZAP baseline scan
         run: |
-          docker run --network host -v "${{ github.workspace }}:/zap/wrk/:rw" \
+          docker run --network host -v "${{ github.workspace }}/zap-out:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t "${{ env.TARGET_URL }}" -r zap-report.html -w zap-report.md \
+            zap-baseline.py -t "${{ env.TARGET_URL }}" -r zap-report.html -w zap-report.md -a \
             || true
 
       - name: Upload ZAP report
@@ -73,7 +80,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-baseline-report
-          path: |
-            zap-report.html
-            zap-report.md
+          path: zap-out/
           retention-days: 90
