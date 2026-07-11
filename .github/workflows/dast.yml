@@ -1,0 +1,79 @@
+name: DAST (OWASP ZAP)
+
+# Dynamic scan against an ephemeral instance of the app, spun up entirely inside
+# the runner. Manual trigger: it produces the ZAP report as evidence on demand.
+# The app is almost fully session-gated, so the baseline reaches the public
+# surface (/health/, /usuarios/login/, static); an authenticated scan is future
+# work.
+on:
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  TARGET_URL: http://localhost:8000
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ecppp_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_NAME: ecppp_test
+      DATABASE_USER: test_user
+      DATABASE_PASSWORD: test_pass
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DJANGO_SECRET_KEY: dast-secret-key-ci-only
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Apply migrations
+        run: python manage.py migrate --noinput
+
+      - name: Start the app in the background
+        run: |
+          nohup python manage.py runserver 0.0.0.0:8000 > runserver.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf "${{ env.TARGET_URL }}/health/" && break
+            sleep 2
+          done
+
+      # ZAP runs with the host network so it can reach the app on localhost.
+      # exit code is ignored: a baseline scan returns non-zero on warnings, and
+      # the report is the deliverable regardless.
+      - name: OWASP ZAP baseline scan
+        run: |
+          docker run --network host -v "${{ github.workspace }}:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "${{ env.TARGET_URL }}" -r zap-report.html -w zap-report.md \
+            || true
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: |
+            zap-report.html
+            zap-report.md
+          retention-days: 90
