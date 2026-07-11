@@ -14,7 +14,7 @@ resources:
 # It starts on the mutable :develop tag so the overlay is valid before the first
 # automated bump; once bumped, Kyverno can verify the pinned digest's signature.
 images:
-- digest: sha256:25b9f04ba7540ad2f9fb98d7b8556eb3c63e65e736d5feff3188a8ad89436aa5
+- digest: sha256:27fef84fb21aa7575a81634ad26516d365747e3cee75f1cae288f8a7745073e8
   name: ghcr.io/martinizin/proyecto-ecpp
 
 patches:
