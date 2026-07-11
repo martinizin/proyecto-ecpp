@@ -1,0 +1,11 @@
+name: Log in to GHCR
+description: Authenticate the runner to the GitHub Container Registry using the workflow token.
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}

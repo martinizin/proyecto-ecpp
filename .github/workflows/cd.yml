@@ -1,20 +1,8 @@
 name: CD
 
-# Release leg on merge to develop: build the amd64 image, scan it for CVEs and
-# generate an SBOM (Trivy), sign it keylessly via GitHub OIDC (Cosign), push
-# everything to GHCR, then deploy over SSH. Once the k8s manifests and Argo CD
-# land (see deploy/k8s/), the SSH deploy job is removed and Argo CD pulls the
-# signed, digest-pinned image instead.
-#
-# `deploy-legacy` remains the active deploy path (SSH + compose) until the
-# k3s/Argo CD path lands and is proven across a real deploy cycle. It now runs
-# only after the image has been scanned and signed, so nothing reaches the host
-# unless it passed the CVE gate.
-#
-# `rollback-legacy` is the escape hatch: dispatch this workflow manually at a
-# previous commit to redeploy that SHA's already-built image. It deliberately
-# skips build/scan/sign so a newly disclosed CVE in an old image cannot block
-# an emergency rollback.
+# On merge to develop: build, scan (Trivy CVE + SBOM), sign (Cosign keyless),
+# promote the signed digest to git, then deploy. workflow_dispatch runs only the
+# rollback path. Argo CD replaces the SSH deploy once the k8s cutover lands.
 on:
   push:
     branches: [develop]
@@ -26,12 +14,11 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
+  TRIVY_SEVERITY: HIGH,CRITICAL
 
 jobs:
   build:
-    # Skipped on workflow_dispatch: a dispatch is a rollback to an already-built
-    # image, so rebuilding (and re-scanning) that SHA would be pointless at best
-    # and would block the rollback at worst.
+    # A dispatch is a rollback to an already-built image, so skip the build.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -45,12 +32,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-login
 
       - name: Build and push image (amd64)
         id: build
@@ -66,35 +48,26 @@ jobs:
           cache-to: type=gha,mode=max
 
   trivy:
-    # Scans the immutable digest just pushed by `build` (not the mutable
-    # `:develop` tag), so the scan result always matches what gets signed.
+    # Scan the immutable digest, not the mutable :develop tag, so the scan
+    # result always matches what gets signed.
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read # the image lives in a private GHCR package; Trivy must pull it
+      packages: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        # Trivy pulls the image from GHCR to scan it; it reads the ambient
-        # Docker credential store populated by this login step.
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-login
 
-      - name: Trivy scan (SARIF, non-blocking) for full-visibility report
-        # exit-code 0 here: this is the full-severity report used for the
-        # Security tab. The blocking gate is the separate step below.
+      - name: Trivy scan (SARIF, non-blocking)
         uses: aquasecurity/trivy-action@v0.36.0 # NOTE: audit/bump this pin periodically
         with:
           image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
           format: sarif
           output: trivy-results.sarif
-          severity: HIGH,CRITICAL
+          severity: ${{ env.TRIVY_SEVERITY }}
           exit-code: "0"
 
       - name: Upload Trivy SARIF to Security tab
@@ -117,45 +90,31 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
-      - name: Enforce HIGH/CRITICAL CVE gate
-        # Blocking scan: fails the job (and therefore the release leg, since
-        # `sign` needs this job) on any HIGH or CRITICAL CVE. SARIF and SBOM
-        # above are still uploaded even if this step fails (spec
-        # `trivy-scan-and-sbom`).
-        #
-        # ignore-unfixed: the Debian base image carries ~20 HIGH/CRITICAL CVEs
-        # with no released patch (and perl-base marked fix_deferred). Blocking on
-        # those makes the gate unsatisfiable — no code change can clear it — so it
-        # would only teach us to bypass the gate. We block on what is actionable
-        # and keep the unfiltered report above for visibility.
+      # Blocking gate. ignore-unfixed: the Debian base carries HIGH/CRITICAL CVEs
+      # with no released patch, so blocking on those would make the gate
+      # unsatisfiable. Block on what is actionable; the report above keeps the rest.
+      - name: Enforce CVE gate
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
           format: table
-          severity: HIGH,CRITICAL
+          severity: ${{ env.TRIVY_SEVERITY }}
           ignore-unfixed: true
           exit-code: "1"
 
   sign:
-    # Cosign keyless (Sigstore) signing + SBOM attestation on the immutable
-    # digest. Only runs once Trivy has passed, so an unsigned image is the
-    # observable result of a failed/blocked scan (defense in depth with
-    # Kyverno's verifyImages admission policy, added in a later slice).
+    # Cosign keyless signing + SBOM attestation. Runs only after a clean scan,
+    # so an unsigned image is the observable result of a blocked release.
     needs: [build, trivy]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      id-token: write # required for Cosign keyless OIDC signing
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-login
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
@@ -175,10 +134,8 @@ jobs:
             "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
 
   bump:
-    # Writes the signed digest into overlays/prod so Argo CD (P4) promotes
-    # exactly the artifact that was scanned and signed -- git is the source of
-    # truth for cluster state. Runs only on a real release, never on a manual
-    # rollback dispatch.
+    # Promote the signed digest into overlays/prod so Argo CD deploys exactly
+    # what was scanned and signed. Real releases only, never a rollback dispatch.
     if: github.event_name == 'push'
     needs: [build, sign]
     runs-on: ubuntu-latest
@@ -196,7 +153,7 @@ jobs:
 
       - name: Pin the signed digest into overlays/prod
         working-directory: deploy/k8s/overlays/prod
-        run: kustomize edit set image ghcr.io/martinizin/proyecto-ecpp@${{ needs.build.outputs.digest }}
+        run: kustomize edit set image ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
 
       - name: Commit and push the digest bump
         run: |
@@ -208,87 +165,49 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add deploy/k8s/overlays/prod/kustomization.yaml
-          # [skip ci] keeps this commit from re-triggering this same workflow.
+          # [skip ci] keeps this commit from re-triggering this workflow.
           git commit -m "chore(deploy): pin prod image to ${{ needs.build.outputs.digest }} [skip ci]"
-          # A concurrent merge could have advanced develop since checkout.
           git pull --rebase origin develop
           git push origin HEAD:develop
 
   deploy-legacy:
-    # Active deploy path on merge to develop, gated behind the CVE scan and the
-    # Cosign signature. Replaced by Argo CD once deploy/k8s/ exists.
+    # Active deploy path on merge, gated behind the scan and the signature.
+    # Replaced by Argo CD once the k8s cutover lands.
     needs: [build, trivy, sign]
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # GITHUB_TOKEN travels to the host and logs in to GHCR there. Without this
-      # scope `docker login` still succeeds and the pull returns 403.
       packages: read
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1
-        env:
-          DEPLOY_IMAGE: ${{ env.IMAGE }}:${{ github.sha }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/compose-deploy
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          envs: DEPLOY_IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
-          script: |
-            set -eu
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            cd "$DEPLOY_PATH"
-            # Pin the image tag for this deploy (immutable SHA) for easy rollback.
-            echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
-            # On the k3s host, docker-compose.k3s.yml also binds db/redis to the
-            # flannel gateway 10.42.0.1 so in-cluster pods can reach them. Include
-            # it when present; omitting it would recreate db/redis without that
-            # bind and cut the cluster off from the database. A non-k3s host has
-            # no such file and just uses the base compose file.
-            compose_files="-f docker-compose.yml"
-            if [ -f docker-compose.k3s.yml ]; then
-              compose_files="$compose_files -f docker-compose.k3s.yml"
-            fi
-            docker compose $compose_files --env-file .env --env-file .env.image pull web
-            docker compose $compose_files --env-file .env --env-file .env.image up -d
-            docker image prune -f
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          deploy-path: ${{ secrets.DEPLOY_PATH }}
+          ghcr-user: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
 
   rollback-legacy:
-    # Emergency rollback (spec `legacy-rollback-path-preserved`). Dispatch this
-    # workflow at a previous commit to redeploy that SHA's existing image. It has
-    # no `needs:` on purpose: a CVE disclosed after that image was built must not
-    # stand between an operator and a working production.
+    # Emergency rollback: dispatch at a previous commit to redeploy that SHA.
+    # No needs on purpose, so a CVE disclosed later cannot block a rollback.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read # same GHCR pull as deploy-legacy
+      packages: read
     steps:
-      - name: Redeploy a previously built image over SSH
-        uses: appleboy/ssh-action@v1
-        env:
-          DEPLOY_IMAGE: ${{ env.IMAGE }}:${{ github.sha }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/compose-deploy
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          envs: DEPLOY_IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
-          script: |
-            set -eu
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            cd "$DEPLOY_PATH"
-            echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
-            # Match deploy-legacy: keep the k3s db/redis gateway bind if present.
-            compose_files="-f docker-compose.yml"
-            if [ -f docker-compose.k3s.yml ]; then
-              compose_files="$compose_files -f docker-compose.k3s.yml"
-            fi
-            docker compose $compose_files --env-file .env --env-file .env.image pull web
-            docker compose $compose_files --env-file .env --env-file .env.image up -d
-            docker image prune -f
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          deploy-path: ${{ secrets.DEPLOY_PATH }}
+          ghcr-user: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}

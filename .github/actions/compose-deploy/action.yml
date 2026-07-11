@@ -1,0 +1,49 @@
+name: Deploy over SSH with Compose
+description: Pin the image tag and restart the Compose stack on the host over SSH.
+
+inputs:
+  image:
+    description: Fully qualified image reference to deploy
+    required: true
+  ssh-host:
+    required: true
+  ssh-user:
+    required: true
+  ssh-key:
+    required: true
+  deploy-path:
+    description: Project directory on the host
+    required: true
+  ghcr-user:
+    required: true
+  ghcr-token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: appleboy/ssh-action@v1
+      env:
+        DEPLOY_IMAGE: ${{ inputs.image }}
+        GHCR_USER: ${{ inputs.ghcr-user }}
+        GHCR_TOKEN: ${{ inputs.ghcr-token }}
+        DEPLOY_PATH: ${{ inputs.deploy-path }}
+      with:
+        host: ${{ inputs.ssh-host }}
+        username: ${{ inputs.ssh-user }}
+        key: ${{ inputs.ssh-key }}
+        envs: DEPLOY_IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
+        script: |
+          set -eu
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          cd "$DEPLOY_PATH"
+          echo "ECPPP_IMAGE=$DEPLOY_IMAGE" > .env.image
+          # docker-compose.k3s.yml binds db/redis to the flannel gateway so
+          # in-cluster pods reach them; include it only on the k3s host.
+          compose_files="-f docker-compose.yml"
+          if [ -f docker-compose.k3s.yml ]; then
+            compose_files="$compose_files -f docker-compose.k3s.yml"
+          fi
+          docker compose $compose_files --env-file .env --env-file .env.image pull web
+          docker compose $compose_files --env-file .env --env-file .env.image up -d
+          docker image prune -f
