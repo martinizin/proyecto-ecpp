@@ -1,0 +1,19 @@
+name: Setup Python environment
+description: Install Python and the project's dev + runtime dependencies. Assumes the repo is already checked out.
+
+inputs:
+  python-version:
+    description: Python version to install
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    # requirements-dev.txt pulls in requirements.txt via `-r`.
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r requirements-dev.txt

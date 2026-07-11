@@ -2,12 +2,21 @@ name: CI
 
 on: [push, pull_request]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  COVERAGE_MIN: "70"
+  BANDIT_TARGETS: "apps config"
+  BANDIT_EXCLUDE: "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+
 jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     services:
       postgres:
         image: postgres:18
@@ -22,7 +31,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       DATABASE_NAME: ecppp_test
       DATABASE_USER: test_user
@@ -31,20 +39,14 @@ jobs:
       DATABASE_PORT: 5432
       DJANGO_SECRET_KEY: test-secret-key-ci-only
       DJANGO_SETTINGS_MODULE: config.settings.development
-      # Dummy key para que el SDK de openai se instancie sin Missing credentials
-      # en tests. Los tests que mockean el SDK no usan esta key.
+      # Dummy key so the OpenAI SDK instantiates; mocked tests never call out.
       OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-python-env
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        # requirements-dev.txt pulls in requirements.txt via `-r`.
-        run: pip install -r requirements-dev.txt
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Lint with flake8
         run: flake8 .
@@ -59,34 +61,22 @@ jobs:
         run: coverage run -m pytest
 
       - name: Check coverage threshold
-        run: coverage report --fail-under=70
+        run: coverage report --fail-under=${{ env.COVERAGE_MIN }}
 
   bandit:
-    # SAST for our own code. Reports ALL severities as an artifact + step
-    # summary for visibility, but only fails the job on HIGH severity
-    # (MEDIUM/LOW are visible, non-blocking — see spec.md `bandit-static-scan`
-    # and design.md ADR notes on this assumption).
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-python-env
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
-        # requirements-dev.txt pulls in requirements.txt via `-r`.
-        run: pip install -r requirements-dev.txt
-
+      # Full-severity SARIF report for the Security tab; never fails the job.
       - name: Run Bandit (all severities, non-blocking report)
-        # --exit-zero: this invocation never fails the job by itself; it only
-        # produces the full-visibility SARIF report. The actual blocking gate
-        # is the "Enforce HIGH-severity gate" step further below.
-        run: |
-          bandit -r apps config -f sarif -o bandit.sarif --exit-zero \
-            --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+        run: bandit -r ${{ env.BANDIT_TARGETS }} -f sarif -o bandit.sarif --exit-zero --exclude "${{ env.BANDIT_EXCLUDE }}"
 
       - name: Bandit step summary (all severities)
         if: always()
@@ -94,8 +84,7 @@ jobs:
           {
             echo "## Bandit SAST results (all severities)"
             echo '```'
-            bandit -r apps config -f txt --exit-zero \
-              --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+            bandit -r ${{ env.BANDIT_TARGETS }} -f txt --exit-zero --exclude "${{ env.BANDIT_EXCLUDE }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -107,15 +96,9 @@ jobs:
           path: bandit.sarif
           retention-days: 30
 
+      # Blocking gate: only HIGH-severity findings fail the build.
       - name: Enforce HIGH-severity gate
-        # Only HIGH-severity findings block the PR/push. This is a separate
-        # bandit invocation (no --exit-zero) filtered to --severity-level
-        # high, so its exit code is 1 iff a HIGH finding exists (verified
-        # locally: 0 with only LOW findings, 1 with a planted
-        # `subprocess(..., shell=True)`).
-        run: |
-          bandit -r apps config --severity-level high \
-            --exclude "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+        run: bandit -r ${{ env.BANDIT_TARGETS }} --severity-level high --exclude "${{ env.BANDIT_EXCLUDE }}"
 
   codeql:
     runs-on: ubuntu-latest
@@ -131,8 +114,6 @@ jobs:
           languages: python
 
       - name: Perform CodeQL analysis
-        # `analyze` builds the SARIF results and uploads them to
-        # Security -> Code scanning for this commit SHA internally.
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:python"
