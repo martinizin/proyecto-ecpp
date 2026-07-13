@@ -787,7 +787,7 @@ class CierrePeriodoAppService:
     reflects data as of that cut-off date.
     """
 
-    VERSION_DATOS = 2
+    VERSION_DATOS = 3
 
     _DECIMALES_ASISTENCIA = ("tasa_presentes", "tasa_ausentes", "tasa_justificados")
     _DECIMALES_SOLICITUDES = ("promedio_por_estudiante",)
@@ -892,12 +892,15 @@ class CierrePeriodoAppService:
     def obtener_dashboard_cierre(self, periodo_id: int, fecha_corte) -> dict:
         """
         Computes the closing metrics with data up to fecha_corte (inclusive):
-        attendance rates, grade counts per paralelo/asignatura, and request
-        summaries (justificaciones / recalificaciones).
+        attendance rates, grade counts and averages per paralelo/asignatura,
+        and request summaries (justificaciones / recalificaciones).
         """
         from django.db.models import Count, Q
 
-        from apps.academico.domain.services import CierrePeriodoService
+        from apps.academico.domain.services import (
+            CierrePeriodoService,
+            RendimientoAcademicoService,
+        )
         from apps.academico.infrastructure.models import Matricula
         from apps.asistencia.infrastructure.models import Asistencia
         from apps.calificaciones.infrastructure.models import Calificacion
@@ -940,6 +943,17 @@ class CierrePeriodoAppService:
                 "evaluacion__paralelo__nombre",
             )
         )
+        # Grade averages reuse the same domain math as the Rendimiento module
+        # (calcular_promedio_paralelo). Averages travel as str because the
+        # whole calificaciones block is stored verbatim in the JSONField.
+        notas_por_paralelo: dict[int, list[Decimal]] = {}
+        notas = Calificacion.objects.filter(
+            evaluacion__paralelo__periodo_id=periodo_id,
+            fecha_registro__date__lte=fecha_corte,
+        ).values_list("evaluacion__paralelo_id", "nota")
+        for paralelo_id, nota in notas:
+            notas_por_paralelo.setdefault(paralelo_id, []).append(Decimal(str(nota)))
+
         por_paralelo = [
             {
                 "paralelo_id": fila["evaluacion__paralelo_id"],
@@ -947,11 +961,20 @@ class CierrePeriodoAppService:
                 "asignatura_id": fila["evaluacion__paralelo__asignatura_id"],
                 "asignatura_nombre": fila["evaluacion__paralelo__asignatura__nombre"],
                 "total": fila["total"],
+                "promedio": str(
+                    RendimientoAcademicoService.calcular_promedio_paralelo(
+                        notas_por_paralelo.get(fila["evaluacion__paralelo_id"], [])
+                    )
+                ),
             }
             for fila in calificaciones_qs
         ]
+        todas_las_notas = [n for grupo in notas_por_paralelo.values() for n in grupo]
         calificaciones = {
             "total": sum(fila["total"] for fila in por_paralelo),
+            "promedio_general": str(
+                RendimientoAcademicoService.calcular_promedio_paralelo(todas_las_notas)
+            ),
             "por_paralelo": por_paralelo,
         }
 

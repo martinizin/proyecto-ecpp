@@ -3,8 +3,8 @@ Tests for the period-closing dashboard (HU28) — snapshot-based flow.
 
 The dashboard is generated automatically when a period ends (fecha_fin
 passes) or is deactivated, freezing the data as of that date. It shows
-attendance rates, grade counts per paralelo/asignatura, and request
-summaries (justificaciones / recalificaciones).
+attendance rates, grade counts and averages per paralelo/asignatura, and
+request summaries (justificaciones / recalificaciones).
 """
 
 import datetime
@@ -360,6 +360,9 @@ class TestContenidoSnapshot:
         assert calificaciones["total"] == 1
         assert calificaciones["por_paralelo"][0]["paralelo_id"] == paralelo.pk
         assert calificaciones["por_paralelo"][0]["asignatura_id"] == paralelo.asignatura_id
+        # CalificacionFactory default nota is 8.50; averages travel as str
+        assert calificaciones["por_paralelo"][0]["promedio"] == "8.50"
+        assert calificaciones["promedio_general"] == "8.50"
 
         justificaciones = dashboard["solicitudes"]["justificaciones"]
         assert isinstance(justificaciones, ResumenSolicitudes)
@@ -372,6 +375,27 @@ class TestContenidoSnapshot:
         assert recalificaciones.pendientes == 1
 
         assert dashboard["total_estudiantes"] == 1
+
+    def test_promedio_del_curso_por_paralelo_y_global(self):
+        """HU28: the dashboard reports grade AVERAGES, not just counts."""
+        hoy = datetime.date.today()
+        periodo = PeriodoFactory(
+            activo=True,
+            fecha_inicio=hoy - datetime.timedelta(days=60),
+            fecha_fin=hoy + datetime.timedelta(days=30),
+        )
+        paralelo = ParaleloFactory(periodo=periodo)
+        evaluacion = EvaluacionFactory(paralelo=paralelo)
+        m1 = MatriculaFactory(paralelo=paralelo)
+        m2 = MatriculaFactory(paralelo=paralelo)
+        CalificacionFactory(evaluacion=evaluacion, estudiante=m1.estudiante, nota=Decimal("8.50"))
+        CalificacionFactory(evaluacion=evaluacion, estudiante=m2.estudiante, nota=Decimal("11.50"))
+
+        dashboard = CierrePeriodoAppService().obtener_dashboard_cierre(periodo.pk, hoy)
+
+        assert dashboard["calificaciones"]["por_paralelo"][0]["promedio"] == "10.00"
+        assert dashboard["calificaciones"]["promedio_general"] == "10.00"
+        assert dashboard["calificaciones"]["total"] == 2
 
     def test_fin_periodo_congela_asistencias_en_fecha_corte(self):
         hoy = datetime.date.today()
