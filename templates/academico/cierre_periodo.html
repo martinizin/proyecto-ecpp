@@ -306,38 +306,32 @@
   </div>
 
   </div>{# /x-data cierrePeriodo #}
-  {% endif %}{# /dashboard_pendiente #}
-  {% endif %}{# /sin_periodos #}
 
-</div>
-{% endblock %}
-
-{% block extra_js %}
-{% if snapshot %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-{{ asistencias_datos|json_script:"datos-asistencias" }}
-{{ calificaciones_por_paralelo|json_script:"datos-calificaciones" }}
-<script>
-  const ASISTENCIAS = JSON.parse(document.getElementById('datos-asistencias').textContent);
-  const CALIFICACIONES = JSON.parse(document.getElementById('datos-calificaciones').textContent);
-
-  // Kept outside the Alpine component: storing a Chart.js instance in
-  // reactive state wraps it in a Proxy and breaks destroy()/re-render.
-  let chartCalInstance = null;
-
+  {# Data + component script live INSIDE the content block: boosted navigation
+     swaps only #main-content, so extra_js (outside the swap target) never runs
+     after an htmx swap. htmx re-evaluates scripts found in swapped content —
+     same pattern as reportes/hub.html. #}
+  {{ asistencias_datos|json_script:"datos-asistencias" }}
+  {{ calificaciones_por_paralelo|json_script:"datos-calificaciones" }}
+  <script>
+  // Re-evaluated on every boosted swap. Only redeclaration-safe globals here:
+  // a top-level const/let would throw "already declared" on the second visit.
   function cierrePeriodo() {
+    const asistencias = JSON.parse(document.getElementById('datos-asistencias').textContent);
+    const calificaciones = JSON.parse(document.getElementById('datos-calificaciones').textContent);
+
     return {
       materia: '',
       paralelo: '',
 
       get materias() {
         const vistas = new Map();
-        CALIFICACIONES.forEach(f => vistas.set(f.asignatura_id, f.asignatura_nombre));
+        calificaciones.forEach(f => vistas.set(f.asignatura_id, f.asignatura_nombre));
         return [...vistas.entries()].map(([id, nombre]) => ({ id, nombre }));
       },
 
       get paralelosDisponibles() {
-        return CALIFICACIONES.filter(f =>
+        return calificaciones.filter(f =>
           !this.materia || String(f.asignatura_id) === this.materia
         );
       },
@@ -381,23 +375,43 @@
         this.$nextTick(() => this.renderChartCalificaciones());
       },
 
+      cargarChartJs() {
+        // Lazy singleton loader. A plain <script src> inside swapped content
+        // executes asynchronously under htmx, so the init code could race it;
+        // loading on demand (once, cached on window) removes the race.
+        if (window.Chart) return Promise.resolve();
+        if (!window._chartJsCarga) {
+          window._chartJsCarga = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        return window._chartJsCarga;
+      },
+
       init() {
-        this.$nextTick(() => {
+        this.cargarChartJs().then(() => this.$nextTick(() => {
           this.renderChartAsistencia();
           this.renderChartCalificaciones();
-        });
+        }));
       },
 
       renderChartAsistencia() {
+        if (!window.Chart) return;
         const ctx = document.getElementById('chartAsistencia');
         if (!ctx) return;
-        const total = ASISTENCIAS.presentes + ASISTENCIAS.ausentes + ASISTENCIAS.justificados;
+        const previo = Chart.getChart(ctx);
+        if (previo) previo.destroy();
+        const total = asistencias.presentes + asistencias.ausentes + asistencias.justificados;
         new Chart(ctx, {
           type: 'doughnut',
           data: {
             labels: ['Presentes', 'Ausentes', 'Justificados'],
             datasets: [{
-              data: [ASISTENCIAS.presentes, ASISTENCIAS.ausentes, ASISTENCIAS.justificados],
+              data: [asistencias.presentes, asistencias.ausentes, asistencias.justificados],
               backgroundColor: ['rgba(22,163,74,0.85)', 'rgba(220,38,38,0.85)', 'rgba(245,158,11,0.85)'],
               borderWidth: 0,
             }]
@@ -421,12 +435,18 @@
       },
 
       renderChartCalificaciones() {
-        if (chartCalInstance) { chartCalInstance.destroy(); chartCalInstance = null; }
+        if (!window.Chart) return;
         const ctx = document.getElementById('chartCalificaciones');
         if (!ctx) return;
+        // Instances are looked up via Chart.getChart instead of being stored:
+        // keeping one in Alpine reactive state wraps it in a Proxy and breaks
+        // destroy()/re-render, and a top-level variable would not survive the
+        // script re-evaluation that boosted swaps trigger.
+        const previo = Chart.getChart(ctx);
+        if (previo) previo.destroy();
         const filas = this.filasFiltradas;
         if (filas.length === 0) return;
-        chartCalInstance = new Chart(ctx, {
+        new Chart(ctx, {
           type: 'bar',
           data: {
             labels: filas.map(f => f.paralelo_nombre),
@@ -465,6 +485,9 @@
       },
     }
   }
-</script>
-{% endif %}
+  </script>
+  {% endif %}{# /dashboard_pendiente #}
+  {% endif %}{# /sin_periodos #}
+
+</div>
 {% endblock %}

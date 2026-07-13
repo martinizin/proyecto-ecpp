@@ -525,6 +525,23 @@ class TestCierrePeriodoDashboardView:
         assert 'id="datos-asistencias"' in contenido
         assert "calificaciones_json" not in response.context
 
+    def test_scripts_viven_dentro_del_content_block(self):
+        """hx-boost swaps only #main-content, so extra_js (outside the swap
+        target in base.html) never runs after a boosted navigation. Page data
+        and the Alpine component must live inside the content block, like
+        reportes/hub.html does."""
+        from pathlib import Path
+
+        from django.conf import settings
+
+        src = (
+            Path(settings.BASE_DIR) / "templates" / "academico" / "cierre_periodo.html"
+        ).read_text(encoding="utf-8")
+        assert "{% block extra_js %}" not in src
+        assert "function cierrePeriodo()" in src
+        # Redeclaration guard: htmx re-evaluates this script on every swap
+        assert "\nconst " not in src and "\nlet " not in src
+
     def test_modulo_visible_en_sidebar_y_dashboard_de_inicio(self):
         """Business rule: the module appears in the sidebar AND the home
         dashboard section, even when no period has closed yet."""
