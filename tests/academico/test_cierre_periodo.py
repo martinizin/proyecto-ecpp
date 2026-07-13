@@ -509,6 +509,16 @@ class TestCierrePeriodoDashboardView:
         assert response.status_code == 200
         assert response.context["sin_periodos"] is True
 
+    def test_modulo_visible_en_sidebar_y_dashboard_de_inicio(self):
+        """Business rule: the module appears in the sidebar AND the home
+        dashboard section, even when no period has closed yet."""
+        response = self._login_inspector().get(reverse("usuarios:dashboard"))
+
+        assert response.status_code == 200
+        contenido = response.content.decode("utf-8")
+        assert contenido.count(self.url) >= 2  # sidebar link + dashboard card
+        assert "Cierre de Período" in contenido
+
     def test_docente_no_puede_acceder(self):
         from tests.factories import DocenteFactory
 
