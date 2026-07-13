@@ -114,8 +114,7 @@ class Migration(migrations.Migration):
                     models.TextField(
                         blank=True,
                         help_text=(
-                            "Obligatoria si nota_final_parcial_override "
-                            "difiere del promedio"
+                            "Obligatoria si nota_final_parcial_override " "difiere del promedio"
                         ),
                     ),
                 ),
