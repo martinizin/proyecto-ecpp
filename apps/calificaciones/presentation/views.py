@@ -142,7 +142,7 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                     except ValueError:
                         pass
 
-        sub_guardadas, sub_errores = self._procesar_sub_notas(request)
+        sub_guardadas, sub_errores = self._procesar_sub_notas(request, paralelo_id)
 
         resultado = service.guardar_calificaciones(
             paralelo_id, notas_data, request.user, _get_client_ip(request)
@@ -210,8 +210,14 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                 celdas_sub.append(celda)
             fila["celdas_sub"] = celdas_sub
 
-    def _procesar_sub_notas(self, request):
-        """Parses subnota_/override_/just_ POST groups and registers them (HU32)."""
+    def _procesar_sub_notas(self, request, paralelo_id):
+        """Parses subnota_/override_/just_ POST groups and registers them (HU32).
+
+        The evaluacion ids come from the form field names, which the client
+        controls; ``paralelo_id`` is the one from the URL, already checked
+        against the requesting docente. It is forwarded to the service so a
+        crafted POST cannot write sub-notas into another docente's paralelo.
+        """
         sub_data = {}
         overrides = {}
         justificaciones = {}
@@ -241,6 +247,7 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                 evaluacion_id,
                 matricula_id,
                 notas,
+                paralelo_id=paralelo_id,
                 usuario=request.user,
                 ip=ip,
                 override_str=override_str,

@@ -86,7 +86,9 @@ class TestConfigurarSubNotas:
 
     def test_reconfigurar_elimina_sub_notas_previas(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
-        service.registrar_sub_notas(evaluacion.id, matricula.id, ["10", "12", "14"])
+        service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["10", "12", "14"], paralelo_id=evaluacion.paralelo_id
+        )
         resultado = service.configurar_sub_notas(evaluacion.id, ["X", "Y", "Z"])
         assert resultado["ok"] is True
         assert resultado["sub_notas_eliminadas"] == 3
@@ -156,7 +158,9 @@ class TestRegistrarSubNotas:
 
     def test_registra_y_consolida_promedio(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["Tarea 1", "Quiz", "Examen"])
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "18", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is True
         assert resultado["promedio"] == Decimal("15.00")
         assert resultado["nota_final"] == Decimal("15.00")
@@ -174,8 +178,12 @@ class TestRegistrarSubNotas:
 
     def test_re_registro_reemplaza_sub_notas(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
-        service.registrar_sub_notas(evaluacion.id, matricula.id, ["10", "10", "10"])
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["20", "20", "20"])
+        service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["10", "10", "10"], paralelo_id=evaluacion.paralelo_id
+        )
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["20", "20", "20"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is True
         assert (
             SubNotaParcial.objects.filter(evaluacion=evaluacion, matricula=matricula).count() == 3
@@ -193,6 +201,7 @@ class TestRegistrarSubNotas:
             ["15", "18", "12"],
             override_str="16",
             justificacion="Participación destacada en clase.",
+            paralelo_id=evaluacion.paralelo_id,
         )
         assert resultado["ok"] is True
         assert resultado["nota_final"] == Decimal("16")
@@ -207,7 +216,11 @@ class TestRegistrarSubNotas:
     def test_override_sin_justificacion_rechazado(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
         resultado = service.registrar_sub_notas(
-            evaluacion.id, matricula.id, ["15", "18", "12"], override_str="16"
+            evaluacion.id,
+            matricula.id,
+            ["15", "18", "12"],
+            override_str="16",
+            paralelo_id=evaluacion.paralelo_id,
         )
         assert resultado["ok"] is False
         assert "justificación" in resultado["error"].lower()
@@ -216,25 +229,35 @@ class TestRegistrarSubNotas:
     def test_override_igual_al_promedio_sin_justificacion(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
         resultado = service.registrar_sub_notas(
-            evaluacion.id, matricula.id, ["15", "18", "12"], override_str="15.00"
+            evaluacion.id,
+            matricula.id,
+            ["15", "18", "12"],
+            override_str="15.00",
+            paralelo_id=evaluacion.paralelo_id,
         )
         assert resultado["ok"] is True
         assert resultado["nota_final"] == Decimal("15.00")
 
     def test_nota_fuera_de_rango_rechazada(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "21", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "21", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is False
         assert "'B'" in resultado["error"]
 
     def test_cantidad_distinta_a_config_rechazada(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "18"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is False
         assert "esperaban 3" in resultado["error"]
 
     def test_sin_configuracion_rechazado(self, service, evaluacion, matricula):
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "18", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is False
         assert "configure" in resultado["error"].lower()
 
@@ -244,15 +267,38 @@ class TestRegistrarSubNotas:
             paralelo=evaluacion.paralelo,
             estado=RegistroCalificacionParalelo.Estado.VALIDADO,
         )
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "18", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is False
         assert "validación" in resultado["error"]
+
+    def test_evaluacion_de_otro_paralelo_rechazada(self, service, evaluacion, matricula):
+        """``paralelo_id`` es la fuente de verdad: una evaluación que no le
+        pertenece se rechaza aunque exista y esté en BORRADOR."""
+        otro_paralelo = ParaleloFactory()
+        service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
+
+        resultado = service.registrar_sub_notas(
+            evaluacion.id,
+            matricula.id,
+            ["15", "18", "12"],
+            paralelo_id=otro_paralelo.id,
+        )
+
+        assert resultado["ok"] is False
+        assert "no encontrada en este paralelo" in resultado["error"]
+        assert not SubNotaParcial.objects.filter(evaluacion=evaluacion).exists()
+        assert not Calificacion.objects.filter(evaluacion=evaluacion).exists()
 
     def test_matricula_de_otro_paralelo_rechazada(self, service, evaluacion):
         otra_matricula = MatriculaFactory()  # paralelo distinto
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
         resultado = service.registrar_sub_notas(
-            evaluacion.id, otra_matricula.id, ["15", "18", "12"]
+            evaluacion.id,
+            otra_matricula.id,
+            ["15", "18", "12"],
+            paralelo_id=evaluacion.paralelo_id,
         )
         assert resultado["ok"] is False
         assert "Matrícula" in resultado["error"]
@@ -261,7 +307,12 @@ class TestRegistrarSubNotas:
         docente = DocenteFactory()
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
         service.registrar_sub_notas(
-            evaluacion.id, matricula.id, ["15", "18", "12"], usuario=docente, ip="127.0.0.1"
+            evaluacion.id,
+            matricula.id,
+            ["15", "18", "12"],
+            usuario=docente,
+            ip="127.0.0.1",
+            paralelo_id=evaluacion.paralelo_id,
         )
         log = LogCalificacion.objects.filter(
             accion=LogCalificacion.TipoAccion.CREACION,
@@ -281,6 +332,7 @@ class TestRegistrarSubNotas:
             usuario=docente,
             override_str="17",
             justificacion="Ajuste por proyecto adicional.",
+            paralelo_id=evaluacion.paralelo_id,
         )
         log = LogCalificacion.objects.filter(realizado_por=docente).first()
         assert "Override manual: 17" in log.motivo
@@ -290,7 +342,9 @@ class TestRegistrarSubNotas:
         service.configurar_sub_notas(
             evaluacion.id, ["Tarea", "Quiz", "Examen"], pesos=["20", "30", "50"]
         )
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "18", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "18", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is True
         # 15*0.20 + 18*0.30 + 12*0.50 = 14.40
         assert resultado["promedio"] == Decimal("14.40")
@@ -302,7 +356,9 @@ class TestRegistrarSubNotas:
 
     def test_sub_notas_guardan_peso_de_config(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"], pesos=["25", "25", "50"])
-        service.registrar_sub_notas(evaluacion.id, matricula.id, ["10", "12", "14"])
+        service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["10", "12", "14"], paralelo_id=evaluacion.paralelo_id
+        )
         pesos = list(
             SubNotaParcial.objects.filter(evaluacion=evaluacion, matricula=matricula)
             .order_by("orden")
@@ -312,7 +368,9 @@ class TestRegistrarSubNotas:
 
     def test_notas_incompletas_rechazadas(self, service, evaluacion, matricula):
         service.configurar_sub_notas(evaluacion.id, ["A", "B", "C"])
-        resultado = service.registrar_sub_notas(evaluacion.id, matricula.id, ["15", "", "12"])
+        resultado = service.registrar_sub_notas(
+            evaluacion.id, matricula.id, ["15", "", "12"], paralelo_id=evaluacion.paralelo_id
+        )
         assert resultado["ok"] is False
         assert "completar" in resultado["error"].lower()
         assert not SubNotaParcial.objects.filter(

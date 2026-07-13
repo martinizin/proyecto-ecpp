@@ -348,6 +348,7 @@ def _setup_materia_con_sub_notas(estudiante=None, pesos=None, override_str=None,
         ev.id,
         matricula.id,
         ["15", "18", "12"],
+        paralelo_id=paralelo.id,
         override_str=override_str,
         justificacion=justificacion,
     )
@@ -405,7 +406,9 @@ class TestLibretaSubNotas:
         ev = EvaluacionFactory(paralelo=paralelo, tipo="parcial1", peso=Decimal("100.00"))
         service = SubNotaParcialAppService()
         service.configurar_sub_notas(ev.id, ["Tarea", "Quiz", "Examen"])
-        service.registrar_sub_notas(ev.id, matricula.id, ["15", "18", "12"])
+        service.registrar_sub_notas(
+            ev.id, matricula.id, ["15", "18", "12"], paralelo_id=paralelo.id
+        )
         RegistroCalificacionParaleloFactory(
             paralelo=paralelo,
             estado=RegistroCalificacionParalelo.Estado.BORRADOR,

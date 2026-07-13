@@ -225,6 +225,49 @@ class TestRegistrarSubNotasEnPlanilla:
         )
         assert not SubNotaParcial.objects.filter(evaluacion=ev).exists()
 
+    def test_post_no_escribe_sub_notas_de_otro_paralelo(self, client):
+        """IDOR: las claves ``subnota_<mat>_<ev>_<orden>`` las controla el
+        cliente. Un docente no puede inyectar la evaluación de OTRO paralelo
+        en el POST de su propia planilla y escribir notas ajenas."""
+        docente, paralelo, _, _ = self._setup_planilla()
+
+        # Planilla de otro docente, también en BORRADOR y con sub-notas listas.
+        _, paralelo_ajeno, ev_ajena, matricula_ajena = self._setup_planilla()
+
+        client.force_login(docente)
+        response = client.post(
+            f"/calificaciones/paralelo/{paralelo.pk}/registrar/",
+            {
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_1": "20",
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_2": "20",
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_3": "20",
+            },
+        )
+
+        assert response.status_code == 302
+        assert not SubNotaParcial.objects.filter(evaluacion=ev_ajena).exists()
+        assert not Calificacion.objects.filter(evaluacion=ev_ajena).exists()
+        assert paralelo_ajeno.pk != paralelo.pk
+
+    def test_post_override_no_afecta_paralelo_ajeno(self, client):
+        """El override tampoco puede consolidar una nota en un paralelo ajeno."""
+        docente, paralelo, _, _ = self._setup_planilla()
+        _, _, ev_ajena, matricula_ajena = self._setup_planilla()
+
+        client.force_login(docente)
+        client.post(
+            f"/calificaciones/paralelo/{paralelo.pk}/registrar/",
+            {
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_1": "10",
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_2": "10",
+                f"subnota_{matricula_ajena.pk}_{ev_ajena.pk}_3": "10",
+                f"override_{matricula_ajena.pk}_{ev_ajena.pk}": "20",
+                f"just_{matricula_ajena.pk}_{ev_ajena.pk}": "Inyectado.",
+            },
+        )
+
+        assert not Calificacion.objects.filter(evaluacion=ev_ajena).exists()
+
     def test_post_consolida_ponderado_con_pesos(self, client):
         docente = _saved(DocenteFactory())
         paralelo = ParaleloFactory(docente=docente)

@@ -494,6 +494,7 @@ class SubNotaParcialAppService:
         evaluacion_id: int,
         matricula_id: int,
         notas: list[str],
+        paralelo_id: int,
         usuario=None,
         ip: str = None,
         override_str: str = "",
@@ -501,14 +502,21 @@ class SubNotaParcialAppService:
     ) -> dict:
         """Register the sub-grades of a student and consolidate the parcial grade.
 
-        La nota final del parcial es el promedio aritmético de las sub-notas,
-        salvo que el docente registre un override manual (con justificación
-        obligatoria si difiere del promedio).
+        La nota final del parcial es el promedio ponderado de las sub-notas
+        (o el promedio aritmético si no se configuraron pesos), salvo que el
+        docente registre un override manual (con justificación obligatoria si
+        difiere del promedio).
+
+        ``paralelo_id`` is the authoritative paralelo — the caller must have
+        already verified the requesting docente owns it. ``evaluacion_id``
+        comes from the submitted form keys, so it is untrusted: an evaluacion
+        belonging to another paralelo is rejected here rather than silently
+        writing grades into a colleague's planilla.
         """
         try:
-            evaluacion = Evaluacion.objects.get(pk=evaluacion_id)
+            evaluacion = Evaluacion.objects.get(pk=evaluacion_id, paralelo_id=paralelo_id)
         except Evaluacion.DoesNotExist:
-            return {"ok": False, "error": "Evaluación no encontrada."}
+            return {"ok": False, "error": "Evaluación no encontrada en este paralelo."}
 
         if not evaluacion.es_parcial:
             return {"ok": False, "error": "Solo los parciales admiten sub-notas."}
