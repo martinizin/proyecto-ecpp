@@ -126,6 +126,16 @@ class Paralelo(models.Model):
     def __str__(self):
         return f"{self.asignatura.codigo} - {self.nombre} ({self.periodo})"
 
+    @property
+    def etiqueta_curso(self) -> str:
+        """Label for course pickers that already sit under a period filter.
+
+        Drops the period that ``__str__`` appends — repeating it in every
+        option is noise. Keeps the asignatura code because two paralelos in
+        the same period can share a ``nombre`` (e.g. "NRC 5557").
+        """
+        return f"{self.asignatura.codigo} - {self.nombre}"
+
 
 class BloqueHorario(models.Model):
     """A time block for a paralelo (subject-section). Supports multiple blocks per paralelo."""

@@ -1,0 +1,20 @@
+# cert-manager ClusterIssuer using Let's Encrypt production ACME + HTTP-01
+# solved through the Traefik ingress class. Cluster-scoped: installed once,
+# not part of the base/overlay Kustomize tree (design.md §4, §7).
+#
+# admin@DOMAIN is a placeholder — replace with the real operator email when
+# cert-manager is installed (task 4.1, out of scope for this slice).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@DOMAIN
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - http01:
+          ingress:
+            class: traefik

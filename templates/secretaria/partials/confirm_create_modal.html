@@ -57,21 +57,21 @@ Must be included INSIDE a parent x-data scope that exposes:
 
         <!-- Visual summary of entered data -->
         <dl class="divide-y divide-gray-100 mb-6 text-sm">
-            <div class="py-2 grid grid-cols-5 gap-2">
-                <dt class="col-span-2 font-medium text-gray-500">Nombre</dt>
-                <dd class="col-span-3 text-gray-800" x-text="resumen.nombre || '—'"></dd>
+            <div class="py-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <dt class="sm:col-span-2 font-medium text-gray-500">Nombre</dt>
+                <dd class="sm:col-span-3 text-gray-800" x-text="resumen.nombre || '—'"></dd>
             </div>
-            <div class="py-2 grid grid-cols-5 gap-2">
-                <dt class="col-span-2 font-medium text-gray-500">Cédula</dt>
-                <dd class="col-span-3 text-gray-800" x-text="resumen.cedula || '—'"></dd>
+            <div class="py-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <dt class="sm:col-span-2 font-medium text-gray-500">Cédula</dt>
+                <dd class="sm:col-span-3 text-gray-800" x-text="resumen.cedula || '—'"></dd>
             </div>
-            <div class="py-2 grid grid-cols-5 gap-2">
-                <dt class="col-span-2 font-medium text-gray-500">Correo</dt>
-                <dd class="col-span-3 text-gray-800 break-all" x-text="resumen.email || '—'"></dd>
+            <div class="py-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <dt class="sm:col-span-2 font-medium text-gray-500">Correo</dt>
+                <dd class="sm:col-span-3 text-gray-800 break-all" x-text="resumen.email || '—'"></dd>
             </div>
-            <div class="py-2 grid grid-cols-5 gap-2">
-                <dt class="col-span-2 font-medium text-gray-500">Rol</dt>
-                <dd class="col-span-3 text-gray-800" x-text="resumen.rolLabel || '—'"></dd>
+            <div class="py-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <dt class="sm:col-span-2 font-medium text-gray-500">Rol</dt>
+                <dd class="sm:col-span-3 text-gray-800" x-text="resumen.rolLabel || '—'"></dd>
             </div>
         </dl>
 

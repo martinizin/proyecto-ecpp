@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -12,7 +12,7 @@
     </ol>
 </nav>
 
-<div class="bg-white rounded-xl shadow-md overflow-hidden">
+<div class="bg-white rounded-xl shadow-md overflow-hidden" hx-boost="true">
     <!-- Card Header -->
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 class="text-xl font-semibold text-gray-800">Asignaturas</h1>
@@ -111,7 +111,7 @@
                         class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">
                     Cancelar
                 </button>
-                <form :action="url" method="post" class="inline">
+                <form :action="url" method="post" hx-boost="false" class="inline">
                     {% csrf_token %}
                     <button type="submit"
                             class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm">

@@ -1,0 +1,69 @@
+# `web` Deployment. Migrations do NOT run here — they run once per sync as the
+# `web-migrate` PreSync hook Job (see migrate-job.yaml, design.md §5), so this
+# container explicitly sets RUN_MIGRATIONS_ON_BOOT=0 even though the shipped
+# entrypoint.sh default is "1" (compose/legacy-rollback behavior).
+#
+# Image tag is a placeholder; the `bump` CI job (task 3.8, out of scope here)
+# pins `overlays/prod` to an immutable digest via `kustomize edit set image`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: web
+          image: ghcr.io/martinizin/proyecto-ecpp:develop
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: web-config
+            - secretRef:
+                name: web-secrets
+          env:
+            # Migrations are owned by the PreSync Job (migrate-job.yaml).
+            # Explicit "0" overrides entrypoint.sh's default of "1".
+            - name: RUN_MIGRATIONS_ON_BOOT
+              value: "0"
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "500m"
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media

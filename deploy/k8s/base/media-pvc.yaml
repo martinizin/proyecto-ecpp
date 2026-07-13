@@ -1,0 +1,15 @@
+# RWO claim bound to the static hostPath PV (media-pv.yaml). Selecting by
+# storageClassName: manual (with no dynamic provisioner for that class)
+# ensures this claim binds only to media-pv, never to a dynamically
+# provisioned `local-path` volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 5Gi

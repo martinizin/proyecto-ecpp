@@ -1,0 +1,64 @@
+# Serves /media/* straight off the media volume, the way Caddy did before the
+# move to Kubernetes (see Caddyfile). Django only serves MEDIA_URL when
+# DEBUG is true (config/urls.py), and WhiteNoise covers STATIC_ROOT only --
+# without this, every uploaded file 404s in production.
+#
+# The image runs unprivileged (uid 101, port 8080). Kyverno's verifyImages
+# policy must therefore scope its signature check to ghcr.io/martinizin/*,
+# since this upstream image carries no signature from our OIDC identity.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-server
+  labels:
+    app.kubernetes.io/name: media-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: media-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: media-server
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: media
+              mountPath: /usr/share/nginx/html/media
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media
+            readOnly: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-server
+spec:
+  selector:
+    app.kubernetes.io/name: media-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -45,7 +45,13 @@
                 <label for="fecha" class="text-sm font-medium text-gray-700">Fecha:</label>
                 <input type="date" id="fecha" name="fecha" value="{{ fecha|date:'Y-m-d' }}"
                        class="form-control w-auto"
-                       @change="window.location.href='{% url 'asistencia:registrar_asistencia' paralelo.pk %}?fecha=' + $el.value">
+                       hx-get="{% url 'asistencia:registrar_asistencia' paralelo.pk %}"
+                       hx-trigger="change"
+                       hx-include="this"
+                       hx-target="#main-content"
+                       hx-select="#main-content"
+                       hx-swap="outerHTML show:window:top"
+                       hx-push-url="true">
                 <span class="text-sm text-gray-500">
                     <span x-text="contadorPresentes"></span> de {{ matriculas|length }} presentes
                 </span>

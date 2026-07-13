@@ -1,0 +1,7 @@
+# Force LF for files that run inside Linux containers, regardless of the
+# contributor's OS or git autocrlf setting.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf

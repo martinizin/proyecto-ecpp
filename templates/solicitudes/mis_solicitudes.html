@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm" aria-label="Breadcrumb">
+<nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
         <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
         <li class="text-gray-300">›</li>
@@ -39,8 +39,8 @@
 
     <!-- Filter -->
     <div class="mb-4">
-        <form method="get" class="flex items-center gap-2">
-            <select name="tipo" @change="$el.form.submit()"
+        <form method="get" hx-boost="true" class="flex items-center gap-2">
+            <select name="tipo" @change="$el.form.requestSubmit()"
                     class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <option value="">Todas</option>
                 {% for value, label in tipos %}

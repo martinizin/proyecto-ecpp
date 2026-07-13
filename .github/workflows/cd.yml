@@ -1,0 +1,213 @@
+name: CD
+
+# On merge to develop: build, scan (Trivy CVE + SBOM), sign (Cosign keyless),
+# promote the signed digest to git, then deploy. workflow_dispatch runs only the
+# rollback path. Argo CD replaces the SSH deploy once the k8s cutover lands.
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  TRIVY_SEVERITY: HIGH,CRITICAL
+
+jobs:
+  build:
+    # A dispatch is a rollback to an already-built image, so skip the build.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: ./.github/actions/ghcr-login
+
+      - name: Build and push image (amd64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:develop
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  trivy:
+    # Scan the immutable digest, not the mutable :develop tag, so the scan
+    # result always matches what gets signed.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/ghcr-login
+
+      - name: Trivy scan (SARIF, non-blocking)
+        uses: aquasecurity/trivy-action@v0.36.0 # NOTE: audit/bump this pin periodically
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: sarif
+          output: trivy-results.sarif
+          severity: ${{ env.TRIVY_SEVERITY }}
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
+
+      # Blocking gate. ignore-unfixed: the Debian base carries HIGH/CRITICAL CVEs
+      # with no released patch, so blocking on those would make the gate
+      # unsatisfiable. Block on what is actionable; the report above keeps the rest.
+      - name: Enforce CVE gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+          format: table
+          severity: ${{ env.TRIVY_SEVERITY }}
+          ignore-unfixed: true
+          exit-code: "1"
+
+  sign:
+    # Cosign keyless signing + SBOM attestation. Runs only after a clean scan,
+    # so an unsigned image is the observable result of a blocked release.
+    needs: [build, trivy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/ghcr-login
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-cyclonedx
+
+      - name: Sign image (keyless)
+        run: cosign sign --yes "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+
+      - name: Attest SBOM (CycloneDX, keyless)
+        run: |
+          cosign attest --yes --type cyclonedx \
+            --predicate sbom.cdx.json \
+            "${{ env.IMAGE }}@${{ needs.build.outputs.digest }}"
+
+  bump:
+    # Promote the signed digest into overlays/prod so Argo CD deploys exactly
+    # what was scanned and signed. Real releases only, never a rollback dispatch.
+    if: github.event_name == 'push'
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Install Kustomize
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Pin the signed digest into overlays/prod
+        working-directory: deploy/k8s/overlays/prod
+        run: kustomize edit set image ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
+
+      - name: Commit and push the digest bump
+        run: |
+          set -eu
+          if git diff --quiet; then
+            echo "Digest unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deploy/k8s/overlays/prod/kustomization.yaml
+          # [skip ci] keeps this commit from re-triggering this workflow.
+          git commit -m "chore(deploy): pin prod image to ${{ needs.build.outputs.digest }} [skip ci]"
+          git pull --rebase origin develop
+          git push origin HEAD:develop
+
+  deploy-legacy:
+    # Active deploy path on merge, gated behind the scan and the signature.
+    # Replaced by Argo CD once the k8s cutover lands.
+    needs: [build, trivy, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/compose-deploy
+        with:
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          deploy-path: ${{ secrets.DEPLOY_PATH }}
+          ghcr-user: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
+
+  rollback-legacy:
+    # Emergency rollback: dispatch at a previous commit to redeploy that SHA.
+    # No needs on purpose, so a CVE disclosed later cannot block a rollback.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/compose-deploy
+        with:
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          deploy-path: ${{ secrets.DEPLOY_PATH }}
+          ghcr-user: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}

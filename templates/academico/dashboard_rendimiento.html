@@ -12,7 +12,7 @@
 <div x-data="dashboardRendimiento()" x-init="init()">
 
   <!-- Breadcrumb -->
-  <nav class="mb-4 text-sm" aria-label="Breadcrumb">
+  <nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
     <ol class="flex items-center gap-1.5 text-gray-500">
       <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
       <li class="text-gray-300">›</li>
@@ -89,7 +89,7 @@
       </div>
 
       <!-- Estadísticas -->
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div class="rounded-lg bg-gray-50 px-3 py-2.5">
           <p class="text-xs text-gray-400 mb-0.5">Materias</p>
           <p class="text-lg font-bold text-gray-800">{{ card.num_asignaturas }}</p>
@@ -312,7 +312,7 @@
   {% elif metricas %}
 
   <!-- ── KPI CARDS ──────────────────────────────────────────────────────── -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-4 flex items-center gap-3">
       <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">

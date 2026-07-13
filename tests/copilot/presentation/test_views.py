@@ -171,6 +171,28 @@ class TestGetHistorial:
 
 
 # -------------------------------------------------------------------- #
+# Logout resets the conversation (Issue 2 — persistence)
+# -------------------------------------------------------------------- #
+class TestLogoutCierraConversacion:
+    def test_logout_marca_conversacion_activa_como_inactiva(self, client_estudiante, estudiante):
+        conv = ConversacionCopilot.objects.create(usuario=estudiante)
+        MensajeCopilot.objects.create(conversacion=conv, rol="user", contenido="hola")
+        client_estudiante.get(reverse("usuarios:logout"))
+        conv.refresh_from_db()
+        assert conv.activa is False
+
+    def test_get_historial_tras_logout_arranca_vacio(self, client_estudiante, estudiante):
+        conv = ConversacionCopilot.objects.create(usuario=estudiante)
+        MensajeCopilot.objects.create(conversacion=conv, rol="user", contenido="hola")
+        client_estudiante.get(reverse("usuarios:logout"))
+        # Re-login: the previous conversation must no longer surface.
+        client_estudiante.force_login(estudiante)
+        data = client_estudiante.get(CHAT_URL).json()
+        assert data["conversacion_id"] == ""
+        assert data["mensajes"] == []
+
+
+# -------------------------------------------------------------------- #
 # POST /copilot/chat/ — enviar mensaje
 # -------------------------------------------------------------------- #
 class TestPostMensaje:

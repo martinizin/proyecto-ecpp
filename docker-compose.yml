@@ -1,0 +1,114 @@
+# ECPPP — single-host Docker Compose stack (HU30).
+#
+# Services: web (Gunicorn) · db (PostgreSQL) · redis (cache/rate store) ·
+# caddy (reverse proxy + automatic HTTPS). Only caddy is publicly exposed;
+# db and redis live on the internal network with no published ports.
+#
+# Local bring-up:  docker compose up --build
+#   Defaults target config.settings.development so it runs without secrets.
+# Production host:  set these via the host .env (git-ignored):
+#   DJANGO_SETTINGS_MODULE=config.settings.production, DJANGO_SECRET_KEY,
+#   DJANGO_ALLOWED_HOSTS, DJANGO_DOMAIN, DATABASE_*, REDIS_URL, OPENAI_API_KEY.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # Postgres is bound to the host loopback ONLY (127.0.0.1) so it can be reached
+    # through an SSH tunnel for admin tools (pgAdmin/DBeaver). It is NOT published
+    # to the public interface; remote access requires SSH into the host first.
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-ecppp}
+      POSTGRES_USER: ${DATABASE_USER:-ecppp}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required - set it in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-ecppp} -d ${DATABASE_NAME:-ecppp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  web:
+    build: .
+    image: ${ECPPP_IMAGE:-ecppp:local}
+    restart: unless-stopped
+    # Forward every var from .env (EMAIL_*, COPILOT_MODEL, etc.). Optional so
+    # local runs without a .env still work. The explicit `environment:` below
+    # takes precedence for service wiring (e.g. DATABASE_HOST=db).
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.development}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required - set it in .env}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      DATABASE_NAME: ${DATABASE_NAME:-ecppp}
+      DATABASE_USER: ${DATABASE_USER:-ecppp}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required - set it in .env}
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-dummy-key-not-used-for-real-calls}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      DJANGO_COLLECTSTATIC: ${DJANGO_COLLECTSTATIC:-0}
+      # This stack runs one web container, so booting is the only place
+      # migrations can happen. Kubernetes sets 0 and runs them in a Job.
+      RUN_MIGRATIONS_ON_BOOT: "1"
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DJANGO_DOMAIN: ${DJANGO_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - media:/srv/media:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  redisdata:
+  media:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
