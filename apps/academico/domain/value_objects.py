@@ -24,3 +24,27 @@ class MetricasParalelo:
     estudiantes_aprobados: int
     estudiantes_reprobados: int
     estudiantes_en_curso: int
+
+
+@dataclass
+class TasasAsistencia:
+    """Global attendance totals and rates for the period-closing dashboard (HU28)."""
+
+    presentes: int
+    ausentes: int
+    justificados: int
+    total: int
+    tasa_presentes: Decimal
+    tasa_ausentes: Decimal
+    tasa_justificados: Decimal
+
+
+@dataclass
+class ResumenSolicitudes:
+    """Totals by state and per-student average for one request type (HU28)."""
+
+    total: int
+    aprobadas: int
+    rechazadas: int
+    pendientes: int
+    promedio_por_estudiante: Decimal

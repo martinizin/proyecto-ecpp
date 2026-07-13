@@ -20,6 +20,7 @@ from .views import (
     AsignaturaListView,
     AsignaturaUpdateView,
     AsignaturasPorTipoLicenciaView,
+    CierrePeriodoDashboardView,
     DashboardRendimientoAPIView,
     DashboardRendimientoView,
     HorarioDocenteView,
@@ -103,6 +104,12 @@ urlpatterns = [
         "dashboard-rendimiento/api/",
         DashboardRendimientoAPIView.as_view(),
         name="dashboard_rendimiento_api",
+    ),
+    # Dashboard de cierre de período (HU28)
+    path(
+        "cierre-periodo/",
+        CierrePeriodoDashboardView.as_view(),
+        name="cierre_periodo_dashboard",
     ),
     # API
     path("api/", include(router.urls)),

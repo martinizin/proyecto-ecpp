@@ -538,3 +538,83 @@ class RendimientoAcademicoService:
             total = sum(nota * peso / 100 for nota, peso in notas_pesos)
             resultados.append((estudiante_id, total.quantize(Decimal("0.01"))))
         return resultados
+
+
+class CierrePeriodoService:
+    """
+    Pure domain service for the period-closing dashboard (HU28):
+    eligibility rules plus attendance-rate and request-summary math.
+    No ORM dependency — receives plain Python values.
+    """
+
+    @staticmethod
+    def es_elegible_cierre(fecha_fin: date, fecha_actual: date, activo: bool) -> bool:
+        """
+        A period is eligible for the closing dashboard only after it has
+        actually ended: either its fecha_fin passed or it was deactivated.
+        """
+        return (not activo) or fecha_actual > fecha_fin
+
+    @staticmethod
+    def determinar_motivo_cierre(fecha_fin: date, fecha_actual: date, activo: bool):
+        """
+        Returns (motivo, fecha_corte) for snapshot generation, or (None, None)
+        if the period is not yet eligible.
+
+        - Natural end (fecha_fin passed): data cut at fecha_fin.
+        - Early deactivation: data cut at the deactivation date (today).
+        """
+        if fecha_actual > fecha_fin:
+            return "fin_periodo", fecha_fin
+        if not activo:
+            return "desactivacion", fecha_actual
+        return None, None
+
+    @staticmethod
+    def calcular_tasas_asistencia(presentes: int, ausentes: int, justificados: int):
+        """Builds TasasAsistencia with percentage rates over the total records."""
+        from .value_objects import TasasAsistencia
+
+        total = presentes + ausentes + justificados
+
+        def _pct(parte: int) -> Decimal:
+            if total == 0:
+                return Decimal("0.0")
+            return (Decimal(parte) / Decimal(total) * 100).quantize(Decimal("0.1"))
+
+        return TasasAsistencia(
+            presentes=presentes,
+            ausentes=ausentes,
+            justificados=justificados,
+            total=total,
+            tasa_presentes=_pct(presentes),
+            tasa_ausentes=_pct(ausentes),
+            tasa_justificados=_pct(justificados),
+        )
+
+    @staticmethod
+    def resumir_solicitudes(
+        aprobadas: int,
+        rechazadas: int,
+        pendientes: int,
+        total_estudiantes: int,
+    ):
+        """
+        Builds ResumenSolicitudes for one request type (justificaciones or
+        recalificaciones). ``pendientes`` includes requests still in review.
+        """
+        from .value_objects import ResumenSolicitudes
+
+        total = aprobadas + rechazadas + pendientes
+        if total_estudiantes == 0:
+            promedio = Decimal("0.00")
+        else:
+            promedio = (Decimal(total) / Decimal(total_estudiantes)).quantize(Decimal("0.01"))
+
+        return ResumenSolicitudes(
+            total=total,
+            aprobadas=aprobadas,
+            rechazadas=rechazadas,
+            pendientes=pendientes,
+            promedio_por_estudiante=promedio,
+        )

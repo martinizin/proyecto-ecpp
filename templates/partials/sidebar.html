@@ -176,6 +176,19 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Rendimiento</span>
         </a>
 
+        <!-- ─── CIERRE DE PERÍODO (HU28) ─── -->
+        <a href="{% url 'academico:cierre_periodo_dashboard' %}"
+           class="flex items-center rounded-lg text-sm font-medium transition-colors py-2.5
+                  {% if request.resolver_match.url_name == 'cierre_periodo_dashboard' %}bg-white/10 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}"
+           :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'"
+           {% if request.resolver_match.url_name == 'cierre_periodo_dashboard' %}aria-current="page"{% endif %}>
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span x-show="!sidebarCollapsed" x-cloak class="truncate">Cierre de Período</span>
+        </a>
+
         <!-- ─── AUDITORÍAS (Inspector) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>
         <p x-show="!sidebarCollapsed" x-cloak

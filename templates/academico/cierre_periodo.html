@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Cierre de Período{% endblock %}
+
+{% block content %}
+<div>
+
+  <!-- Breadcrumb -->
+  <nav class="mb-4 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-gray-500">
+      <li><a href="{% url 'usuarios:dashboard' %}" class="hover:text-primary transition-colors">Inicio</a></li>
+      <li class="text-gray-300">›</li>
+      <li class="text-gray-800 font-medium">Cierre de Período</li>
+    </ol>
+  </nav>
+
+  <!-- Encabezado -->
+  <div class="mb-6">
+    <h1 class="text-xl font-semibold text-gray-800">Dashboard de Cierre de Período</h1>
+    <p class="text-sm text-gray-500 mt-1">Asistencias, calificaciones y solicitudes al cierre del período.</p>
+  </div>
+
+  {% if sin_periodos %}
+  <!-- ── Sin períodos académicos ───────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
+    <svg class="w-14 h-14 mx-auto mb-4 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+    </svg>
+    <p class="text-sm font-medium text-gray-500">Sin períodos académicos disponibles</p>
+    <p class="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+      No hay períodos académicos activos ni períodos cerrados. El dashboard se genera
+      automáticamente cuando un período finaliza (llega a su fecha de fin) o es desactivado.
+    </p>
+  </div>
+  {% else %}
+
+  <!-- Filtro por período — solo períodos activos (y cerrados con dashboard) -->
+  <form method="get"
+        class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <label for="f-periodo" class="text-sm font-medium text-gray-700 whitespace-nowrap">Período académico:</label>
+      <select id="f-periodo" name="periodo" onchange="this.form.submit()"
+              class="flex-1 sm:max-w-xs border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+        {% for p in periodos %}
+          <option value="{{ p.id }}"
+                  {% if periodo_seleccionado and p.id == periodo_seleccionado.id %}selected{% endif %}>
+            {{ p.nombre }} · {{ p.tipo_licencia.codigo }} · {{ p.fecha_inicio|date:"d/m/Y" }} – {{ p.fecha_fin|date:"d/m/Y" }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if periodo_seleccionado %}
+    <div class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-4 text-xs text-gray-500">
+      <span class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25"/>
+        </svg>
+        Inicio: <strong class="text-gray-700">{{ periodo_seleccionado.fecha_inicio|date:"d/m/Y" }}</strong>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25"/>
+        </svg>
+        Fin: <strong class="text-gray-700">{{ periodo_seleccionado.fecha_fin|date:"d/m/Y" }}</strong>
+      </span>
+      {% if snapshot %}
+      <span class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
+        </svg>
+        Estudiantes: <strong class="text-gray-700">{{ total_estudiantes }}</strong>
+      </span>
+      {% endif %}
+      <span class="flex items-center gap-1.5">
+        {% if periodo_seleccionado.activo %}
+          <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Activo
+          </span>
+        {% else %}
+          <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[11px] font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>Inactivo
+          </span>
+        {% endif %}
+      </span>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if dashboard_pendiente %}
+  <!-- ── Dashboard aún no generado para este período ───────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
+    <svg class="w-14 h-14 mx-auto mb-4 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+    </svg>
+    <p class="text-sm text-gray-600 max-w-xl mx-auto">
+      El dashboard de este período estará visible a partir del
+      <strong class="text-gray-800">{{ fecha_disponible|date:"d/m/Y" }}</strong>.
+      Si desea visualizar métricas en lo que lleva del período actual,
+      diríjase al módulo "Rendimiento".
+    </p>
+    <a href="{% url 'academico:dashboard_rendimiento' %}"
+       class="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-lg bg-primary hover:bg-secondary text-white text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+      </svg>
+      Ir al módulo Rendimiento
+    </a>
+  </div>
+  {% else %}
+
+  <div x-data="cierrePeriodo()" x-init="init()">
+
+  <!-- ── Banner del snapshot ────────────────────────────────────────────────── -->
+  {% if snapshot %}
+  <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex gap-3 items-start mb-6">
+    <svg class="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+    </svg>
+    <div>
+      <p class="text-sm font-semibold text-indigo-800">
+        Dashboard generado automáticamente —
+        {% if snapshot.motivo == 'desactivacion' %}período desactivado{% else %}fin del período{% endif %}
+      </p>
+      <p class="text-sm text-indigo-700 mt-0.5">
+        Los datos están congelados al <strong>{{ snapshot.fecha_corte|date:"d/m/Y" }}</strong>
+        {% if snapshot.motivo == 'desactivacion' %}(fecha de desactivación del período){% else %}(fecha de finalización del período){% endif %}.
+        Generado el {{ snapshot.generado_en|date:"d/m/Y H:i" }}.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ═══ 1. Tasas de asistencia ═══════════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasas de asistencia</h2>
+    <div class="flex-1 border-t border-dashed border-gray-200"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-t-2 border-t-blue-500 p-4">
+      <h3 class="text-sm font-semibold text-gray-700 mb-1">Distribución de asistencias</h3>
+      <p class="text-xs text-gray-400 mb-3">{{ asistencias.total }} registro{{ asistencias.total|pluralize }} hasta el {{ snapshot.fecha_corte|date:"d/m/Y" }}</p>
+      {% if asistencias.total > 0 %}
+      <div class="relative" style="height:170px">
+        <canvas id="chartAsistencia"></canvas>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 italic py-10 text-center">Sin registros de asistencia en este período.</p>
+      {% endif %}
+    </div>
+
+    <div class="lg:col-span-2 grid grid-cols-2 gap-3 content-start">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 px-4 py-4">
+        <p class="text-xs text-gray-500">Tasa de presentes</p>
+        <p class="text-2xl font-bold text-green-600">{{ asistencias.tasa_presentes }}%</p>
+        <p class="text-xs text-gray-400">{{ asistencias.presentes }} registro{{ asistencias.presentes|pluralize }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 px-4 py-4">
+        <p class="text-xs text-gray-500">Tasa de ausentes</p>
+        <p class="text-2xl font-bold text-red-600">{{ asistencias.tasa_ausentes }}%</p>
+        <p class="text-xs text-gray-400">{{ asistencias.ausentes }} registro{{ asistencias.ausentes|pluralize }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-amber-400 px-4 py-4">
+        <p class="text-xs text-gray-500">Tasa de justificados</p>
+        <p class="text-2xl font-bold text-amber-500">{{ asistencias.tasa_justificados }}%</p>
+        <p class="text-xs text-gray-400">{{ asistencias.justificados }} registro{{ asistencias.justificados|pluralize }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500 px-4 py-4">
+        <p class="text-xs text-gray-500">Total de registros</p>
+        <p class="text-2xl font-bold text-blue-600">{{ asistencias.total }}</p>
+        <p class="text-xs text-gray-400">{{ total_estudiantes }} estudiante{{ total_estudiantes|pluralize }} en el período</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 2. Promedio general del curso ═════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Promedio general del curso</h2>
+    <div class="flex-1 border-t border-dashed border-gray-200"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-10">
+    <!-- Filtros conectados materia ↔ paralelo -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-5">
+      <div class="flex-1 sm:max-w-xs">
+        <label class="block text-xs font-medium text-gray-500 mb-1">Materia</label>
+        <select x-model="materia" @change="cambioMateria()"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+          <option value="">Todas las materias</option>
+          <template x-for="m in materias" :key="m.id">
+            <option :value="String(m.id)" x-text="m.nombre"></option>
+          </template>
+        </select>
+      </div>
+      <div class="flex-1 sm:max-w-xs">
+        <label class="block text-xs font-medium text-gray-500 mb-1">Paralelo</label>
+        <select x-model="paralelo" @change="cambioParalelo()"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+          <option value="">Todos los paralelos</option>
+          <template x-for="p in paralelosDisponibles" :key="p.paralelo_id">
+            <option :value="String(p.paralelo_id)" x-text="`${p.paralelo_nombre} — ${p.asignatura_nombre}`"></option>
+          </template>
+        </select>
+      </div>
+      <div class="sm:ml-auto text-right">
+        <p class="text-xs text-gray-500">Promedio (filtro aplicado)</p>
+        <p class="text-3xl font-bold text-green-600" x-text="promedioFiltrado"></p>
+        <p class="text-xs text-gray-400">
+          <span x-text="totalFiltrado"></span> de {{ calificaciones.total }} calificaciones ·
+          promedio del período: <strong class="text-gray-600">{{ calificaciones.promedio_general }}</strong>
+        </p>
+      </div>
+    </div>
+
+    <template x-if="filasFiltradas.length > 0">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="relative" style="height:220px">
+          <canvas id="chartCalificaciones"></canvas>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <tr>
+                <th class="px-4 py-2.5 text-left">Materia</th>
+                <th class="px-4 py-2.5 text-left">Paralelo</th>
+                <th class="px-4 py-2.5 text-center">Promedio</th>
+                <th class="px-4 py-2.5 text-center">Calificaciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <template x-for="f in filasFiltradas" :key="f.paralelo_id">
+                <tr class="hover:bg-gray-50/70 transition-colors">
+                  <td class="px-4 py-2.5 text-gray-600" x-text="f.asignatura_nombre"></td>
+                  <td class="px-4 py-2.5 font-medium text-gray-800" x-text="f.paralelo_nombre"></td>
+                  <td class="px-4 py-2.5 text-center">
+                    <span class="inline-flex items-center bg-green-50 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full" x-text="f.promedio"></span>
+                  </td>
+                  <td class="px-4 py-2.5 text-center text-gray-600" x-text="f.total"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+    <template x-if="filasFiltradas.length === 0">
+      <p class="text-xs text-gray-400 italic py-8 text-center">No hay calificaciones registradas para el filtro seleccionado.</p>
+    </template>
+  </div>
+
+  <!-- ═══ 3. Justificaciones y recalificaciones ═════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Justificaciones y recalificaciones</h2>
+    <div class="flex-1 border-t border-dashed border-gray-200"></div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-10" x-data="{ tipoSol: 'justificaciones' }">
+    <!-- Filtro por tipo de solicitud -->
+    <div class="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50 mb-5">
+      <button type="button" @click="tipoSol = 'justificaciones'"
+              :class="tipoSol === 'justificaciones' ? 'bg-white shadow-sm text-purple-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+              class="px-4 py-1.5 text-sm rounded-md transition-colors">
+        Justificaciones
+      </button>
+      <button type="button" @click="tipoSol = 'recalificaciones'"
+              :class="tipoSol === 'recalificaciones' ? 'bg-white shadow-sm text-purple-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+              class="px-4 py-1.5 text-sm rounded-md transition-colors">
+        Recalificaciones
+      </button>
+    </div>
+
+    {% for tipo, resumen in solicitudes.items %}
+    <div x-show="tipoSol === '{{ tipo }}'" x-cloak>
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-purple-500 px-4 py-4">
+          <p class="text-xs text-gray-500">Total de {{ tipo }}</p>
+          <p class="text-2xl font-bold text-purple-600">{{ resumen.total }}</p>
+          <p class="text-xs text-gray-400">hasta el {{ snapshot.fecha_corte|date:"d/m/Y" }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 px-4 py-4">
+          <p class="text-xs text-gray-500">Aprobadas</p>
+          <p class="text-2xl font-bold text-green-600">{{ resumen.aprobadas }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 px-4 py-4">
+          <p class="text-xs text-gray-500">Rechazadas</p>
+          <p class="text-2xl font-bold text-red-600">{{ resumen.rechazadas }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-amber-400 px-4 py-4">
+          <p class="text-xs text-gray-500">Pendientes</p>
+          <p class="text-2xl font-bold text-amber-500">{{ resumen.pendientes }}</p>
+          <p class="text-xs text-gray-400">incluye en revisión</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500 px-4 py-4">
+          <p class="text-xs text-gray-500">Promedio por estudiante</p>
+          <p class="text-2xl font-bold text-blue-600">{{ resumen.promedio_por_estudiante }}</p>
+          <p class="text-xs text-gray-400">{{ resumen.total }} solicitud{{ resumen.total|pluralize:"es" }} / {{ total_estudiantes }} estudiante{{ total_estudiantes|pluralize }}</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  </div>{# /x-data cierrePeriodo #}
+
+  {# Data + component script live INSIDE the content block: boosted navigation
+     swaps only #main-content, so extra_js (outside the swap target) never runs
+     after an htmx swap. htmx re-evaluates scripts found in swapped content —
+     same pattern as reportes/hub.html. #}
+  {{ asistencias_datos|json_script:"datos-asistencias" }}
+  {{ calificaciones_por_paralelo|json_script:"datos-calificaciones" }}
+  <script>
+  // Re-evaluated on every boosted swap. Only redeclaration-safe globals here:
+  // a top-level const/let would throw "already declared" on the second visit.
+  function cierrePeriodo() {
+    const asistencias = JSON.parse(document.getElementById('datos-asistencias').textContent);
+    const calificaciones = JSON.parse(document.getElementById('datos-calificaciones').textContent);
+
+    return {
+      materia: '',
+      paralelo: '',
+
+      get materias() {
+        const vistas = new Map();
+        calificaciones.forEach(f => vistas.set(f.asignatura_id, f.asignatura_nombre));
+        return [...vistas.entries()].map(([id, nombre]) => ({ id, nombre }));
+      },
+
+      get paralelosDisponibles() {
+        return calificaciones.filter(f =>
+          !this.materia || String(f.asignatura_id) === this.materia
+        );
+      },
+
+      get filasFiltradas() {
+        return this.paralelosDisponibles.filter(f =>
+          !this.paralelo || String(f.paralelo_id) === this.paralelo
+        );
+      },
+
+      get totalFiltrado() {
+        return this.filasFiltradas.reduce((acc, f) => acc + f.total, 0);
+      },
+
+      get promedioFiltrado() {
+        // Weighted by grade count so it equals the plain average of every
+        // individual grade under the filter, matching the backend math.
+        const total = this.totalFiltrado;
+        if (total === 0) return '0.00';
+        const suma = this.filasFiltradas.reduce(
+          (acc, f) => acc + parseFloat(f.promedio) * f.total, 0
+        );
+        return (suma / total).toFixed(2);
+      },
+
+      cambioMateria() {
+        // Keep filters connected: reset paralelo if it no longer belongs to the materia
+        if (this.paralelo &&
+            !this.paralelosDisponibles.some(f => String(f.paralelo_id) === this.paralelo)) {
+          this.paralelo = '';
+        }
+        this.actualizarChartCalificaciones();
+      },
+
+      cambioParalelo() {
+        this.actualizarChartCalificaciones();
+      },
+
+      actualizarChartCalificaciones() {
+        // Wait for Alpine to (re)insert the canvas — it lives inside an x-if
+        this.$nextTick(() => this.renderChartCalificaciones());
+      },
+
+      cargarChartJs() {
+        // Lazy singleton loader. A plain <script src> inside swapped content
+        // executes asynchronously under htmx, so the init code could race it;
+        // loading on demand (once, cached on window) removes the race.
+        if (window.Chart) return Promise.resolve();
+        if (!window._chartJsCarga) {
+          window._chartJsCarga = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        return window._chartJsCarga;
+      },
+
+      init() {
+        this.cargarChartJs().then(() => this.$nextTick(() => {
+          this.renderChartAsistencia();
+          this.renderChartCalificaciones();
+        }));
+      },
+
+      renderChartAsistencia() {
+        if (!window.Chart) return;
+        const ctx = document.getElementById('chartAsistencia');
+        if (!ctx) return;
+        const previo = Chart.getChart(ctx);
+        if (previo) previo.destroy();
+        const total = asistencias.presentes + asistencias.ausentes + asistencias.justificados;
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Presentes', 'Ausentes', 'Justificados'],
+            datasets: [{
+              data: [asistencias.presentes, asistencias.ausentes, asistencias.justificados],
+              backgroundColor: ['rgba(22,163,74,0.85)', 'rgba(220,38,38,0.85)', 'rgba(245,158,11,0.85)'],
+              borderWidth: 0,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                    return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                  }
+                }
+              }
+            },
+            cutout: '65%',
+          }
+        });
+      },
+
+      renderChartCalificaciones() {
+        if (!window.Chart) return;
+        const ctx = document.getElementById('chartCalificaciones');
+        if (!ctx) return;
+        // Instances are looked up via Chart.getChart instead of being stored:
+        // keeping one in Alpine reactive state wraps it in a Proxy and breaks
+        // destroy()/re-render, and a top-level variable would not survive the
+        // script re-evaluation that boosted swaps trigger.
+        const previo = Chart.getChart(ctx);
+        if (previo) previo.destroy();
+        const filas = this.filasFiltradas;
+        if (filas.length === 0) return;
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: filas.map(f => f.paralelo_nombre),
+            datasets: [{
+              label: 'Promedio',
+              data: filas.map(f => parseFloat(f.promedio)),
+              backgroundColor: 'rgba(22,163,74,0.75)',
+              borderRadius: 5, borderSkipped: false,
+              maxBarThickness: 48, barPercentage: 0.6, categoryPercentage: 0.7,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: items => {
+                    const f = filas[items[0].dataIndex];
+                    return `${f.paralelo_nombre} — ${f.asignatura_nombre}`;
+                  },
+                  label: ctx => {
+                    const f = filas[ctx.dataIndex];
+                    return [` Promedio: ${f.promedio}`, ` Calificaciones registradas: ${f.total}`];
+                  },
+                }
+              }
+            },
+            scales: {
+              // Grades run 0–20 (NOTA_APROBACION = 16)
+              y: { beginAtZero: true, suggestedMax: 20, ticks: { font: { size: 11 } }, grid: { color: '#f3f4f6' } },
+              x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      },
+    }
+  }
+  </script>
+  {% endif %}{# /dashboard_pendiente #}
+  {% endif %}{# /sin_periodos #}
+
+</div>
+{% endblock %}
