@@ -6,6 +6,7 @@ to implement complete use cases. They are the entry point from the presentation 
 """
 
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
 from django.db import transaction
@@ -111,6 +112,18 @@ class PeriodoAppService:
         )
         updated = self.periodo_repo.update(periodo_id, entity)
 
+        # HU28: a fin_periodo snapshot is only valid while its cut-off matches
+        # fecha_fin. If the period is extended (or its end date changes), the
+        # stale snapshot must go: the dashboard hides again if the period is
+        # alive, or regenerates with the right cut on next access.
+        # Deactivation snapshots are untouched (their cut is the deactivation date).
+        from apps.academico.infrastructure.models import CierrePeriodo
+
+        CierrePeriodo.objects.filter(
+            periodo_id=periodo_id,
+            motivo=CierrePeriodo.Motivo.FIN_PERIODO,
+        ).exclude(fecha_corte=fecha_fin).delete()
+
         self.auditoria_repo.registrar(
             RegistroAuditoriaEntity(
                 accion="actualizacion_periodo",
@@ -155,6 +168,11 @@ class PeriodoAppService:
 
         # Deactivate current for this tipo_licencia if exists
         if activo:
+            from apps.academico.infrastructure.models import Periodo as PeriodoModel
+
+            periodo_anterior = PeriodoModel.objects.filter(
+                activo=True, tipo_licencia_id=periodo.tipo_licencia_id
+            ).first()
             self.periodo_repo.desactivar_por_tipo(periodo.tipo_licencia_id)
             self.auditoria_repo.registrar(
                 RegistroAuditoriaEntity(
@@ -163,9 +181,13 @@ class PeriodoAppService:
                     detalle=f"Período desactivado: {periodo_activo_nombre}",
                 )
             )
+            if periodo_anterior:
+                self._generar_cierre_automatico(periodo_anterior.pk, usuario_id)
 
-        # Activate new
+        # Activate new — a reopened period is no longer closed, so any
+        # previous snapshot becomes stale and must be discarded
         self.periodo_repo.activar(periodo_id)
+        CierrePeriodoAppService().eliminar_snapshot(periodo_id)
         nuevo = self.periodo_repo.get_by_id(periodo_id)
         self.auditoria_repo.registrar(
             RegistroAuditoriaEntity(
@@ -203,8 +225,25 @@ class PeriodoAppService:
                 detalle=f"Período desactivado manualmente: {periodo.nombre}",
             )
         )
+        self._generar_cierre_automatico(periodo_id, usuario_id)
 
         return True
+
+    def _generar_cierre_automatico(self, periodo_id: int, usuario_id: int) -> None:
+        """
+        HU28: closing a period (by deactivation or because fecha_fin already
+        passed) automatically freezes the closing-dashboard snapshot with the
+        data as of the cut-off date.
+        """
+        from apps.academico.domain.services import CierrePeriodoService
+        from apps.academico.infrastructure.models import Periodo as PeriodoModel
+
+        periodo = PeriodoModel.objects.get(pk=periodo_id)
+        motivo, fecha_corte = CierrePeriodoService.determinar_motivo_cierre(
+            periodo.fecha_fin, date.today(), periodo.activo
+        )
+        if motivo:
+            CierrePeriodoAppService().generar_snapshot(periodo, motivo, fecha_corte, usuario_id)
 
 
 class AsignaturaAppService:
@@ -581,6 +620,7 @@ class DashboardRendimientoAppService:
         periodo_id: int,
         asignatura_id: int | None = None,
         paralelo_id: int | None = None,
+        tipo_licencia_id: int | None = None,
     ):
         """
         Returns a list of MetricasParalelo for all paralelos in the given
@@ -607,6 +647,9 @@ class DashboardRendimientoAppService:
         paralelos = Paralelo.objects.filter(periodo_id=periodo_id).select_related(
             "asignatura", "docente", "periodo"
         )
+
+        if tipo_licencia_id:
+            paralelos = paralelos.filter(tipo_licencia_id=tipo_licencia_id)
 
         if asignatura_id:
             paralelos = paralelos.filter(asignatura_id=asignatura_id)
@@ -733,3 +776,247 @@ class DashboardRendimientoAppService:
             )
 
         return tendencia
+
+
+class CierrePeriodoAppService:
+    """
+    Orchestrates the period-closing dashboard (HU28).
+
+    The dashboard is a frozen snapshot (CierrePeriodo) generated automatically
+    when the period ends (fecha_fin passes) or is deactivated, so it always
+    reflects data as of that cut-off date.
+    """
+
+    VERSION_DATOS = 3
+
+    _DECIMALES_ASISTENCIA = ("tasa_presentes", "tasa_ausentes", "tasa_justificados")
+    _DECIMALES_SOLICITUDES = ("promedio_por_estudiante",)
+
+    # ── Snapshot lifecycle ────────────────────────────────────────────────
+
+    def generar_snapshot(self, periodo, motivo: str, fecha_corte, usuario_id=None):
+        """Compute the dashboard as of fecha_corte and persist it frozen."""
+        from apps.academico.infrastructure.models import CierrePeriodo
+
+        dashboard = self.obtener_dashboard_cierre(periodo.pk, fecha_corte)
+        snapshot, _ = CierrePeriodo.objects.update_or_create(
+            periodo=periodo,
+            defaults={
+                "motivo": motivo,
+                "fecha_corte": fecha_corte,
+                "generado_por_id": usuario_id,
+                "datos": self._serializar_dashboard(dashboard),
+            },
+        )
+        return snapshot
+
+    def obtener_o_generar_snapshot(self, periodo, fecha_actual=None):
+        """
+        Returns the period's snapshot, generating it lazily if the period is
+        already eligible (fecha_fin passed) but no snapshot exists yet.
+        Snapshots with an outdated data layout are regenerated in place,
+        preserving their original motivo and fecha_corte.
+        Returns None if the period has not ended nor been deactivated.
+        """
+        from apps.academico.domain.services import CierrePeriodoService
+        from apps.academico.infrastructure.models import CierrePeriodo
+
+        try:
+            snapshot = periodo.cierre
+            if snapshot.datos.get("version") != self.VERSION_DATOS:
+                return self.generar_snapshot(
+                    periodo,
+                    snapshot.motivo,
+                    snapshot.fecha_corte,
+                    snapshot.generado_por_id,
+                )
+            return snapshot
+        except CierrePeriodo.DoesNotExist:
+            pass
+
+        fecha_actual = fecha_actual or date.today()
+        motivo, fecha_corte = CierrePeriodoService.determinar_motivo_cierre(
+            periodo.fecha_fin, fecha_actual, periodo.activo
+        )
+        if motivo is None:
+            return None
+        return self.generar_snapshot(periodo, motivo, fecha_corte)
+
+    def eliminar_snapshot(self, periodo_id: int) -> None:
+        """Removes the snapshot when a period is reopened (reactivated)."""
+        from apps.academico.infrastructure.models import CierrePeriodo
+
+        CierrePeriodo.objects.filter(periodo_id=periodo_id).delete()
+
+    # ── Serialization (Decimal ↔ str for JSONField) ───────────────────────
+
+    def _serializar_dashboard(self, dashboard: dict) -> dict:
+        from dataclasses import asdict
+
+        def limpiar(d: dict, campos_decimales) -> dict:
+            return {k: str(v) if k in campos_decimales else v for k, v in d.items()}
+
+        return {
+            "version": self.VERSION_DATOS,
+            "total_estudiantes": dashboard["total_estudiantes"],
+            "asistencias": limpiar(asdict(dashboard["asistencias"]), self._DECIMALES_ASISTENCIA),
+            "calificaciones": dashboard["calificaciones"],
+            "solicitudes": {
+                tipo: limpiar(asdict(resumen), self._DECIMALES_SOLICITUDES)
+                for tipo, resumen in dashboard["solicitudes"].items()
+            },
+        }
+
+    def obtener_dashboard_desde_snapshot(self, snapshot) -> dict:
+        """Rebuilds the dashboard dict (with dataclasses) from a snapshot."""
+        from apps.academico.domain.value_objects import ResumenSolicitudes, TasasAsistencia
+
+        def a_decimales(d: dict, campos_decimales) -> dict:
+            return {k: Decimal(v) if k in campos_decimales else v for k, v in d.items()}
+
+        datos = snapshot.datos
+        return {
+            "total_estudiantes": datos["total_estudiantes"],
+            "asistencias": TasasAsistencia(
+                **a_decimales(datos["asistencias"], self._DECIMALES_ASISTENCIA)
+            ),
+            "calificaciones": datos["calificaciones"],
+            "solicitudes": {
+                tipo: ResumenSolicitudes(**a_decimales(d, self._DECIMALES_SOLICITUDES))
+                for tipo, d in datos["solicitudes"].items()
+            },
+        }
+
+    # ── Live computation (used at snapshot-generation time) ──────────────
+
+    def obtener_dashboard_cierre(self, periodo_id: int, fecha_corte) -> dict:
+        """
+        Computes the closing metrics with data up to fecha_corte (inclusive):
+        attendance rates, grade counts and averages per paralelo/asignatura,
+        and request summaries (justificaciones / recalificaciones).
+        """
+        from django.db.models import Count, Q
+
+        from apps.academico.domain.services import (
+            CierrePeriodoService,
+            RendimientoAcademicoService,
+        )
+        from apps.academico.infrastructure.models import Matricula
+        from apps.asistencia.infrastructure.models import Asistencia
+        from apps.calificaciones.infrastructure.models import Calificacion
+        from apps.solicitudes.infrastructure.models import Solicitud
+
+        total_estudiantes = (
+            Matricula.objects.filter(
+                paralelo__periodo_id=periodo_id,
+                estado=Matricula.Estado.ACTIVA,
+            )
+            .values("estudiante_id")
+            .distinct()
+            .count()
+        )
+
+        conteos = Asistencia.objects.filter(
+            paralelo__periodo_id=periodo_id,
+            fecha__lte=fecha_corte,
+        ).aggregate(
+            presentes=Count("id", filter=Q(estado=Asistencia.Estado.PRESENTE)),
+            ausentes=Count("id", filter=Q(estado=Asistencia.Estado.AUSENTE)),
+            justificados=Count("id", filter=Q(estado=Asistencia.Estado.JUSTIFICADO)),
+        )
+        asistencias = CierrePeriodoService.calcular_tasas_asistencia(**conteos)
+
+        calificaciones_qs = (
+            Calificacion.objects.filter(
+                evaluacion__paralelo__periodo_id=periodo_id,
+                fecha_registro__date__lte=fecha_corte,
+            )
+            .values(
+                "evaluacion__paralelo_id",
+                "evaluacion__paralelo__nombre",
+                "evaluacion__paralelo__asignatura_id",
+                "evaluacion__paralelo__asignatura__nombre",
+            )
+            .annotate(total=Count("id"))
+            .order_by(
+                "evaluacion__paralelo__asignatura__nombre",
+                "evaluacion__paralelo__nombre",
+            )
+        )
+        # Grade averages reuse the same domain math as the Rendimiento module
+        # (calcular_promedio_paralelo). Averages travel as str because the
+        # whole calificaciones block is stored verbatim in the JSONField.
+        notas_por_paralelo: dict[int, list[Decimal]] = {}
+        notas = Calificacion.objects.filter(
+            evaluacion__paralelo__periodo_id=periodo_id,
+            fecha_registro__date__lte=fecha_corte,
+        ).values_list("evaluacion__paralelo_id", "nota")
+        for paralelo_id, nota in notas:
+            notas_por_paralelo.setdefault(paralelo_id, []).append(Decimal(str(nota)))
+
+        por_paralelo = [
+            {
+                "paralelo_id": fila["evaluacion__paralelo_id"],
+                "paralelo_nombre": fila["evaluacion__paralelo__nombre"],
+                "asignatura_id": fila["evaluacion__paralelo__asignatura_id"],
+                "asignatura_nombre": fila["evaluacion__paralelo__asignatura__nombre"],
+                "total": fila["total"],
+                "promedio": str(
+                    RendimientoAcademicoService.calcular_promedio_paralelo(
+                        notas_por_paralelo.get(fila["evaluacion__paralelo_id"], [])
+                    )
+                ),
+            }
+            for fila in calificaciones_qs
+        ]
+        todas_las_notas = [n for grupo in notas_por_paralelo.values() for n in grupo]
+        calificaciones = {
+            "total": sum(fila["total"] for fila in por_paralelo),
+            "promedio_general": str(
+                RendimientoAcademicoService.calcular_promedio_paralelo(todas_las_notas)
+            ),
+            "por_paralelo": por_paralelo,
+        }
+
+        def _resumen_solicitudes(queryset):
+            conteos = queryset.aggregate(
+                aprobadas=Count("id", filter=Q(estado=Solicitud.EstadoSolicitud.APROBADA)),
+                rechazadas=Count("id", filter=Q(estado=Solicitud.EstadoSolicitud.RECHAZADA)),
+                pendientes=Count(
+                    "id",
+                    filter=Q(
+                        estado__in=[
+                            Solicitud.EstadoSolicitud.PENDIENTE,
+                            Solicitud.EstadoSolicitud.EN_REVISION,
+                        ]
+                    ),
+                ),
+            )
+            return CierrePeriodoService.resumir_solicitudes(
+                total_estudiantes=total_estudiantes, **conteos
+            )
+
+        justificaciones = _resumen_solicitudes(
+            Solicitud.objects.filter(
+                tipo=Solicitud.TipoSolicitud.JUSTIFICACION,
+                asistencia__paralelo__periodo_id=periodo_id,
+                fecha_creacion__date__lte=fecha_corte,
+            )
+        )
+        recalificaciones = _resumen_solicitudes(
+            Solicitud.objects.filter(
+                tipo=Solicitud.TipoSolicitud.RECTIFICACION,
+                calificacion__evaluacion__paralelo__periodo_id=periodo_id,
+                fecha_creacion__date__lte=fecha_corte,
+            )
+        )
+
+        return {
+            "total_estudiantes": total_estudiantes,
+            "asistencias": asistencias,
+            "calificaciones": calificaciones,
+            "solicitudes": {
+                "justificaciones": justificaciones,
+                "recalificaciones": recalificaciones,
+            },
+        }

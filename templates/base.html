@@ -58,6 +58,9 @@
                     },
                 },
             },
+            // JIT safelist fallback — belt-and-suspenders in case the Play CDN's
+            // text-scan JIT misses these classes inside Alpine `:class` ternaries.
+            safelist: ['lg:ml-16', 'lg:ml-64', 'lg:left-16', 'lg:left-64'],
         }
     </script>
 
@@ -67,8 +70,18 @@
     <!-- Alpine.js 3.15.9 CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.9/dist/cdn.min.js"></script>
 
+    <!-- htmx 2.0.4 CDN — boosted (SPA-like) navigation between modules -->
+    <script defer src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+
     <style>
         [x-cloak] { display: none !important; }
+
+        /* Sidebar height. 100vh on mobile browsers measures the *large* viewport
+           (URL bar hidden), so the panel footer — which holds the logout link —
+           renders below the visible area and cannot be reached because the panel
+           is overflow-hidden. 100dvh tracks the visible viewport; the 100vh line
+           above it is the fallback for browsers without dvh support. */
+        .sidebar-panel { height: 100vh; height: 100dvh; }
 
         /* Sidebar scrollbar */
         .sidebar-nav::-webkit-scrollbar { width: 3px; }
@@ -357,8 +370,28 @@
         toggleCollapse() {
           this.sidebarCollapsed = !this.sidebarCollapsed;
           localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
+        },
+        // Minimal hand-rolled focus trap for the mobile drawer — bound via
+        // @keydown.tab on the sidebar aside element. No-ops at >=1024px
+        // (desktop persistent nav is never a modal, so nothing to trap).
+        trapFocus(e) {
+          if (window.innerWidth >= 1024) return;
+          const focusables = e.currentTarget.querySelectorAll(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex=\'-1\'])'
+          );
+          if (!focusables.length) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
         }
-      }"{% endif %}>
+      }"
+      hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML show:window:top"{% endif %}>
 
     {% if user.is_authenticated %}
     {# ═══════════════ AUTHENTICATED: Sidebar + Topbar ═══════════════ #}
@@ -386,13 +419,18 @@
 
     {# ═══════════════ MAIN CONTENT AREA ═══════════════ #}
     <main class="{% if user.is_authenticated %}pt-16 min-h-screen flex flex-col transition-all duration-300{% else %}flex-1 container mx-auto px-4 py-8{% endif %}"
-          {% if user.is_authenticated %}:style="{ 'margin-left': sidebarCollapsed ? '4rem' : '16rem' }"{% endif %}>
+          {% if user.is_authenticated %}:class="sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'"{% endif %}>
 
         {% if user.is_authenticated %}
         {# Authenticated ViewContainer: constrained width + responsive padding #}
         <div class="flex-1">
             <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {% endif %}
+
+                {# ═══ Boosted content region — htmx swaps only this on navigation. ═══ #}
+                {# hx-boost here makes all in-content links + GET forms navigate via AJAX. #}
+                {# Downloads/logout opt out with hx-boost="false"; target=_blank is auto-skipped. #}
+                <div id="main-content" hx-boost="true">
 
                 {% if messages %}
                 <div class="mb-4 space-y-2">
@@ -439,6 +477,8 @@
 
                 {% block content %}{% endblock %}
 
+                </div>{# /#main-content #}
+
         {% if user.is_authenticated %}
             </div>
         </div>
@@ -471,11 +511,20 @@
     {# ═══════ Session timeout pop-up — HU31 ═══════ #}
     {% include "partials/session_timeout.html" %}
 
+    {# ═══ Top progress bar for boosted navigation ═══ #}
+    <div id="nav-progress"
+         class="fixed top-0 left-0 h-0.5 bg-accent z-[100] w-0 opacity-0 transition-all duration-300"
+         aria-hidden="true"></div>
+
     <!-- Tom Select 2.3.1 -->
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('select.form-select:not([data-ts-skip])').forEach(function (el) {
+        // Initialize Tom Select on every matching <select> within a root element.
+        // Called on first load AND after each htmx swap (DOMContentLoaded does not
+        // fire again on boosted navigation).
+        function initTomSelects(root) {
+            (root || document).querySelectorAll('select.form-select:not([data-ts-skip])').forEach(function (el) {
+                if (el.tomselect) return; // already initialized — avoid double-init
                 var useSearch = el.hasAttribute('data-ts-search');
                 new TomSelect(el, {
                     allowEmptyOption: true,
@@ -489,7 +538,52 @@
                     }
                 });
             });
+        }
+
+        // The sidebar is not re-rendered on boosted swaps, so refresh its active
+        // highlight client-side using a longest-prefix match against the current path.
+        function refreshSidebarActive() {
+            var current = window.location.pathname;
+            var links = document.querySelectorAll('aside nav.sidebar-nav a[href]');
+            var best = null, bestLen = -1;
+            links.forEach(function (a) {
+                var path = new URL(a.href, window.location.origin).pathname;
+                var matches = path === '/' ? current === '/' : current === path || current.indexOf(path) === 0;
+                if (matches && path.length > bestLen) { best = a; bestLen = path.length; }
+            });
+            links.forEach(function (a) {
+                var active = a === best;
+                a.classList.toggle('bg-white/10', active);
+                a.classList.toggle('text-white', active);
+                a.classList.toggle('text-white/70', !active);
+                if (active) { a.setAttribute('aria-current', 'page'); }
+                else { a.removeAttribute('aria-current'); }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initTomSelects(document);
         });
+
+        // Re-initialize dynamic widgets and refresh navigation state after a boosted swap.
+        document.body.addEventListener('htmx:afterSettle', function (evt) {
+            initTomSelects(evt.target);
+            refreshSidebarActive();
+        });
+
+        // Top progress bar feedback during boosted navigation.
+        (function () {
+            var bar = document.getElementById('nav-progress');
+            if (!bar) return;
+            document.body.addEventListener('htmx:beforeRequest', function () {
+                bar.style.opacity = '1';
+                bar.style.width = '35%';
+            });
+            document.body.addEventListener('htmx:afterRequest', function () {
+                bar.style.width = '100%';
+                setTimeout(function () { bar.style.opacity = '0'; bar.style.width = '0'; }, 250);
+            });
+        })();
     </script>
 </body>
 </html>

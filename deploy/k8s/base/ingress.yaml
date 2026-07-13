@@ -1,0 +1,40 @@
+# Traefik (k3s built-in ingress controller) fronts the app; cert-manager
+# issues the TLS cert via ACME HTTP-01 (see cluster/letsencrypt-clusterissuer.yaml).
+# Host is a placeholder here — the prod/staging overlays (task 3.7, out of
+# scope for this slice) patch it to the real domain / staging subdomain.
+#
+# /media/* goes to media-server, not to Django: Django serves MEDIA_URL only
+# under DEBUG (config/urls.py) and WhiteNoise covers STATIC_ROOT only. Caddy
+# used to serve those files directly; media-server takes over that job.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - PLACEHOLDER_HOST
+      secretName: web-tls
+  rules:
+    - host: PLACEHOLDER_HOST
+      http:
+        paths:
+          # Longest prefix wins, so /media/* never reaches Django.
+          - path: /media
+            pathType: Prefix
+            backend:
+              service:
+                name: media-server
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8000

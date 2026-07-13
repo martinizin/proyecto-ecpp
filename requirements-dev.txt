@@ -1,0 +1,24 @@
+# Development and CI dependencies. Never installed into the production image.
+# Install alongside the runtime deps:  pip install -r requirements.txt -r requirements-dev.txt
+
+-r requirements.txt
+
+# Linting and formatting.
+# black stays on 25.1.0: 26.x applies a new stable style that reformats 63 files
+# here. CVE-2026-32274 (fixed in 26.3.1) no longer reaches production now that
+# dev tooling is out of the image; bump it in a dedicated reformatting PR.
+flake8==7.2.0
+black==25.1.0
+
+# Security analysis (SAST)
+bandit==1.9.4
+bandit-sarif-formatter==1.1.1
+
+# Testing
+pytest==8.3.5
+pytest-django==4.10.0
+coverage==7.8.0
+factory-boy==3.3.1
+
+# Test de PDFs generados (HU27 auditoría)
+pypdf>=6.0.0

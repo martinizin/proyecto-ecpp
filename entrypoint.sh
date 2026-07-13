@@ -1,8 +1,16 @@
 #!/usr/bin/env sh
 set -e
 
-echo "-> Applying database migrations..."
-python manage.py migrate --noinput
+# Migrations must run once per deploy, not once per replica. Compose has nowhere
+# else to run them, so it keeps the default. Kubernetes sets this to 0 on the
+# Deployment and lets a PreSync Job own migrations instead; otherwise every pod
+# would race the others through the same schema change.
+if [ "${RUN_MIGRATIONS_ON_BOOT:-1}" = "1" ]; then
+    echo "-> Applying database migrations..."
+    python manage.py migrate --noinput
+else
+    echo "-> Skipping migrations (RUN_MIGRATIONS_ON_BOOT=0)."
+fi
 
 # collectstatic is only meaningful when WhiteNoise serves static (production).
 # In DEBUG/development Django serves static itself, so it is opt-in via env.

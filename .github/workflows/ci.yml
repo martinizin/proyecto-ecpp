@@ -2,10 +2,21 @@ name: CI
 
 on: [push, pull_request]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  COVERAGE_MIN: "70"
+  BANDIT_TARGETS: "apps config"
+  BANDIT_EXCLUDE: "*/migrations/*,*/tests/*,*/venv/*,*/.venv/*"
+
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:18
@@ -20,7 +31,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       DATABASE_NAME: ecppp_test
       DATABASE_USER: test_user
@@ -29,19 +39,14 @@ jobs:
       DATABASE_PORT: 5432
       DJANGO_SECRET_KEY: test-secret-key-ci-only
       DJANGO_SETTINGS_MODULE: config.settings.development
-      # Dummy key para que el SDK de openai se instancie sin Missing credentials
-      # en tests. Los tests que mockean el SDK no usan esta key.
+      # Dummy key so the OpenAI SDK instantiates; mocked tests never call out.
       OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-python-env
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Lint with flake8
         run: flake8 .
@@ -56,4 +61,59 @@ jobs:
         run: coverage run -m pytest
 
       - name: Check coverage threshold
-        run: coverage report --fail-under=70
+        run: coverage report --fail-under=${{ env.COVERAGE_MIN }}
+
+  bandit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Full-severity SARIF report for the Security tab; never fails the job.
+      - name: Run Bandit (all severities, non-blocking report)
+        run: bandit -r ${{ env.BANDIT_TARGETS }} -f sarif -o bandit.sarif --exit-zero --exclude "${{ env.BANDIT_EXCLUDE }}"
+
+      - name: Bandit step summary (all severities)
+        if: always()
+        run: |
+          {
+            echo "## Bandit SAST results (all severities)"
+            echo '```'
+            bandit -r ${{ env.BANDIT_TARGETS }} -f txt --exit-zero --exclude "${{ env.BANDIT_EXCLUDE }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Bandit SARIF report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-sarif
+          path: bandit.sarif
+          retention-days: 30
+
+      # Blocking gate: only HIGH-severity findings fail the build.
+      - name: Enforce HIGH-severity gate
+        run: bandit -r ${{ env.BANDIT_TARGETS }} --severity-level high --exclude "${{ env.BANDIT_EXCLUDE }}"
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"

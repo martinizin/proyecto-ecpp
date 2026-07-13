@@ -1487,7 +1487,7 @@ class DashboardRendimientoView(MultiRolRequeridoMixin, View):
             [
                 {
                     "id": p.id,
-                    "nombre": str(p),
+                    "nombre": p.etiqueta_curso,
                     "periodo_id": p.periodo_id,
                     "asignatura_id": p.asignatura_id,
                     "tipo_licencia_id": p.tipo_licencia_id,
@@ -1628,3 +1628,103 @@ class HorarioEstudianteView(RolRequeridoMixin, View):
         contexto["titulo"] = "Mi Horario de Clases"
         contexto["subtitulo"] = "Período académico vigente"
         return render(request, self.template_name, contexto)
+
+
+# =============================================================================
+# Dashboard de Cierre de Período (HU28)
+# =============================================================================
+
+
+class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
+    """
+    Institutional closing dashboard (HU28). The period dropdown lists the
+    active academic periods (plus already-closed ones, whose snapshot must
+    stay reachable). Selecting a period whose dashboard is not generated yet
+    shows the availability date and a shortcut to the Rendimiento module.
+    """
+
+    roles_permitidos = ["inspector", "director_academico"]
+    template_name = "academico/cierre_periodo.html"
+
+    def get(self, request):
+        from datetime import date, timedelta
+
+        from django.db.models import Q
+
+        from apps.academico.application.services import CierrePeriodoAppService
+
+        hoy = date.today()
+
+        # Active periods per business rule, plus closed (deactivated) periods
+        # that already have a frozen snapshot. Periods created inactive but
+        # never activated are not listed.
+        periodos = (
+            Periodo.objects.select_related("tipo_licencia")
+            .filter(Q(activo=True) | Q(cierre__isnull=False))
+            .order_by("-fecha_inicio")
+        )
+
+        if not periodos.exists():
+            return render(
+                request,
+                self.template_name,
+                {
+                    "sin_periodos": True,
+                    "periodos": periodos,
+                    "periodo_seleccionado": None,
+                    "snapshot": None,
+                },
+            )
+
+        periodo_seleccionado = None
+        try:
+            periodo_seleccionado = periodos.filter(pk=int(request.GET.get("periodo", ""))).first()
+        except (ValueError, TypeError):
+            pass
+        if not periodo_seleccionado:
+            periodo_seleccionado = periodos.first()
+
+        svc = CierrePeriodoAppService()
+        snapshot = svc.obtener_o_generar_snapshot(periodo_seleccionado, hoy)
+
+        if snapshot is None:
+            # Ongoing period: the dashboard freezes the day after fecha_fin
+            # (eligibility requires fecha_actual > fecha_fin).
+            return render(
+                request,
+                self.template_name,
+                {
+                    "periodos": periodos,
+                    "periodo_seleccionado": periodo_seleccionado,
+                    "snapshot": None,
+                    "dashboard_pendiente": True,
+                    "fecha_disponible": periodo_seleccionado.fecha_fin + timedelta(days=1),
+                },
+            )
+
+        dashboard = svc.obtener_dashboard_desde_snapshot(snapshot)
+        asistencias = dashboard["asistencias"]
+        calificaciones = dashboard["calificaciones"]
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "periodos": periodos,
+                "periodo_seleccionado": periodo_seleccionado,
+                "snapshot": snapshot,
+                "total_estudiantes": dashboard["total_estudiantes"],
+                "asistencias": asistencias,
+                "calificaciones": calificaciones,
+                "solicitudes": dashboard["solicitudes"],
+                # Raw objects: the template serializes them with json_script,
+                # which HTML-escapes the payload (a plain json.dumps + |safe
+                # would let a "</script>" inside a nombre break out of the tag).
+                "calificaciones_por_paralelo": calificaciones["por_paralelo"],
+                "asistencias_datos": {
+                    "presentes": asistencias.presentes,
+                    "ausentes": asistencias.ausentes,
+                    "justificados": asistencias.justificados,
+                },
+            },
+        )

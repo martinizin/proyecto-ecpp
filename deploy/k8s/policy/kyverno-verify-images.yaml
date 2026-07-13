@@ -1,0 +1,32 @@
+# Image-signature verification in ENFORCE mode: an unsigned or wrongly-signed
+# ghcr.io/martinizin/proyecto-ecpp image is REJECTED at admission. Apply this
+# only after the Audit variant confirms the signed digest passes, so enforcement
+# never blocks a legitimately signed release. Same rule as the Audit policy with
+# validationFailureAction flipped to Enforce.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+spec:
+  validationFailureAction: Enforce
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: verify-ghcr-signature
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["ecppp-prod", "ecppp-staging"]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/martinizin/proyecto-ecpp*"
+          mutateDigest: true
+          required: true
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    subjectRegExp: "https://github\\.com/martinizin/proyecto-ecpp/\\.github/workflows/.+@refs/heads/develop"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"

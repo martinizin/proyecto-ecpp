@@ -1,0 +1,25 @@
+# Production overlay. Argo CD (P4) watches this directory and syncs it to the
+# ecppp-prod namespace. The `images` digest below is the single source of truth
+# for what runs in production: the `bump` job in cd.yml rewrites it to the
+# signed image digest on every merge to develop (git-driven GitOps promotion).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ecppp-prod
+
+resources:
+- ../../base
+
+# `bump` replaces this with `digest: sha256:...` via `kustomize edit set image`.
+# It starts on the mutable :develop tag so the overlay is valid before the first
+# automated bump; once bumped, Kyverno can verify the pinned digest's signature.
+images:
+- digest: sha256:937fbf3822bf426f7478c1600613f3c031ee1ef3e5e5c5f4cc0f58f3a21c976e
+  name: ghcr.io/martinizin/proyecto-ecpp
+
+patches:
+- path: configmap-patch.yaml
+- path: ingress-patch.yaml
+  target:
+    kind: Ingress
+    name: web

@@ -7,6 +7,9 @@ service-reuse guard tests (R11).
 """
 
 import re
+from datetime import datetime
+from datetime import timezone as dt_timezone
+from unittest import mock
 
 import pytest
 from django.core.cache import cache
@@ -383,6 +386,13 @@ class TestServiceReuseR11:
 class TestRateLimitGlobal:
     """R3: el rate limit es global entre calificaciones y asistencia."""
 
+    # Instante fijo para el bucket del rate limiter. Congelamos ``timezone.now``
+    # del limiter durante los requests para que el contador por minuto no se
+    # resetee si el reloj cruza un borde de minuto en medio del test (CI lento).
+    # El test y el limiter calculan así la MISMA cache key.
+    _FIXED_NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=dt_timezone.utc)
+    _RATE_LIMITER_NOW = "apps.reportes.application.rate_limiter.timezone.now"
+
     def test_rate_limit_is_global_across_endpoints(self, docente_client):
         """10 calls (mezclando endpoints) pasan; la 11ª retorna 429."""
         _clear_cache()
@@ -390,17 +400,22 @@ class TestRateLimitGlobal:
         url_calif = reverse("reportes:exportar_calificaciones")
         url_asist = reverse("reportes:exportar_asistencia")
 
-        # 5 calificaciones + 5 asistencia = 10
-        for _ in range(5):
-            response = docente_client.get(url_calif, {"periodo": periodo.id, "formato": "excel"})
-            assert response.status_code == 200
-        for _ in range(5):
-            response = docente_client.get(url_asist, {"periodo": periodo.id, "formato": "excel"})
-            assert response.status_code == 200
+        with mock.patch(self._RATE_LIMITER_NOW, return_value=self._FIXED_NOW):
+            # 5 calificaciones + 5 asistencia = 10
+            for _ in range(5):
+                response = docente_client.get(
+                    url_calif, {"periodo": periodo.id, "formato": "excel"}
+                )
+                assert response.status_code == 200
+            for _ in range(5):
+                response = docente_client.get(
+                    url_asist, {"periodo": periodo.id, "formato": "excel"}
+                )
+                assert response.status_code == 200
 
-        # La 11ª (cualquier endpoint) → 429
-        response = docente_client.get(url_calif, {"periodo": periodo.id, "formato": "excel"})
-        assert response.status_code == 429
+            # La 11ª (cualquier endpoint) → 429
+            response = docente_client.get(url_calif, {"periodo": periodo.id, "formato": "excel"})
+            assert response.status_code == 429
 
     def test_rate_limit_429_message_in_spanish(self, docente_client, docente):
         """El body del 429 es JSON con shape ``{error, retry_after_seconds}`` (HU27b R18)."""

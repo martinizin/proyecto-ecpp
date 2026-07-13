@@ -1,22 +1,17 @@
-Django==5.1.7
+# Runtime dependencies. This file — and only this file — is installed into the
+# production image (see Dockerfile). Linters, test runners and fixtures belong
+# in requirements-dev.txt: shipping them enlarges the image and its CVE surface.
+
+Django==5.1.15
 psycopg2-binary==2.9.10
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 djangorestframework==3.16.0
-flake8==7.2.0
-black==25.1.0
-pytest==8.3.5
-pytest-django==4.10.0
-coverage==7.8.0
-factory-boy==3.3.1
 openai==2.41.0
 
 # HU27 — Exportación de calificaciones y asistencia a Excel y PDF
 openpyxl>=3.1.0
 reportlab>=4.0.0
-
-# Test de PDFs generados (HU27 auditoría)
-pypdf>=6.0.0
 
 # HU30 — Deployment (Docker/Compose, WSGI server, static, cache, DB URL)
 gunicorn==23.0.0

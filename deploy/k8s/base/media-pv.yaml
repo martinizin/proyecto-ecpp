@@ -1,0 +1,23 @@
+# Static hostPath PV for media uploads, backed by a fixed host directory so
+# `scripts/backup_media.sh` has a stable path to tar (dynamic `local-path`
+# would give an unpredictable `pvc-<uuid>` directory). Retain reclaim policy
+# so deleting the PVC never deletes real user data. See design.md §11.
+#
+# The host directory /opt/ecppp/media must exist and be writable by the
+# container's non-root `app` user (UID assigned by adduser --system in
+# the Dockerfile) before this PV is bound — provisioned as part of the
+# cutover runbook (design.md §13), not by this manifest.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /opt/ecppp/media
+    type: DirectoryOrCreate
