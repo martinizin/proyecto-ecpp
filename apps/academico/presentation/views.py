@@ -1647,7 +1647,6 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
     template_name = "academico/cierre_periodo.html"
 
     def get(self, request):
-        import json
         from datetime import date, timedelta
 
         from django.db.models import Q
@@ -1718,13 +1717,14 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
                 "asistencias": asistencias,
                 "calificaciones": calificaciones,
                 "solicitudes": dashboard["solicitudes"],
-                "calificaciones_json": json.dumps(calificaciones["por_paralelo"]),
-                "asistencias_json": json.dumps(
-                    {
-                        "presentes": asistencias.presentes,
-                        "ausentes": asistencias.ausentes,
-                        "justificados": asistencias.justificados,
-                    }
-                ),
+                # Raw objects: the template serializes them with json_script,
+                # which HTML-escapes the payload (a plain json.dumps + |safe
+                # would let a "</script>" inside a nombre break out of the tag).
+                "calificaciones_por_paralelo": calificaciones["por_paralelo"],
+                "asistencias_datos": {
+                    "presentes": asistencias.presentes,
+                    "ausentes": asistencias.ausentes,
+                    "justificados": asistencias.justificados,
+                },
             },
         )

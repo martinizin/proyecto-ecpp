@@ -509,6 +509,22 @@ class TestCierrePeriodoDashboardView:
         assert response.status_code == 200
         assert response.context["sin_periodos"] is True
 
+    def test_datos_de_graficas_se_serializan_con_json_script(self):
+        """Chart payloads go through json_script (HTML-escaped), never |safe."""
+        periodo = PeriodoFactory(
+            activo=True,
+            fecha_inicio=datetime.date.today() - datetime.timedelta(days=120),
+            fecha_fin=datetime.date.today() - datetime.timedelta(days=1),
+        )
+        MatriculaFactory(paralelo=ParaleloFactory(periodo=periodo))
+
+        response = self._login_inspector().get(self.url)
+
+        contenido = response.content.decode("utf-8")
+        assert 'id="datos-calificaciones"' in contenido
+        assert 'id="datos-asistencias"' in contenido
+        assert "calificaciones_json" not in response.context
+
     def test_modulo_visible_en_sidebar_y_dashboard_de_inicio(self):
         """Business rule: the module appears in the sidebar AND the home
         dashboard section, even when no period has closed yet."""

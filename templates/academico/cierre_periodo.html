@@ -315,9 +315,11 @@
 {% block extra_js %}
 {% if snapshot %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{{ asistencias_datos|json_script:"datos-asistencias" }}
+{{ calificaciones_por_paralelo|json_script:"datos-calificaciones" }}
 <script>
-  const ASISTENCIAS = {{ asistencias_json|safe }};
-  const CALIFICACIONES = {{ calificaciones_json|safe }};
+  const ASISTENCIAS = JSON.parse(document.getElementById('datos-asistencias').textContent);
+  const CALIFICACIONES = JSON.parse(document.getElementById('datos-calificaciones').textContent);
 
   // Kept outside the Alpine component: storing a Chart.js instance in
   // reactive state wraps it in a Proxy and breaks destroy()/re-render.
