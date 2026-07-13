@@ -3,7 +3,7 @@
 {% block title %}Dashboard de Cierre de Período{% endblock %}
 
 {% block content %}
-<div {% if not sin_periodos_elegibles %}x-data="cierrePeriodo()" x-init="init()"{% endif %}>
+<div>
 
   <!-- Breadcrumb -->
   <nav class="mb-4 text-sm" aria-label="Breadcrumb">
@@ -17,35 +17,34 @@
   <!-- Encabezado -->
   <div class="mb-6">
     <h1 class="text-xl font-semibold text-gray-800">Dashboard de Cierre de Período</h1>
-    <p class="text-sm text-gray-500 mt-1">Asistencias, calificaciones y solicitudes del período cerrado.</p>
+    <p class="text-sm text-gray-500 mt-1">Asistencias, calificaciones y solicitudes al cierre del período.</p>
   </div>
 
-  {% if sin_periodos_elegibles %}
-  <!-- ── Sin períodos cerrados aún ─────────────────────────────────────────── -->
+  {% if sin_periodos %}
+  <!-- ── Sin períodos académicos ───────────────────────────────────────────── -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
     <svg class="w-14 h-14 mx-auto mb-4 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
       <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
     </svg>
-    <p class="text-sm font-medium text-gray-500">Dashboard de cierre aún no disponible</p>
+    <p class="text-sm font-medium text-gray-500">Sin períodos académicos disponibles</p>
     <p class="text-xs text-gray-400 mt-1 max-w-md mx-auto">
-      El dashboard se genera automáticamente cuando un período académico finaliza
-      (llega a su fecha de fin) o es desactivado. Todavía no hay períodos cerrados.
+      No hay períodos académicos activos ni períodos cerrados. El dashboard se genera
+      automáticamente cuando un período finaliza (llega a su fecha de fin) o es desactivado.
     </p>
   </div>
   {% else %}
 
-  <!-- Filtro por período -->
-  <form x-ref="formPeriodo" method="get"
+  <!-- Filtro por período — solo períodos activos (y cerrados con dashboard) -->
+  <form method="get"
         class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-      <label for="f-periodo" class="text-sm font-medium text-gray-700 whitespace-nowrap">Período cerrado:</label>
-      <select id="f-periodo" name="periodo"
-              @change="$refs.formPeriodo.submit()"
+      <label for="f-periodo" class="text-sm font-medium text-gray-700 whitespace-nowrap">Período académico:</label>
+      <select id="f-periodo" name="periodo" onchange="this.form.submit()"
               class="flex-1 sm:max-w-xs border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
         {% for p in periodos %}
           <option value="{{ p.id }}"
                   {% if periodo_seleccionado and p.id == periodo_seleccionado.id %}selected{% endif %}>
-            {{ p.nombre }} · {{ p.fecha_inicio|date:"d/m/Y" }} – {{ p.fecha_fin|date:"d/m/Y" }}
+            {{ p.nombre }} · {{ p.tipo_licencia.codigo }} · {{ p.fecha_inicio|date:"d/m/Y" }} – {{ p.fecha_fin|date:"d/m/Y" }}
           </option>
         {% endfor %}
       </select>
@@ -65,12 +64,14 @@
         </svg>
         Fin: <strong class="text-gray-700">{{ periodo_seleccionado.fecha_fin|date:"d/m/Y" }}</strong>
       </span>
+      {% if snapshot %}
       <span class="flex items-center gap-1.5">
         <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
         </svg>
         Estudiantes: <strong class="text-gray-700">{{ total_estudiantes }}</strong>
       </span>
+      {% endif %}
       <span class="flex items-center gap-1.5">
         {% if periodo_seleccionado.activo %}
           <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-medium">
@@ -85,6 +86,30 @@
     </div>
     {% endif %}
   </form>
+
+  {% if dashboard_pendiente %}
+  <!-- ── Dashboard aún no generado para este período ───────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
+    <svg class="w-14 h-14 mx-auto mb-4 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+    </svg>
+    <p class="text-sm text-gray-600 max-w-xl mx-auto">
+      El dashboard de este período estará visible a partir del
+      <strong class="text-gray-800">{{ fecha_disponible|date:"d/m/Y" }}</strong>.
+      Si desea visualizar métricas en lo que lleva del período actual,
+      diríjase al módulo "Rendimiento".
+    </p>
+    <a href="{% url 'academico:dashboard_rendimiento' %}"
+       class="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-lg bg-primary hover:bg-secondary text-white text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+      </svg>
+      Ir al módulo Rendimiento
+    </a>
+  </div>
+  {% else %}
+
+  <div x-data="cierrePeriodo()" x-init="init()">
 
   <!-- ── Banner del snapshot ────────────────────────────────────────────────── -->
   {% if snapshot %}
@@ -280,13 +305,15 @@
     {% endfor %}
   </div>
 
-  {% endif %}{# /sin_periodos_elegibles #}
+  </div>{# /x-data cierrePeriodo #}
+  {% endif %}{# /dashboard_pendiente #}
+  {% endif %}{# /sin_periodos #}
 
 </div>
 {% endblock %}
 
 {% block extra_js %}
-{% if not sin_periodos_elegibles %}
+{% if snapshot %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   const ASISTENCIAS = {{ asistencias_json|safe }};

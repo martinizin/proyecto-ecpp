@@ -441,15 +441,32 @@ class TestCierrePeriodoDashboardView:
         client.force_login(inspector)
         return client
 
-    def test_sin_periodos_cerrados_muestra_no_disponible(self):
-        PeriodoFactory(
+    def test_sin_periodos_muestra_estado_vacio(self):
+        response = self._login_inspector().get(self.url)
+
+        assert response.status_code == 200
+        assert response.context["sin_periodos"] is True
+
+    def test_periodo_activo_vigente_muestra_aviso_de_dashboard_pendiente(self):
+        """Business rule: active periods ARE listed; an ongoing one shows the
+        availability date and a shortcut to the Rendimiento module."""
+        periodo = PeriodoFactory(
             activo=True,
             fecha_fin=datetime.date.today() + datetime.timedelta(days=30),
         )
         response = self._login_inspector().get(self.url)
 
         assert response.status_code == 200
-        assert response.context["sin_periodos_elegibles"] is True
+        assert periodo in response.context["periodos"]
+        assert response.context["dashboard_pendiente"] is True
+        assert response.context["fecha_disponible"] == periodo.fecha_fin + datetime.timedelta(
+            days=1
+        )
+        contenido = response.content.decode("utf-8")
+        assert "estará visible a partir del" in contenido
+        assert reverse("academico:dashboard_rendimiento") in contenido
+        # No snapshot is generated for a period that has not closed yet
+        assert not CierrePeriodo.objects.filter(periodo=periodo).exists()
 
     def test_periodo_terminado_por_fecha_muestra_dashboard(self):
         periodo = PeriodoFactory(
@@ -482,7 +499,7 @@ class TestCierrePeriodoDashboardView:
         assert response.status_code == 200
         assert response.context["snapshot"].motivo == "desactivacion"
 
-    def test_periodo_inactivo_nunca_activado_no_es_elegible(self):
+    def test_periodo_inactivo_nunca_activado_no_se_lista(self):
         PeriodoFactory(
             activo=False,
             fecha_fin=datetime.date.today() + datetime.timedelta(days=30),
@@ -490,7 +507,7 @@ class TestCierrePeriodoDashboardView:
         response = self._login_inspector().get(self.url)
 
         assert response.status_code == 200
-        assert response.context["sin_periodos_elegibles"] is True
+        assert response.context["sin_periodos"] is True
 
     def test_docente_no_puede_acceder(self):
         from tests.factories import DocenteFactory

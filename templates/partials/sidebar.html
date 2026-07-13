@@ -1,4 +1,4 @@
-{% load static academico_extras %}
+{% load static %}
 <!-- Sidebar — collapsible on desktop (w-64 ↔ w-16), slide-in on mobile -->
 <!-- Parent must expose: sidebarOpen, sidebarCollapsed, toggleCollapse() via x-data -->
 
@@ -163,9 +163,7 @@
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Rendimiento</span>
         </a>
 
-        <!-- ─── CIERRE DE PERÍODO (HU28) — visible solo con un período cerrado/desactivado ─── -->
-        {% cierre_periodo_disponible as cierre_disponible %}
-        {% if cierre_disponible %}
+        <!-- ─── CIERRE DE PERÍODO (HU28) ─── -->
         <a href="{% url 'academico:cierre_periodo_dashboard' %}"
            class="flex items-center rounded-lg text-sm font-medium transition-colors py-2.5
                   {% if request.resolver_match.url_name == 'cierre_periodo_dashboard' %}bg-white/10 text-white{% else %}text-white/70 hover:bg-white/10 hover:text-white{% endif %}"
@@ -177,7 +175,6 @@
             </svg>
             <span x-show="!sidebarCollapsed" x-cloak class="truncate">Cierre de Período</span>
         </a>
-        {% endif %}
 
         <!-- ─── AUDITORÍAS (Inspector) ─── -->
         <div x-show="sidebarCollapsed" x-cloak class="my-1.5 mx-1 border-t border-white/10"></div>

@@ -1637,9 +1637,10 @@ class HorarioEstudianteView(RolRequeridoMixin, View):
 
 class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
     """
-    Institutional closing dashboard (HU28). Shows the frozen snapshot that is
-    generated automatically when a period ends (fecha_fin passes) or is
-    deactivated. Hidden while no period has closed yet.
+    Institutional closing dashboard (HU28). The period dropdown lists the
+    active academic periods (plus already-closed ones, whose snapshot must
+    stay reachable). Selecting a period whose dashboard is not generated yet
+    shows the availability date and a shortcut to the Rendimiento module.
     """
 
     roles_permitidos = ["inspector", "director_academico"]
@@ -1647,7 +1648,7 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
 
     def get(self, request):
         import json
-        from datetime import date
+        from datetime import date, timedelta
 
         from django.db.models import Q
 
@@ -1655,11 +1656,12 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
 
         hoy = date.today()
 
-        # Eligible = already ended by date, or deactivated (has a snapshot).
-        # Periods created inactive but never activated are NOT eligible.
+        # Active periods per business rule, plus closed (deactivated) periods
+        # that already have a frozen snapshot. Periods created inactive but
+        # never activated are not listed.
         periodos = (
             Periodo.objects.select_related("tipo_licencia")
-            .filter(Q(fecha_fin__lt=hoy) | Q(cierre__isnull=False))
+            .filter(Q(activo=True) | Q(cierre__isnull=False))
             .order_by("-fecha_inicio")
         )
 
@@ -1668,9 +1670,10 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
                 request,
                 self.template_name,
                 {
-                    "sin_periodos_elegibles": True,
+                    "sin_periodos": True,
                     "periodos": periodos,
                     "periodo_seleccionado": None,
+                    "snapshot": None,
                 },
             )
 
@@ -1684,6 +1687,22 @@ class CierrePeriodoDashboardView(MultiRolRequeridoMixin, View):
 
         svc = CierrePeriodoAppService()
         snapshot = svc.obtener_o_generar_snapshot(periodo_seleccionado, hoy)
+
+        if snapshot is None:
+            # Ongoing period: the dashboard freezes the day after fecha_fin
+            # (eligibility requires fecha_actual > fecha_fin).
+            return render(
+                request,
+                self.template_name,
+                {
+                    "periodos": periodos,
+                    "periodo_seleccionado": periodo_seleccionado,
+                    "snapshot": None,
+                    "dashboard_pendiente": True,
+                    "fecha_disponible": periodo_seleccionado.fecha_fin + timedelta(days=1),
+                },
+            )
+
         dashboard = svc.obtener_dashboard_desde_snapshot(snapshot)
         asistencias = dashboard["asistencias"]
         calificaciones = dashboard["calificaciones"]

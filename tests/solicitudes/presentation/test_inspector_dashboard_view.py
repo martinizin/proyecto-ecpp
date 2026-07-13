@@ -444,9 +444,7 @@ class TestNumQueries:
         (SAVEPOINT + INSERT + RELEASE) does not pollute the budget.
         Design recommended cap was ~8 but did not account for the
         ``paralelos`` dropdown query or the ``vencidas`` Python-side
-        classifier loop. HU28 added the sidebar's
-        ``cierre_periodo_disponible`` exists() query (+1), so 12 is the
-        honest steady-state ceiling.
+        classifier loop; 11 is the honest steady-state ceiling.
         """
         # Pre-create the singleton so the get_or_create on the first
         # request does NOT add SAVEPOINT/INSERT/RELEASE (one-off cost
@@ -467,7 +465,7 @@ class TestNumQueries:
         session["last_activity"] = int(time.time())
         session.save()
 
-        with django_assert_max_num_queries(12):
+        with django_assert_max_num_queries(11):
             resp = client.get(URL)
             assert resp.status_code == 200
 
