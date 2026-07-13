@@ -402,21 +402,25 @@ class TestRateLimitGlobal:
         response = docente_client.get(url_calif, {"periodo": periodo.id, "formato": "excel"})
         assert response.status_code == 429
 
-    def test_rate_limit_429_message_in_spanish(self, docente_client):
+    def test_rate_limit_429_message_in_spanish(self, docente_client, docente):
         """El body del 429 es JSON con shape ``{error, retry_after_seconds}`` (HU27b R18)."""
         _clear_cache()
-        from django.contrib.auth import get_user_model
-        from django.utils import timezone
-
         import json
+        from datetime import timedelta
 
-        Usuario = get_user_model()
-        user = Usuario.objects.filter(rol="docente").order_by("-id").first()
-        bucket = timezone.now().strftime("%Y%m%d%H%M")
-        cache.set(f"export_rate_{user.id}_{bucket}", 10, timeout=60)
+        from django.utils import timezone
 
         periodo, _ = _crear_periodo_con_paralelo()
         url = reverse("reportes:exportar_calificaciones")
+
+        # Siembra el bucket del minuto actual Y el siguiente: si el minuto
+        # cambia entre el set y el request, el limiter leeria un bucket
+        # vacio y devolveria 200 (flaky en CI).
+        now = timezone.now()
+        for momento in (now, now + timedelta(minutes=1)):
+            bucket = momento.strftime("%Y%m%d%H%M")
+            cache.set(f"export_rate_{docente.id}_{bucket}", 10, timeout=120)
+
         response = docente_client.get(url, {"periodo": periodo.id, "formato": "excel"})
         assert response.status_code == 429
         assert response["Content-Type"].startswith("application/json")
