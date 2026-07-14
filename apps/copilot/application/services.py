@@ -200,7 +200,28 @@ class AcademicDataService:
     # ------------------------------------------------------------------ #
     # Horario
     # ------------------------------------------------------------------ #
+    DIA_ORDEN = {
+        "lunes": 1,
+        "martes": 2,
+        "miercoles": 3,
+        "jueves": 4,
+        "viernes": 5,
+        "sabado": 6,
+    }
+
     def _obtener_horario(self, usuario) -> str:
+        """Schedule of the user's paralelos.
+
+        A docente reaches his schedule through ``paralelos_asignados`` — he is
+        never a Matricula, so filtering by ``estudiante`` returned nothing and
+        the copilot answered "no tienes paralelos activos" to every docente.
+        """
+        rol = getattr(usuario, "rol", "desconocido")
+        if rol == "docente":
+            return self._horario_docente(usuario)
+        return self._horario_estudiante(usuario)
+
+    def _horario_estudiante(self, usuario) -> str:
         from apps.academico.infrastructure.models import Matricula
 
         matriculas = (
@@ -211,14 +232,6 @@ class AcademicDataService:
         if not matriculas.exists():
             return "No tienes paralelos activos este período."
 
-        DIA_ORDEN = {
-            "lunes": 1,
-            "martes": 2,
-            "miercoles": 3,
-            "jueves": 4,
-            "viernes": 5,
-            "sabado": 6,
-        }
         lines: list[str] = []
         for m in matriculas:
             p = m.paralelo
@@ -226,13 +239,40 @@ class AcademicDataService:
             if p.docente:
                 lines.append(f"Docente: {p.docente.get_full_name()}")
             lines.append(f"Paralelo: {p.nombre}")
-            bloques = list(p.bloques_horario.all())
-            bloques.sort(key=lambda b: (DIA_ORDEN.get(b.dia_semana, 99), b.hora_inicio))
-            for b in bloques:
-                lines.append(
-                    f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
-                )
+            lines.extend(self._lineas_bloques(p))
         return "\n".join(lines)
+
+    def _horario_docente(self, usuario) -> str:
+        """Paralelos the docente teaches in the active period (mirrors HorarioDocenteView)."""
+        paralelos = (
+            usuario.paralelos_asignados.filter(periodo__activo=True)
+            .select_related("asignatura", "periodo")
+            .prefetch_related("bloques_horario")
+        )
+        if not paralelos.exists():
+            return "No tienes paralelos asignados en el período activo."
+
+        lines: list[str] = []
+        for p in paralelos:
+            lines.append(f"\n### {p.asignatura.codigo} — {p.asignatura.nombre}")
+            lines.append(f"Paralelo: {p.nombre}")
+            lines.append(f"Periodo: {p.periodo.nombre}")
+            bloques = self._lineas_bloques(p)
+            if bloques:
+                lines.extend(bloques)
+            else:
+                lines.append("- Sin bloques de horario asignados.")
+        return "\n".join(lines)
+
+    def _lineas_bloques(self, paralelo) -> list[str]:
+        bloques = sorted(
+            paralelo.bloques_horario.all(),
+            key=lambda b: (self.DIA_ORDEN.get(b.dia_semana, 99), b.hora_inicio),
+        )
+        return [
+            f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
+            for b in bloques
+        ]
 
     # ------------------------------------------------------------------ #
     # Navegación — instrucciones de uso del sistema por rol

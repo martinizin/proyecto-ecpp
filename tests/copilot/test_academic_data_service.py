@@ -209,6 +209,80 @@ class TestObtenerHorario:
         assert "10:00" in result
 
 
+class TestObtenerHorarioDocente:
+    """Issue 5: un docente llega a su horario por ``paralelos_asignados``.
+
+    Filtrar por ``estudiante`` (como hacía la implementación original) devuelve
+    siempre vacío para un docente, y el copilot respondía "no tienes paralelos
+    activos" aunque tuviera paralelos asignados.
+    """
+
+    def _paralelo_del_docente(self, docente, *, activo=True, con_bloque=True):
+        tipo_licencia = TipoLicenciaFactory()
+        periodo = PeriodoFactory(tipo_licencia=tipo_licencia, activo=activo)
+        asignatura = AsignaturaFactory(codigo="LEG-01", nombre="Legislacion")
+        AsignaturaLicenciaFactory(asignatura=asignatura, tipo_licencia=tipo_licencia)
+        paralelo = ParaleloFactory(
+            asignatura=asignatura,
+            periodo=periodo,
+            tipo_licencia=tipo_licencia,
+            docente=docente,
+            nombre="NRC 5557",
+        )
+        if con_bloque:
+            BloqueHorarioFactory(
+                paralelo=paralelo,
+                dia_semana="martes",
+                hora_inicio=datetime.time(14, 0),
+                hora_fin=datetime.time(16, 0),
+            )
+        return paralelo
+
+    def test_docente_con_paralelos_ve_su_horario(self):
+        docente = DocenteFactory()
+        self._paralelo_del_docente(docente)
+
+        result = AcademicDataService()._obtener_horario(docente)
+
+        assert "LEG-01" in result
+        assert "Legislacion" in result
+        assert "NRC 5557" in result
+        assert "Martes" in result
+        assert "14:00" in result
+        assert "16:00" in result
+        assert "No tienes paralelos" not in result
+
+    def test_docente_sin_paralelos_recibe_mensaje_claro(self):
+        result = AcademicDataService()._obtener_horario(DocenteFactory())
+        assert "No tienes paralelos asignados en el período activo." in result
+
+    def test_docente_solo_ve_el_periodo_activo(self):
+        docente = DocenteFactory()
+        self._paralelo_del_docente(docente, activo=False)
+
+        result = AcademicDataService()._obtener_horario(docente)
+
+        assert "LEG-01" not in result
+        assert "No tienes paralelos asignados en el período activo." in result
+
+    def test_docente_sin_bloques_lo_indica(self):
+        docente = DocenteFactory()
+        self._paralelo_del_docente(docente, con_bloque=False)
+
+        result = AcademicDataService()._obtener_horario(docente)
+
+        assert "LEG-01" in result
+        assert "Sin bloques de horario asignados." in result
+
+    def test_dispatcher_horario_usa_la_rama_docente(self):
+        docente = DocenteFactory()
+        self._paralelo_del_docente(docente)
+
+        result = AcademicDataService().obtener_datos(docente, "horario")
+
+        assert "LEG-01" in result
+
+
 # =========================================================================== #
 # Informacion
 # =========================================================================== #
