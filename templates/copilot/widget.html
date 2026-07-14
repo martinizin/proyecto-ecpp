@@ -62,7 +62,7 @@
                     <div>
                         <h3 class="text-sm font-semibold text-gray-800">Nueva conversación</h3>
                         <p class="text-xs text-gray-500 mt-1 leading-relaxed">
-                            Esto cerrará la conversación actual y empezará una nueva. ¿Querés continuar?
+                            Esto cerrará la conversación actual y empezará una nueva. ¿Quieres continuar?
                         </p>
                     </div>
                 </div>
@@ -230,7 +230,7 @@
             <textarea x-model="input"
                       @keydown.enter.prevent="if (!$event.shiftKey) send()"
                       rows="1"
-                      placeholder="Escribí tu consulta…"
+                      placeholder="Escribe tu consulta…"
                       class="form-control flex-1 resize-none !h-10 min-h-0 py-2"
                       :disabled="isStreaming"
                       maxlength="1000"></textarea>

@@ -812,7 +812,7 @@ class InspectorBulkActionView(_InspectorRequiredMixin, View):
         comentario = request.POST.get("comentario", "").strip()
 
         if not ids:
-            messages.error(request, "Seleccioná al menos una justificación.")
+            messages.error(request, "Selecciona al menos una justificación.")
             return redirect("solicitudes:inspector_justificaciones_dashboard")
 
         service = InspectorResolucionAppService()

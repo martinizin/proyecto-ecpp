@@ -219,7 +219,7 @@
 
         <p class="text-sm text-gray-600 mb-6">
             <template x-if="tieneDependencias() && accionLabel === 'Desactivar'">
-                <span>¿Querés continuar de todas formas?</span>
+                <span>¿Quieres continuar de todas formas?</span>
             </template>
             <template x-if="!(tieneDependencias() && accionLabel === 'Desactivar')">
                 <span>
@@ -227,7 +227,7 @@
                     <span class="font-semibold" x-text="accionLabel.toLowerCase()"></span>
                     al usuario
                     <span class="font-semibold text-gray-800" x-text="nombreUsuario"></span>.
-                    ¿Querés continuar?
+                    ¿Quieres continuar?
                 </span>
             </template>
         </p>

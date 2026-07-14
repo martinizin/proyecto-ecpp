@@ -284,20 +284,20 @@ class AcademicDataService:
 ### Acciones disponibles en la plataforma para todos los usuarios
 
 **Cambiar contraseña**
-1. En el menú lateral izquierdo, hacé clic en **Mi Perfil** (sección "Mi Cuenta").
-2. En la página de perfil, seleccioná el botón **Cambiar Contraseña**.
-3. Completá los campos: contraseña actual, nueva contraseña y confirmación.
-4. Hacé clic en **Guardar** para aplicar el cambio.
+1. En el menú lateral izquierdo, haz clic en **Mi Perfil** (sección "Mi Cuenta").
+2. En la página de perfil, selecciona el botón **Cambiar Contraseña**.
+3. Completa los campos: contraseña actual, nueva contraseña y confirmación.
+4. Haz clic en **Guardar** para aplicar el cambio.
 
 **Ver tu perfil**
-1. En el menú lateral izquierdo, hacé clic en **Mi Perfil** (sección "Mi Cuenta").
+1. En el menú lateral izquierdo, haz clic en **Mi Perfil** (sección "Mi Cuenta").
 2. Verás tu información personal registrada en la plataforma.
 
 **Recuperar contraseña olvidada**
-1. En la pantalla de inicio de sesión, hacé clic en **¿Olvidaste tu contraseña?**
-2. Ingresá tu correo electrónico institucional registrado.
-3. Revisá tu correo: recibirás un enlace para restablecer la contraseña.
-4. Hacé clic en el enlace y establecé una nueva contraseña."""
+1. En la pantalla de inicio de sesión, haz clic en **¿Olvidaste tu contraseña?**
+2. Ingresa tu correo electrónico institucional registrado.
+3. Revisa tu correo: recibirás un enlace para restablecer la contraseña.
+4. Haz clic en el enlace y establece una nueva contraseña."""
 
         if rol == "estudiante":
             return (
@@ -307,34 +307,34 @@ class AcademicDataService:
 ### Acciones específicas para estudiantes
 
 **Ver mis calificaciones (Mi Libreta)**
-1. En el menú lateral izquierdo, hacé clic en **Mi Libreta**.
+1. En el menú lateral izquierdo, haz clic en **Mi Libreta**.
 2. Verás todas tus notas organizadas por asignatura y tipo de evaluación.
 
 **Ver mi asistencia**
-1. En el menú lateral izquierdo, hacé clic en **Mi Asistencia**.
+1. En el menú lateral izquierdo, haz clic en **Mi Asistencia**.
 2. Verás el porcentaje de asistencia, las ausencias y el estado de justificaciones por materia.
 
 **Ver mi horario de clases**
-1. En el menú lateral izquierdo, hacé clic en **Mi Horario**.
+1. En el menú lateral izquierdo, haz clic en **Mi Horario**.
 2. Verás los días y franjas horarias de cada asignatura en la que estás matriculado.
 
 **Justificar una inasistencia desde la plataforma**
-1. En el menú lateral izquierdo, hacé clic en **Justificación** (sección Solicitudes).
+1. En el menú lateral izquierdo, haz clic en **Justificación** (sección Solicitudes).
 2. Se mostrará la lista de tus inasistencias pendientes de justificar.
-3. Seleccioná la inasistencia que querés justificar.
-4. Adjuntá el certificado o documento de respaldo (médico, laboral, etc.).
-5. Hacé clic en **Enviar solicitud**.
-6. Podés revisar el estado de la solicitud en **Mis Solicitudes**.
+3. Selecciona la inasistencia que quieres justificar.
+4. Adjunta el certificado o documento de respaldo (médico, laboral, etc.).
+5. Haz clic en **Enviar solicitud**.
+6. Puedes revisar el estado de la solicitud en **Mis Solicitudes**.
 
 **Solicitar recalificación de una nota**
-1. En el menú lateral izquierdo, hacé clic en **Recalificación** (sección Solicitudes).
-2. Seleccioná la asignatura y la evaluación cuya nota querés impugnar.
-3. Escribí el motivo de la solicitud en el campo correspondiente.
-4. Hacé clic en **Enviar solicitud**.
-5. Podés revisar el estado en **Mis Solicitudes**.
+1. En el menú lateral izquierdo, haz clic en **Recalificación** (sección Solicitudes).
+2. Selecciona la asignatura y la evaluación cuya nota quieres impugnar.
+3. Escribe el motivo de la solicitud en el campo correspondiente.
+4. Haz clic en **Enviar solicitud**.
+5. Puedes revisar el estado en **Mis Solicitudes**.
 
 **Ver el estado de mis solicitudes**
-1. En el menú lateral izquierdo, hacé clic en **Mis Solicitudes**.
+1. En el menú lateral izquierdo, haz clic en **Mis Solicitudes**.
 2. Verás el listado de todas tus solicitudes con su estado (pendiente, aprobada, rechazada) \
 y la fecha de resolución."""
             )
@@ -347,23 +347,23 @@ y la fecha de resolución."""
 ### Acciones específicas para docentes
 
 **Registrar asistencia de un paralelo**
-1. En el menú lateral izquierdo, hacé clic en **Registro de Asistencia**.
-2. Seleccioná el paralelo para el que querés registrar asistencia.
-3. Marcá el estado de cada estudiante (presente, ausente) y hacé clic en **Guardar**.
+1. En el menú lateral izquierdo, haz clic en **Registro de Asistencia**.
+2. Selecciona el paralelo para el que quieres registrar asistencia.
+3. Marca el estado de cada estudiante (presente, ausente) y haz clic en **Guardar**.
 
 **Registrar calificaciones**
-1. En el menú lateral izquierdo, hacé clic en **Registro de Calificaciones**.
-2. Seleccioná el paralelo correspondiente.
-3. Elegí la evaluación, ingresá las notas de cada estudiante y hacé clic en **Guardar**.
+1. En el menú lateral izquierdo, haz clic en **Registro de Calificaciones**.
+2. Selecciona el paralelo correspondiente.
+3. Elige la evaluación, ingresa las notas de cada estudiante y haz clic en **Guardar**.
 
 **Ver mi horario de clases**
-1. En el menú lateral izquierdo, hacé clic en **Mi Horario**.
-2. Verás los horarios de todos los paralelos que tenés asignados.
+1. En el menú lateral izquierdo, haz clic en **Mi Horario**.
+2. Verás los horarios de todos los paralelos que tienes asignados.
 
 **Gestionar solicitudes de recalificación**
-1. En el menú lateral izquierdo, hacé clic en **Solicitudes Pendientes**.
+1. En el menú lateral izquierdo, haz clic en **Solicitudes Pendientes**.
 2. Verás las solicitudes de recalificación enviadas por tus estudiantes.
-3. Revisá cada solicitud y seleccioná **Aprobar** o **Rechazar** con tu justificación."""
+3. Revisa cada solicitud y selecciona **Aprobar** o **Rechazar** con tu justificación."""
             )
 
         return guia_comun + f"\n\nNota: guía de navegación no disponible para el rol '{rol}'."
@@ -828,14 +828,14 @@ class CopilotAppService:
             "- No inventes datos ni asumas información que no esté en el contexto.\n"
             "- Para solicitudes/reclamos: indica el estado actual pero deriva al usuario a "
             "secretaría para gestiones que requieran acción.\n"
-            "- Para calificaciones: muestra las notas y reportá el promedio ponderado por "
-            "materia y el promedio general tal como aparecen en los datos. Podés responder "
+            "- Para calificaciones: muestra las notas y reporta el promedio ponderado por "
+            "materia y el promedio general tal como aparecen en los datos. Puedes responder "
             "directamente cuando el usuario pregunta '¿cuál es mi promedio?'. NO realices "
             "cálculos hipotéticos como '¿qué pasaría si cambiara la nota X a Y?'.\n"
             "- Para consultas de navegación: usa ÚNICA Y EXCLUSIVAMENTE los pasos de la "
             "guía de navegación provista en los datos del usuario. NUNCA inventes pasos, "
             "secciones ni rutas que no aparezcan en esa guía. Si el usuario pregunta por "
-            "una acción específica, respondé SOLO con esa sección de la guía. No menciones "
+            "una acción específica, responde SOLO con esa sección de la guía. No menciones "
             "secretarías presenciales, soporte técnico ni ningún canal externo a la "
             "plataforma — todas las instrucciones son dentro del sistema web.\n"
         )
