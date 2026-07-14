@@ -156,7 +156,7 @@
         </svg>
         <span>
             Se muestran los <strong>{{ limite }} registros más recientes</strong> de un total de <strong>{{ total_logs }}</strong>.
-            Aplicá filtros de fecha, docente o estudiante para acotar los resultados.
+            Aplica filtros de fecha, docente o estudiante para acotar los resultados.
         </span>
     </div>
     {% endif %}
@@ -255,9 +255,10 @@
     </div>
     {% endif %}
 </div>
-{% endblock %}
 
-{% block extra_js %}
+{# El componente vive dentro del bloque content: extra_js queda fuera de
+   #main-content y no se re-ejecuta en navegación boosted (ver
+   tests/presentation/test_boosted_scripts.py). #}
 <script>
 function auditoriaBusqueda() {
     return {
