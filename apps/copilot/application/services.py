@@ -21,7 +21,7 @@ from apps.copilot.domain.exceptions import (
     RateLimitExcedidoError,
     SesionLlenaError,
 )
-from apps.copilot.domain.moderation import CANNED_REFUSAL
+from apps.copilot.domain.moderation import CANNED_REFUSAL, refusal_para_rol
 from apps.copilot.domain.services import QueryClassifierService
 from apps.copilot.infrastructure.models import (
     ConversacionCopilot,
@@ -200,7 +200,28 @@ class AcademicDataService:
     # ------------------------------------------------------------------ #
     # Horario
     # ------------------------------------------------------------------ #
+    DIA_ORDEN = {
+        "lunes": 1,
+        "martes": 2,
+        "miercoles": 3,
+        "jueves": 4,
+        "viernes": 5,
+        "sabado": 6,
+    }
+
     def _obtener_horario(self, usuario) -> str:
+        """Schedule of the user's paralelos.
+
+        A docente reaches his schedule through ``paralelos_asignados`` — he is
+        never a Matricula, so filtering by ``estudiante`` returned nothing and
+        the copilot answered "no tienes paralelos activos" to every docente.
+        """
+        rol = getattr(usuario, "rol", "desconocido")
+        if rol == "docente":
+            return self._horario_docente(usuario)
+        return self._horario_estudiante(usuario)
+
+    def _horario_estudiante(self, usuario) -> str:
         from apps.academico.infrastructure.models import Matricula
 
         matriculas = (
@@ -211,14 +232,6 @@ class AcademicDataService:
         if not matriculas.exists():
             return "No tienes paralelos activos este período."
 
-        DIA_ORDEN = {
-            "lunes": 1,
-            "martes": 2,
-            "miercoles": 3,
-            "jueves": 4,
-            "viernes": 5,
-            "sabado": 6,
-        }
         lines: list[str] = []
         for m in matriculas:
             p = m.paralelo
@@ -226,13 +239,40 @@ class AcademicDataService:
             if p.docente:
                 lines.append(f"Docente: {p.docente.get_full_name()}")
             lines.append(f"Paralelo: {p.nombre}")
-            bloques = list(p.bloques_horario.all())
-            bloques.sort(key=lambda b: (DIA_ORDEN.get(b.dia_semana, 99), b.hora_inicio))
-            for b in bloques:
-                lines.append(
-                    f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
-                )
+            lines.extend(self._lineas_bloques(p))
         return "\n".join(lines)
+
+    def _horario_docente(self, usuario) -> str:
+        """Paralelos the docente teaches in the active period (mirrors HorarioDocenteView)."""
+        paralelos = (
+            usuario.paralelos_asignados.filter(periodo__activo=True)
+            .select_related("asignatura", "periodo")
+            .prefetch_related("bloques_horario")
+        )
+        if not paralelos.exists():
+            return "No tienes paralelos asignados en el período activo."
+
+        lines: list[str] = []
+        for p in paralelos:
+            lines.append(f"\n### {p.asignatura.codigo} — {p.asignatura.nombre}")
+            lines.append(f"Paralelo: {p.nombre}")
+            lines.append(f"Periodo: {p.periodo.nombre}")
+            bloques = self._lineas_bloques(p)
+            if bloques:
+                lines.extend(bloques)
+            else:
+                lines.append("- Sin bloques de horario asignados.")
+        return "\n".join(lines)
+
+    def _lineas_bloques(self, paralelo) -> list[str]:
+        bloques = sorted(
+            paralelo.bloques_horario.all(),
+            key=lambda b: (self.DIA_ORDEN.get(b.dia_semana, 99), b.hora_inicio),
+        )
+        return [
+            f"- {b.get_dia_semana_display()} {b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}"
+            for b in bloques
+        ]
 
     # ------------------------------------------------------------------ #
     # Navegación — instrucciones de uso del sistema por rol
@@ -512,6 +552,39 @@ class CopilotAppService:
     # ------------------------------------------------------------------ #
     # Mensaje
     # ------------------------------------------------------------------ #
+    def _evaluar_entrada(self, usuario, conversacion, contenido: str, request_id: str):
+        """Modera el input y, si se rechaza, deja la conversación consistente.
+
+        Issue 6: al rechazar, el turno igual queda registrado — el mensaje del
+        usuario CENSURADO y una respuesta de rechazo redactada según su rol —
+        para que al recargar el chat el historial muestre lo mismo que vio en
+        pantalla. La excepción se re-lanza con ambos textos para que la vista
+        los devuelva al cliente.
+        """
+        try:
+            return self.moderation_service.evaluar_input(contenido, request_id=request_id)
+        except ContenidoBloqueadoError as exc:
+            censurado = exc.contenido_censurado or contenido
+            respuesta = refusal_para_rol(getattr(usuario, "rol", ""))
+
+            MensajeCopilot.objects.create(
+                conversacion=conversacion,
+                rol=MensajeCopilot.Rol.USER,
+                contenido=censurado,
+            )
+            MensajeCopilot.objects.create(
+                conversacion=conversacion,
+                rol=MensajeCopilot.Rol.ASSISTANT,
+                contenido=respuesta,
+            )
+            conversacion.save(update_fields=["ultima_actividad"])
+
+            raise ContenidoBloqueadoError(
+                razon=exc.razon,
+                contenido_censurado=censurado,
+                respuesta=respuesta,
+            ) from exc
+
     def procesar_mensaje(self, usuario, contenido: str, *, request_id: str = "") -> str:
         """Process a user message end-to-end and return the assistant's reply."""
         if self._excede_rate_limit(usuario):
@@ -532,12 +605,12 @@ class CopilotAppService:
         # para CLEAN).
         if not request_id:
             request_id = uuid.uuid4().hex
-        resultado_input = self.moderation_service.evaluar_input(contenido, request_id=request_id)
+        resultado_input = self._evaluar_entrada(usuario, conversacion, contenido, request_id)
         contenido_a_persistir_y_llm = self.moderation_service.sanitizar(contenido, resultado_input)
 
         # Guardar mensaje del usuario (versión censurada para LIGHT; original
-        # para CLEAN). El ``sanitizar`` ya garantiza que para STRONG no
-        # llegamos aquí (la excepción burbujea desde ``evaluar_input``).
+        # para CLEAN). Para STRONG no llegamos aquí: ``_evaluar_entrada`` ya
+        # persistió el mensaje censurado y la respuesta de rechazo.
         MensajeCopilot.objects.create(
             conversacion=conversacion,
             rol=MensajeCopilot.Rol.USER,
@@ -617,7 +690,7 @@ class CopilotAppService:
         # excepción sincrónicamente y devuelve JSON 200 con CANNED_REFUSAL.
         if not request_id:
             request_id = uuid.uuid4().hex
-        resultado_input = self.moderation_service.evaluar_input(contenido, request_id=request_id)
+        resultado_input = self._evaluar_entrada(usuario, conversacion, contenido, request_id)
         contenido_a_persistir_y_llm = self.moderation_service.sanitizar(contenido, resultado_input)
 
         MensajeCopilot.objects.create(

@@ -41,6 +41,27 @@ CANNED_REFUSAL: str = (
 )
 
 
+# Rechazo por rol (Issue 6). El texto explica, además de la negativa, en qué
+# SÍ puede ayudar el copilot a ese usuario — un rechazo seco no le dice al
+# usuario cómo reformular. ``CANNED_REFUSAL`` sigue siendo el fallback para
+# roles desconocidos y para la moderación de salida (donde no hay input del
+# usuario que reencauzar).
+_AYUDA_POR_ROL: dict[str, str] = {
+    "estudiante": "tus calificaciones, tu asistencia, tus solicitudes y tu horario de clases",
+    "docente": "tus paralelos, el registro de calificaciones y asistencia, y tu horario de clases",
+}
+
+_PREFIJO_RECHAZO = "No puedo responder una pregunta en esos términos"
+
+
+def refusal_para_rol(rol: str) -> str:
+    """Rechazo de moderación redactado según el rol del usuario (Issue 6)."""
+    ayuda = _AYUDA_POR_ROL.get(rol)
+    if not ayuda:
+        return CANNED_REFUSAL
+    return f"{_PREFIJO_RECHAZO}. Puedo ayudarte con dudas sobre {ayuda}."
+
+
 class Severidad(Enum):
     """Severidad del match contra la lista dura de palabras.
 
@@ -148,8 +169,12 @@ class ModeracionServicio:
         if match is not None:
             severidad, texto_censurado = match
             if severidad is Severidad.STRONG:
-                # Tier 3a: rechazo inmediato, no se llama a OpenAI.
-                raise ContenidoBloqueadoError(razon="strong_list")
+                # Tier 3a: rechazo inmediato, no se llama a OpenAI. El texto
+                # censurado viaja en la excepción: la conversación muestra el
+                # mensaje del usuario enmascarado (Issue 6), nunca el original.
+                raise ContenidoBloqueadoError(
+                    razon="strong_list", contenido_censurado=texto_censurado
+                )
             if severidad is Severidad.LIGHT:
                 # Tier 2: censura y pasa; la API ve el texto censurado
                 # (REQ-003, edge case: la lista corre sobre censurado).
@@ -173,7 +198,9 @@ class ModeracionServicio:
                         contenido_sanitizado=texto_censurado,
                     )
                 if flagged:
-                    raise ContenidoBloqueadoError(razon="openai_input")
+                    raise ContenidoBloqueadoError(
+                        razon="openai_input", contenido_censurado=texto_censurado
+                    )
                 return ResultadoModeracion(
                     flagged=False,
                     severidad=Severidad.LIGHT,
@@ -202,7 +229,8 @@ class ModeracionServicio:
             )
 
         if flagged:
-            raise ContenidoBloqueadoError(razon="openai_input")
+            # Sin match de lista: no hay palabra que enmascarar, el texto va tal cual.
+            raise ContenidoBloqueadoError(razon="openai_input", contenido_censurado=texto)
 
         return ResultadoModeracion(
             flagged=False,

@@ -178,13 +178,34 @@ class TestInputStrong:
             service.procesar_mensaje(estudiante, "eres un pendejo")
         assert excinfo.value.razon == "strong_list"
 
-    def test_input_strong_no_persiste_mensaje_usuario(self, service, estudiante, fake_wordlist):
-        """Input con match STRONG NO debe crear la fila del user en MensajeCopilot."""
+    def test_input_strong_persiste_el_mensaje_censurado(self, service, estudiante, fake_wordlist):
+        """Issue 6: el turno queda registrado, pero con el texto ENMASCARADO.
+
+        Cambia el contrato previo (que no persistía nada): el usuario debe ver
+        su mensaje censurado en el chat, y al recargar el historial tiene que
+        mostrar exactamente eso. La palabra original nunca se guarda.
+        """
         fake_wordlist.resultado = (Severidad.STRONG, "eres un ***")
 
         with pytest.raises(ContenidoBloqueadoError):
             service.procesar_mensaje(estudiante, "eres un pendejo")
-        assert MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER).count() == 0
+
+        mensajes = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER)
+        assert mensajes.count() == 1
+        assert mensajes.first().contenido == "eres un ***"
+        assert "pendejo" not in mensajes.first().contenido
+
+    def test_input_strong_expone_censurado_y_respuesta_en_la_excepcion(
+        self, service, estudiante, fake_wordlist
+    ):
+        """La excepción transporta lo que la vista necesita devolver al cliente."""
+        fake_wordlist.resultado = (Severidad.STRONG, "eres un ***")
+
+        with pytest.raises(ContenidoBloqueadoError) as excinfo:
+            service.procesar_mensaje(estudiante, "eres un pendejo")
+
+        assert excinfo.value.contenido_censurado == "eres un ***"
+        assert "No puedo responder una pregunta en esos términos" in excinfo.value.respuesta
 
     def test_input_strong_no_llama_al_llm(self, service, estudiante, fake_openai, fake_wordlist):
         """Input con match STRONG NO debe llamar a ``chat_completion``."""
@@ -194,13 +215,19 @@ class TestInputStrong:
             service.procesar_mensaje(estudiante, "eres un pendejo")
         fake_openai.chat_completion.assert_not_called()
 
-    def test_input_strong_no_persiste_asistente(self, service, estudiante, fake_wordlist):
-        """Input con match STRONG NO debe crear la fila del asistente."""
+    def test_input_strong_persiste_rechazo_segun_el_rol(self, service, estudiante, fake_wordlist):
+        """Issue 6: la respuesta guardada es el rechazo redactado para su rol."""
         fake_wordlist.resultado = (Severidad.STRONG, "eres un ***")
 
         with pytest.raises(ContenidoBloqueadoError):
             service.procesar_mensaje(estudiante, "eres un pendejo")
-        assert MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.ASSISTANT).count() == 0
+
+        respuestas = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.ASSISTANT)
+        assert respuestas.count() == 1
+        contenido = respuestas.first().contenido
+        assert "No puedo responder una pregunta en esos términos" in contenido
+        # El rol estudiante ve las áreas en las que el copilot SÍ puede ayudarlo
+        assert "tus calificaciones" in contenido
 
 
 # --------------------------------------------------------------------------- #
@@ -301,15 +328,21 @@ class TestInputOpenAIFlagged:
             assert excinfo.value.razon == "openai_input"
             assert mock_clasificar.called
 
-    def test_input_openai_flagged_no_persiste_usuario(
+    def test_input_openai_flagged_persiste_turno_con_rechazo(
         self, service, estudiante, fake_wordlist, fake_openai_moderation
     ):
-        """Input OpenAI-flagged NO debe persistir la fila del user."""
+        """Issue 6: sin match de lista no hay nada que enmascarar, pero el turno
+        igual queda registrado con el rechazo por rol."""
         fake_wordlist.resultado = None
         with mock.patch.object(fake_openai_moderation, "clasificar", return_value=True):
             with pytest.raises(ContenidoBloqueadoError):
                 service.procesar_mensaje(estudiante, "mensaje semánticamente malo")
-        assert MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER).count() == 0
+
+        usuario_msgs = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER)
+        assert usuario_msgs.count() == 1
+        assert usuario_msgs.first().contenido == "mensaje semánticamente malo"
+        asistente = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.ASSISTANT).first()
+        assert "No puedo responder una pregunta en esos términos" in asistente.contenido
 
     def test_input_openai_flagged_no_llama_al_llm(
         self, service, estudiante, fake_openai, fake_wordlist, fake_openai_moderation
@@ -553,13 +586,20 @@ class TestSSEInputStrong:
         # Y NO se llama a ``chat_completion_stream`` (ni se genera un generator)
         fake_openai.chat_completion_stream.assert_not_called()
 
-    def test_sse_input_strong_no_persiste_usuario(self, service, estudiante, fake_wordlist):
-        """SSE input STRONG NO debe crear la fila del user."""
+    def test_sse_input_strong_persiste_censurado_y_rechazo(
+        self, service, estudiante, fake_wordlist
+    ):
+        """Issue 6: el path SSE persiste el mismo turno censurado que el bloqueante."""
         fake_wordlist.resultado = (Severidad.STRONG, "eres un ***")
 
-        with pytest.raises(ContenidoBloqueadoError):
+        with pytest.raises(ContenidoBloqueadoError) as excinfo:
             service.procesar_mensaje_stream(estudiante, "eres un pendejo")
-        assert MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER).count() == 0
+
+        assert excinfo.value.contenido_censurado == "eres un ***"
+        usuario_msg = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.USER).first()
+        assert usuario_msg.contenido == "eres un ***"
+        asistente = MensajeCopilot.objects.filter(rol=MensajeCopilot.Rol.ASSISTANT).first()
+        assert "No puedo responder una pregunta en esos términos" in asistente.contenido
 
     def test_sse_input_clean_retorna_generator(self, service, estudiante, fake_wordlist):
         """SSE input CLEAN → ``procesar_mensaje_stream`` retorna un generator."""

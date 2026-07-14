@@ -338,6 +338,28 @@
                         throw new Error(data.error || 'Error al procesar el mensaje.');
                     }
 
+                    // Moderación de entrada: el servidor corta el stream y responde
+                    // JSON (200) con el rechazo. Sin este chequeo el cliente leería
+                    // el JSON como si fuera SSE, no encontraría ningún "data:" y se
+                    // quedaría en silencio.
+                    if ((res.headers.get('Content-Type') || '').includes('application/json')) {
+                        const data = await res.json();
+                        // Issue 6: mostramos el mensaje del usuario censurado en
+                        // lugar del texto que acabamos de pintar en crudo.
+                        if (data.mensaje_censurado) {
+                            const ultimo = this.messages[this.messages.length - 1];
+                            if (ultimo && ultimo.rol === 'user') {
+                                ultimo.contenido = data.mensaje_censurado;
+                            }
+                        }
+                        this.isStreaming = false;
+                        this.streamingContent = '';
+                        if (data.respuesta) {
+                            this.messages.push({ rol: 'assistant', contenido: data.respuesta });
+                        }
+                        return;
+                    }
+
                     const reader = res.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';

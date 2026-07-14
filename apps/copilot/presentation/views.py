@@ -89,14 +89,17 @@ class CopilotChatView(MultiRolRequeridoMixin, View):
             )
         except (MensajeVacioError, MensajeDemaisiadoLargoError) as e:
             return JsonResponse({"error": str(e)}, status=400)
-        except ContenidoBloqueadoError:
+        except ContenidoBloqueadoError as e:
             # PR 2 — cualquier rechazo de moderación (input STRONG, input
             # OpenAI-flagged, output OpenAI-flagged) retorna HTTP 200 con
-            # ``CANNED_REFUSAL``. NO es un 4xx: para el cliente es una
-            # respuesta exitosa del copilot con un mensaje de cortesía.
+            # el rechazo. NO es un 4xx: para el cliente es una respuesta
+            # exitosa del copilot con un mensaje de cortesía.
+            # Issue 6: ``mensaje_censurado`` permite al cliente reemplazar el
+            # texto que ya pintó con la versión enmascarada.
             return JsonResponse(
                 {
-                    "respuesta": CANNED_REFUSAL,
+                    "respuesta": e.respuesta or CANNED_REFUSAL,
+                    "mensaje_censurado": e.contenido_censurado,
                     "timestamp": timezone.now().isoformat(),
                 },
                 status=200,
@@ -156,14 +159,15 @@ class CopilotChatStreamView(MultiRolRequeridoMixin, View):
             )
         except (MensajeVacioError, MensajeDemaisiadoLargoError) as e:
             return JsonResponse({"error": str(e)}, status=400)
-        except ContenidoBloqueadoError:
+        except ContenidoBloqueadoError as e:
             # PR 2 — input STRONG o OpenAI-flagged. Como el raise es
             # sincrónico (antes de que se cree el generator), no podemos
-            # emitir un evento SSE: retornamos JSON 200 con la canned
-            # refusal, igual que el endpoint bloqueante.
+            # emitir un evento SSE: retornamos JSON 200 con el rechazo,
+            # igual que el endpoint bloqueante.
             return JsonResponse(
                 {
-                    "respuesta": CANNED_REFUSAL,
+                    "respuesta": e.respuesta or CANNED_REFUSAL,
+                    "mensaje_censurado": e.contenido_censurado,
                     "timestamp": timezone.now().isoformat(),
                 },
                 status=200,
