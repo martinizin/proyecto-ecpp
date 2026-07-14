@@ -89,6 +89,12 @@ class HardcodedWordListProvider:
         self._regex_light: re.Pattern[str] | None = (
             self._compilar_regex_light(self._lista_light) if self._lista_light else None
         )
+        # El strong también se compila como grupo para poder CENSURAR el texto
+        # que se muestra y persiste. El rechazo lo sigue decidiendo el recorrido
+        # por tokens de abajo; este regex sólo enmascara.
+        self._regex_strong: re.Pattern[str] | None = (
+            self._compilar_regex_light(self._lista_strong) if self._lista_strong else None
+        )
 
     # ------------------------------------------------------------------ #
     # API pública
@@ -116,7 +122,10 @@ class HardcodedWordListProvider:
             patron = self._regex_token(token)
             match = patron.search(normalizado)
             if match is not None and not allow_list_hit:
-                return (Severidad.STRONG, texto)
+                # El texto se censura igual que en light: aunque el input se
+                # rechaza, la conversación muestra y persiste el mensaje del
+                # usuario enmascarado, nunca la palabra original.
+                return (Severidad.STRONG, self._censurar_strong(texto))
 
         # 4. Light matches (censura con ***).
         if self._regex_light is not None:
@@ -126,6 +135,22 @@ class HardcodedWordListProvider:
                 return (Severidad.LIGHT, censurado)
 
         return None
+
+    # ------------------------------------------------------------------ #
+    # Helpers — censura
+    # ------------------------------------------------------------------ #
+    def _censurar_strong(self, texto: str) -> str:
+        """Enmascara con ``***`` los tokens strong presentes en el texto.
+
+        Igual que la censura light, el ``sub`` corre sobre el texto ORIGINAL,
+        así que sólo enmascara las formas que se escriben tal cual figuran en
+        la lista. Las variantes ofuscadas (leet, diacríticos) igual disparan el
+        rechazo — el match se busca sobre el texto normalizado — pero no se
+        enmascaran; ese es el mismo límite que ya tenía la censura light.
+        """
+        if self._regex_strong is None:
+            return texto
+        return self._regex_strong.sub("***", texto)
 
     # ------------------------------------------------------------------ #
     # Helpers — normalización

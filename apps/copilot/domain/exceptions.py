@@ -45,14 +45,24 @@ class ContenidoBloqueadoError(Exception):
             - ``"openai_input"``: OpenAI Moderation API flagged the user input.
             - ``"openai_output"``: OpenAI Moderation API flagged the LLM reply.
 
+        contenido_censurado: user text with the offending words masked with
+            ``***``. The conversation shows and persists this version — never
+            the raw wording. Empty when the rejection carries no user text
+            (e.g. ``openai_output``).
+        respuesta: role-aware refusal shown to the user. The application layer
+            fills it in (the domain does not know the caller's role); it falls
+            back to ``CANNED_REFUSAL``.
+
     The exception message is ALWAYS the byte-locked canned refusal text
     (``CANNED_REFUSAL`` from ``apps.copilot.domain.moderation``). The message
     is read at construction time via a lazy import to avoid a circular
     dependency with the domain module.
     """
 
-    def __init__(self, razon: str):
+    def __init__(self, razon: str, contenido_censurado: str = "", respuesta: str = ""):
         from apps.copilot.domain.moderation import CANNED_REFUSAL
 
         self.razon = razon
+        self.contenido_censurado = contenido_censurado
+        self.respuesta = respuesta or CANNED_REFUSAL
         super().__init__(CANNED_REFUSAL)
