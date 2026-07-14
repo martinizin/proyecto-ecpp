@@ -30,8 +30,18 @@ class GestionUsuariosService:
     """Service for user management by secretaría."""
 
     def listar_usuarios(self, search: str = None, rol_filter: str = None):
-        """List users with optional search and role filter."""
-        qs = Usuario.objects.all().order_by("-date_joined")
+        """List users with optional search and role filter.
+
+        Only accounts that belong to the academic domain are listed: the panel
+        manages Estudiante / Docente / Inspector / Secretaría / Director
+        Académico. The Django superuser is an infrastructure account — it has
+        no academic role, cannot be edited from here, and showing it only
+        invites someone to deactivate the account that administers the system.
+        """
+        qs = Usuario.objects.filter(
+            is_superuser=False,
+            rol__in=Usuario.Rol.values,
+        ).order_by("-date_joined")
         if search:
             from django.db.models import Q
 

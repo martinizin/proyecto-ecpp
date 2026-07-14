@@ -13,6 +13,7 @@ from apps.academico.domain.exceptions import (
 )
 from apps.academico.infrastructure.models import Matricula
 from apps.secretaria.services import GestionMatriculasService, GestionUsuariosService
+from apps.usuarios.infrastructure.models import Usuario
 from tests.factories import (
     AsignaturaFactory,
     CalificacionFactory,
@@ -101,6 +102,31 @@ class TestGestionUsuariosService:
 
         result = self.service.listar_usuarios(rol_filter="docente")
         assert result.count() == 2
+
+    def test_listar_usuarios_excluye_al_superusuario(self):
+        """Issue 7: el panel gestiona roles académicos, no la cuenta de Django admin."""
+        Usuario.objects.create_superuser(
+            username="admin_django",
+            email="admin@ecppp.edu.ec",
+            password="admin12345",
+            cedula="0999999999",
+            rol=Usuario.Rol.SECRETARIA,
+        )
+        docente = DocenteFactory()
+
+        result = self.service.listar_usuarios()
+
+        assert list(result) == [docente]
+        assert not result.filter(is_superuser=True).exists()
+
+    def test_listar_usuarios_excluye_cuentas_sin_rol_academico(self):
+        """Una cuenta sin rol del sistema tampoco pertenece al panel."""
+        UsuarioFactory(rol="")
+        estudiante = EstudianteFactory()
+
+        result = self.service.listar_usuarios()
+
+        assert list(result) == [estudiante]
 
     def test_toggle_activo(self):
         """toggle_activo flips is_active both ways."""

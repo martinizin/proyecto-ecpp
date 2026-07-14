@@ -75,12 +75,12 @@
                     rechazados por el inspector.
                 </span>
                 <span x-show="tipo === 'laboral'" data-testid="info-message-laboral">
-                    Adjuntá el certificado emitido por tu empleador, con sello y firma.
+                    Adjunta el certificado emitido por tu empleador, con sello y firma.
                 </span>
                 <span x-show="tipo === 'calamidad'" data-testid="info-message-calamidad">
-                    Adjuntá documentación que respalde el evento (acta, denuncia, etc.).
+                    Adjunta documentación que respalde el evento (acta, denuncia, etc.).
                 </span>
-                <span x-show="!tipo">Seleccioná un tipo de certificado para ver las indicaciones.</span>
+                <span x-show="!tipo">Selecciona un tipo de certificado para ver las indicaciones.</span>
             </div>
 
             <!-- ── Motivo (opcional) ──────────────────────────────── -->
@@ -213,7 +213,7 @@
                 <p x-show="invalidFiles.length > 0 && validFiles.length === 0 && batchError === null"
                    class="text-xs text-red-600 mt-1"
                    data-testid="no-valid-files-warning">
-                    Ningún archivo es válido. Reseleccioná archivos PDF/JPG/PNG.
+                    Ningún archivo es válido. Vuelve a seleccionar archivos PDF/JPG/PNG.
                 </p>
             </div>
 
@@ -240,7 +240,7 @@
                     <h2 class="text-lg font-semibold text-gray-800">Confirmar envío</h2>
                     <p class="text-sm text-gray-700" data-testid="warning-no-changes">
                         Una vez enviada <strong>no podrá realizar cambios</strong> sobre esta solicitud.
-                        Revisá los archivos antes de continuar.
+                        Revisa los archivos antes de continuar.
                     </p>
 
                     <div x-show="validFiles.length > 0">

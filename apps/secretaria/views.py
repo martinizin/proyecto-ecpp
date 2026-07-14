@@ -133,7 +133,7 @@ class UsuarioCreateView(RolRequeridoMixin, View):
             form.add_error(
                 None,
                 "No se pudo enviar el correo de credenciales. "
-                "Verificá la configuración SMTP e intentá de nuevo.",
+                "Verifica la configuración SMTP e intenta de nuevo.",
             )
             return render(
                 request,

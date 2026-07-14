@@ -714,11 +714,13 @@
   {% endif %}{# fin bienvenida/dashboard #}
 
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-
+{# El componente vive dentro del bloque content: extra_js queda fuera de
+   #main-content y no se re-ejecuta en navegación boosted, así que al llegar
+   por un link boosted dashboardRendimiento() quedaba indefinida y no se
+   dibujaba ningún gráfico (ver tests/presentation/test_boosted_scripts.py).
+   Chart.js se carga bajo demanda y se cachea en window: un <script src> dentro
+   del contenido swapeado se ejecuta async y correría carrera con el init. #}
 <script>
   function dashboardRendimiento() {
     return {
@@ -755,19 +757,33 @@
       tendenciaError:    false,
       tendenciaParaleloNombre: '',
 
+      cargarChartJs() {
+        if (window.Chart) return Promise.resolve();
+        if (!window._chartJsCarga) {
+          window._chartJsCarga = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        return window._chartJsCarga;
+      },
+
       init() {
         const raw = document.getElementById('paralelos-data');
         if (raw) this.todosLosParalelos = JSON.parse(raw.textContent);
 
         {% if metricas %}
-        this.$nextTick(() => {
+        this.cargarChartJs().then(() => this.$nextTick(() => {
           this.initChartPromedios();
           this.initChartDistribucion();
           this.initChartAsistencia();
           {% if paralelo_seleccionado %}
           this.fetchTendencia('{{ paralelo_seleccionado }}');
           {% endif %}
-        });
+        }));
         {% endif %}
       },
 
