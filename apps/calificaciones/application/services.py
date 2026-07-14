@@ -9,13 +9,22 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from apps.academico.infrastructure.models import Matricula, Paralelo
-from apps.calificaciones.domain.exceptions import NotaFueraDeRangoError
-from apps.calificaciones.domain.services import CalificacionValidationService
+from apps.calificaciones.domain.exceptions import (
+    NotaFueraDeRangoError,
+    SubNotasFueraDeRangoError,
+)
+from apps.calificaciones.domain.services import (
+    CalificacionValidationService,
+    SubNotaValidationService,
+)
 from apps.calificaciones.infrastructure.models import (
     Calificacion,
+    ConfiguracionSubNotas,
     Evaluacion,
     LogCalificacion,
     RegistroCalificacionParalelo,
+    SubNotaConfig,
+    SubNotaParcial,
 )
 
 
@@ -371,6 +380,281 @@ class GestionEvaluacionesAppService:
 
 
 # ---------------------------------------------------------------------------
+# Sub-notas por parcial (HU32)
+# ---------------------------------------------------------------------------
+
+
+class SubNotaParcialAppService:
+    """Use cases for sub-grade configuration and registration within parciales."""
+
+    def __init__(self):
+        self.registro_service = RegistroCalificacionAppService()
+
+    def obtener_configuracion(self, evaluacion_id: int):
+        """Return the ordered SubNotaConfig items for an evaluacion, or None."""
+        config = (
+            ConfiguracionSubNotas.objects.filter(evaluacion_id=evaluacion_id)
+            .prefetch_related("items")
+            .first()
+        )
+        if config is None:
+            return None
+        return list(config.items.all())
+
+    def obtener_sub_notas(self, evaluacion_id: int, matricula_id: int):
+        """Return the ordered sub-grades of a student for an evaluacion."""
+        return list(
+            SubNotaParcial.objects.filter(
+                evaluacion_id=evaluacion_id, matricula_id=matricula_id
+            ).order_by("orden")
+        )
+
+    @transaction.atomic
+    def configurar_sub_notas(
+        self, evaluacion_id: int, nombres: list[str], pesos: list[str] = None
+    ) -> dict:
+        """Define (or replace) the 3-5 sub-grade names (and optional weights) for a parcial.
+
+        Si se proveen pesos, cada sub-nota tiene un peso porcentual y los
+        pesos deben sumar 100. Sin pesos, la nota final es el promedio simple.
+        """
+        try:
+            evaluacion = Evaluacion.objects.get(pk=evaluacion_id)
+        except Evaluacion.DoesNotExist:
+            return {"ok": False, "error": "Evaluación no encontrada."}
+
+        if not evaluacion.es_parcial:
+            return {
+                "ok": False,
+                "error": "Solo los parciales admiten sub-notas.",
+            }
+
+        if not self.registro_service.puede_editar(evaluacion.paralelo_id):
+            return {
+                "ok": False,
+                "error": (
+                    "La planilla ya fue enviada a validación; "
+                    "las sub-notas no pueden modificarse."
+                ),
+            }
+
+        nombres_limpios = [n.strip() for n in nombres if n and n.strip()]
+        if len(nombres_limpios) != len(nombres):
+            return {"ok": False, "error": "Los nombres de las sub-notas no pueden estar vacíos."}
+
+        try:
+            SubNotaValidationService.validar_cantidad(len(nombres_limpios))
+        except SubNotasFueraDeRangoError as exc:
+            return {"ok": False, "error": str(exc)}
+
+        pesos_decimales = None
+        if pesos:
+            if len(pesos) != len(nombres_limpios):
+                return {
+                    "ok": False,
+                    "error": "Cada sub-nota debe tener su peso porcentual.",
+                }
+            try:
+                pesos_decimales = [Decimal(str(p).strip()) for p in pesos]
+            except InvalidOperation:
+                return {"ok": False, "error": "Los pesos deben ser números válidos."}
+            if not SubNotaValidationService.validar_pesos_sub_notas(pesos_decimales):
+                suma = sum(pesos_decimales)
+                return {
+                    "ok": False,
+                    "error": (
+                        "Los pesos deben ser mayores a 0 y sumar exactamente "
+                        f"100% (actualmente suman {suma}%)."
+                    ),
+                }
+
+        # Reemplazar configuración previa; las sub-notas registradas con la
+        # estructura anterior dejan de ser válidas y se eliminan.
+        ConfiguracionSubNotas.objects.filter(evaluacion=evaluacion).delete()
+        sub_notas_eliminadas, _ = SubNotaParcial.objects.filter(evaluacion=evaluacion).delete()
+
+        config = ConfiguracionSubNotas.objects.create(evaluacion=evaluacion)
+        for orden, nombre in enumerate(nombres_limpios, start=1):
+            SubNotaConfig.objects.create(
+                configuracion=config,
+                nombre=nombre,
+                orden=orden,
+                peso=pesos_decimales[orden - 1] if pesos_decimales else None,
+            )
+
+        return {
+            "ok": True,
+            "config": config,
+            "sub_notas_eliminadas": sub_notas_eliminadas,
+        }
+
+    @transaction.atomic
+    def registrar_sub_notas(
+        self,
+        evaluacion_id: int,
+        matricula_id: int,
+        notas: list[str],
+        paralelo_id: int,
+        usuario=None,
+        ip: str = None,
+        override_str: str = "",
+        justificacion: str = "",
+    ) -> dict:
+        """Register the sub-grades of a student and consolidate the parcial grade.
+
+        La nota final del parcial es el promedio ponderado de las sub-notas
+        (o el promedio aritmético si no se configuraron pesos), salvo que el
+        docente registre un override manual (con justificación obligatoria si
+        difiere del promedio).
+
+        ``paralelo_id`` is the authoritative paralelo — the caller must have
+        already verified the requesting docente owns it. ``evaluacion_id``
+        comes from the submitted form keys, so it is untrusted: an evaluacion
+        belonging to another paralelo is rejected here rather than silently
+        writing grades into a colleague's planilla.
+        """
+        try:
+            evaluacion = Evaluacion.objects.get(pk=evaluacion_id, paralelo_id=paralelo_id)
+        except Evaluacion.DoesNotExist:
+            return {"ok": False, "error": "Evaluación no encontrada en este paralelo."}
+
+        if not evaluacion.es_parcial:
+            return {"ok": False, "error": "Solo los parciales admiten sub-notas."}
+
+        try:
+            matricula = Matricula.objects.select_related("estudiante").get(
+                pk=matricula_id,
+                paralelo_id=evaluacion.paralelo_id,
+                estado=Matricula.Estado.ACTIVA,
+            )
+        except Matricula.DoesNotExist:
+            return {"ok": False, "error": "Matrícula no encontrada en este paralelo."}
+
+        if not self.registro_service.puede_editar(evaluacion.paralelo_id):
+            return {
+                "ok": False,
+                "error": (
+                    "La planilla ya fue enviada a validación; "
+                    "las sub-notas no pueden modificarse."
+                ),
+            }
+
+        items_config = self.obtener_configuracion(evaluacion_id)
+        if not items_config:
+            return {
+                "ok": False,
+                "error": "Primero configure las sub-notas de este parcial.",
+            }
+
+        if len(notas) != len(items_config):
+            return {
+                "ok": False,
+                "error": (
+                    f"Se esperaban {len(items_config)} sub-notas " f"y se recibieron {len(notas)}."
+                ),
+            }
+
+        if any(not str(n or "").strip() for n in notas):
+            return {
+                "ok": False,
+                "error": (
+                    f"Debe completar las {len(items_config)} sub-notas "
+                    "del parcial antes de guardar."
+                ),
+            }
+
+        valores = []
+        for item, nota_str in zip(items_config, notas):
+            try:
+                nota_vo = CalificacionValidationService.validar_nota(nota_str)
+            except (NotaFueraDeRangoError, InvalidOperation):
+                return {
+                    "ok": False,
+                    "error": f"La nota de '{item.nombre}' está fuera de rango (0–20).",
+                }
+            valores.append(nota_vo.valor)
+
+        pesos = [item.peso for item in items_config]
+        if all(p is not None for p in pesos):
+            promedio = SubNotaValidationService.calcular_nota_final_ponderada(valores, pesos)
+        else:
+            promedio = SubNotaValidationService.calcular_nota_final_sub_notas(valores)
+
+        override = None
+        justificacion = justificacion.strip()
+        if override_str and str(override_str).strip():
+            try:
+                override = CalificacionValidationService.validar_nota(override_str).valor
+            except (NotaFueraDeRangoError, InvalidOperation):
+                return {
+                    "ok": False,
+                    "error": "La nota de override está fuera de rango (0–20).",
+                }
+            if (
+                SubNotaValidationService.requiere_justificacion_override(promedio, override)
+                and not justificacion
+            ):
+                return {
+                    "ok": False,
+                    "error": (
+                        "La justificación es obligatoria cuando la nota final "
+                        "difiere del promedio de las sub-notas."
+                    ),
+                }
+
+        nota_final = override if override is not None else promedio
+
+        SubNotaParcial.objects.filter(evaluacion=evaluacion, matricula=matricula).delete()
+        for item, valor in zip(items_config, valores):
+            SubNotaParcial.objects.create(
+                evaluacion=evaluacion,
+                matricula=matricula,
+                nombre=item.nombre,
+                nota=valor,
+                orden=item.orden,
+                peso=item.peso,
+                nota_final_parcial_override=override,
+                justificacion_override=justificacion if override is not None else "",
+            )
+
+        valor_anterior = (
+            Calificacion.objects.filter(evaluacion=evaluacion, estudiante=matricula.estudiante)
+            .values_list("nota", flat=True)
+            .first()
+        )
+        calificacion, created = Calificacion.objects.update_or_create(
+            evaluacion=evaluacion,
+            estudiante=matricula.estudiante,
+            defaults={"nota": nota_final},
+        )
+
+        if created or valor_anterior != nota_final:
+            motivo = f"Nota consolidada desde {len(valores)} sub-notas (promedio {promedio})."
+            if override is not None and override != promedio:
+                motivo += f" Override manual: {override}. Justificación: {justificacion}"
+            AuditoriaCalificacionService.registrar_cambio(
+                calificacion=calificacion,
+                accion=(
+                    LogCalificacion.TipoAccion.CREACION
+                    if created
+                    else LogCalificacion.TipoAccion.MODIFICACION
+                ),
+                valor_anterior=valor_anterior,
+                valor_nuevo=nota_final,
+                usuario=usuario,
+                ip=ip,
+                motivo=motivo,
+            )
+
+        return {
+            "ok": True,
+            "promedio": promedio,
+            "nota_final": nota_final,
+            "calificacion": calificacion,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Validación de calificaciones por secretaría (HU16)
 # ---------------------------------------------------------------------------
 
@@ -606,6 +890,7 @@ class LibretaCalificacionesAppService:
 
         evaluaciones = paralelo.evaluaciones.order_by("tipo")
         calificaciones_map = {}
+        sub_notas_map = {}
         if notas_visibles:
             calificaciones_map = {
                 cal.evaluacion_id: cal
@@ -614,6 +899,13 @@ class LibretaCalificacionesAppService:
                     estudiante=estudiante,
                 )
             }
+            sub_notas = SubNotaParcial.objects.filter(
+                evaluacion__paralelo=paralelo,
+                matricula__estudiante=estudiante,
+                matricula__paralelo=paralelo,
+            ).order_by("evaluacion_id", "orden")
+            for sub in sub_notas:
+                sub_notas_map.setdefault(sub.evaluacion_id, []).append(sub)
 
         filas_evaluaciones = []
         notas_con_pesos = []
@@ -621,11 +913,19 @@ class LibretaCalificacionesAppService:
         for ev in evaluaciones:
             cal = calificaciones_map.get(ev.id)
             nota = cal.nota if cal else None
+            subs_ev = sub_notas_map.get(ev.id, [])
             filas_evaluaciones.append(
                 {
                     "tipo": ev.get_tipo_display(),
                     "peso": ev.peso,
                     "nota": nota,
+                    "sub_notas": [
+                        {"nombre": s.nombre, "peso": s.peso, "nota": s.nota} for s in subs_ev
+                    ],
+                    "override": (subs_ev[0].nota_final_parcial_override if subs_ev else None),
+                    "justificacion_override": (
+                        subs_ev[0].justificacion_override if subs_ev else ""
+                    ),
                 }
             )
             if nota is not None:

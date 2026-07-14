@@ -70,8 +70,12 @@
                         <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium">{{ ev.peso }}%</span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                        {% if puede_editar %}
                         <div class="flex items-center justify-end gap-3" x-data="{ showDeleteModal: false }">
+                            {% if ev.es_parcial %}
+                            <a href="{% url 'calificaciones:configurar_sub_notas' paralelo_id=paralelo.pk evaluacion_id=ev.pk %}"
+                               class="text-indigo-600 hover:text-indigo-800 font-medium text-sm transition-colors">Sub-notas</a>
+                            {% endif %}
+                            {% if puede_editar %}
                             <a href="{% url 'calificaciones:editar_evaluacion' paralelo_id=paralelo.pk evaluacion_id=ev.pk %}"
                                class="text-primary hover:text-secondary font-medium text-sm transition-colors">Editar</a>
                             <button type="button" @click="showDeleteModal = true"
@@ -132,10 +136,10 @@
                                     </div>
                                 </div>
                             </div>
+                            {% else %}
+                            {% if not ev.es_parcial %}<span class="text-gray-300 text-sm">—</span>{% endif %}
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <span class="text-gray-300 text-sm">—</span>
-                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

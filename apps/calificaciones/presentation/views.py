@@ -16,9 +16,14 @@ from apps.calificaciones.application.services import (
     GestionEvaluacionesAppService,
     LibretaCalificacionesAppService,
     RegistroCalificacionAppService,
+    SubNotaParcialAppService,
     ValidacionCalificacionAppService,
 )
-from apps.calificaciones.infrastructure.models import Evaluacion, LogCalificacion
+from apps.calificaciones.infrastructure.models import (
+    Evaluacion,
+    LogCalificacion,
+    SubNotaParcial,
+)
 from apps.usuarios.infrastructure.models import Usuario
 from apps.usuarios.presentation.permissions import MultiRolRequeridoMixin, RolRequeridoMixin
 
@@ -100,6 +105,7 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
         puede_editar = service.puede_editar(paralelo_id)
         planilla_completa = service.verificar_completitud(paralelo_id)
         hay_calificaciones = service.hay_calificaciones_registradas(paralelo_id)
+        self._agregar_contexto_sub_notas(paralelo_id, planilla)
         return render(
             request,
             self.template_name,
@@ -136,21 +142,123 @@ class RegistrarCalificacionesView(RolRequeridoMixin, View):
                     except ValueError:
                         pass
 
+        sub_guardadas, sub_errores = self._procesar_sub_notas(request, paralelo_id)
+
         resultado = service.guardar_calificaciones(
             paralelo_id, notas_data, request.user, _get_client_ip(request)
         )
 
         for _, msg in resultado["errores"]:
             messages.error(request, msg)
+        if sub_guardadas > 0:
+            messages.success(
+                request,
+                f"{sub_guardadas} parcial(es) consolidado(s) desde sub-notas.",
+            )
         if resultado["guardadas"] > 0:
             messages.success(
                 request,
                 f"{resultado['guardadas']} calificacion(es) guardada(s) correctamente.",
             )
-        elif not resultado["errores"]:
+        elif not resultado["errores"] and sub_guardadas == 0 and sub_errores == 0:
             messages.info(request, "No se realizaron cambios.")
 
         return redirect("calificaciones:registrar_calificaciones", paralelo_id=paralelo_id)
+
+    @staticmethod
+    def _agregar_contexto_sub_notas(paralelo_id, planilla):
+        """Adds per-cell sub-nota data (HU32) as `celdas_sub` on each fila."""
+        sub_service = SubNotaParcialAppService()
+        config_por_ev = {}
+        for ev in planilla["evaluaciones"]:
+            if ev.es_parcial:
+                items = sub_service.obtener_configuracion(ev.id)
+                if items:
+                    config_por_ev[ev.id] = items
+
+        sub_lookup = {}
+        if config_por_ev:
+            for sn in SubNotaParcial.objects.filter(evaluacion__paralelo_id=paralelo_id):
+                sub_lookup[(sn.matricula_id, sn.evaluacion_id, sn.orden)] = sn
+
+        for fila in planilla["filas"]:
+            matricula = fila["matricula"]
+            celdas_sub = []
+            for ev, cal in fila["celdas"]:
+                celda = {"ev": ev, "cal": cal, "config": None}
+                config = config_por_ev.get(ev.id)
+                if config:
+                    items = []
+                    override = None
+                    justificacion = ""
+                    for item in config:
+                        sn = sub_lookup.get((matricula.id, ev.id, item.orden))
+                        items.append(
+                            {
+                                "nombre": item.nombre,
+                                "orden": item.orden,
+                                "peso": item.peso,
+                                "sub": sn,
+                            }
+                        )
+                        if sn is not None and sn.nota_final_parcial_override is not None:
+                            override = sn.nota_final_parcial_override
+                            justificacion = sn.justificacion_override
+                    celda["config"] = items
+                    celda["override"] = override
+                    celda["justificacion"] = justificacion
+                celdas_sub.append(celda)
+            fila["celdas_sub"] = celdas_sub
+
+    def _procesar_sub_notas(self, request, paralelo_id):
+        """Parses subnota_/override_/just_ POST groups and registers them (HU32).
+
+        The evaluacion ids come from the form field names, which the client
+        controls; ``paralelo_id`` is the one from the URL, already checked
+        against the requesting docente. It is forwarded to the service so a
+        crafted POST cannot write sub-notas into another docente's paralelo.
+        """
+        sub_data = {}
+        overrides = {}
+        justificaciones = {}
+        for key, value in request.POST.items():
+            parts = key.split("_")
+            try:
+                if key.startswith("subnota_") and len(parts) == 4:
+                    grupo = (int(parts[1]), int(parts[2]))
+                    sub_data.setdefault(grupo, {})[int(parts[3])] = value
+                elif key.startswith("override_") and len(parts) == 3:
+                    overrides[(int(parts[1]), int(parts[2]))] = value.strip()
+                elif key.startswith("just_") and len(parts) == 3:
+                    justificaciones[(int(parts[1]), int(parts[2]))] = value.strip()
+            except ValueError:
+                pass
+
+        sub_service = SubNotaParcialAppService()
+        ip = _get_client_ip(request)
+        guardadas = 0
+        errores = 0
+        for (matricula_id, evaluacion_id), notas_por_orden in sub_data.items():
+            notas = [valor for _, valor in sorted(notas_por_orden.items())]
+            override_str = overrides.get((matricula_id, evaluacion_id), "")
+            if all(not (n or "").strip() for n in notas) and not override_str:
+                continue
+            resultado = sub_service.registrar_sub_notas(
+                evaluacion_id,
+                matricula_id,
+                notas,
+                paralelo_id=paralelo_id,
+                usuario=request.user,
+                ip=ip,
+                override_str=override_str,
+                justificacion=justificaciones.get((matricula_id, evaluacion_id), ""),
+            )
+            if resultado["ok"]:
+                guardadas += 1
+            else:
+                errores += 1
+                messages.error(request, resultado["error"])
+        return guardadas, errores
 
 
 class GestionEvaluacionesView(RolRequeridoMixin, View):
@@ -285,6 +393,71 @@ class EliminarEvaluacionView(RolRequeridoMixin, View):
             messages.error(request, resultado["error"])
 
         return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
+
+
+class ConfigurarSubNotasView(RolRequeridoMixin, View):
+    """Configure the 3-5 sub-nota names for a parcial (HU32)."""
+
+    rol_requerido = "docente"
+    template_name = "calificaciones/configurar_sub_notas.html"
+
+    def get(self, request, paralelo_id, evaluacion_id):
+        paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
+        if redir:
+            return redir
+        evaluacion = get_object_or_404(Evaluacion, pk=evaluacion_id, paralelo=paralelo)
+        if not evaluacion.es_parcial:
+            messages.error(request, "Solo los parciales admiten sub-notas.")
+            return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
+
+        service = SubNotaParcialAppService()
+        items = service.obtener_configuracion(evaluacion_id)
+        items_iniciales = [
+            {"nombre": item.nombre, "peso": str(item.peso) if item.peso is not None else ""}
+            for item in (items or [])
+        ]
+        puede_editar = RegistroCalificacionAppService().puede_editar(paralelo_id)
+        tiene_sub_notas = SubNotaParcial.objects.filter(evaluacion=evaluacion).exists()
+        return render(
+            request,
+            self.template_name,
+            {
+                "paralelo": paralelo,
+                "evaluacion": evaluacion,
+                "items_iniciales": items_iniciales,
+                "puede_editar": puede_editar,
+                "tiene_sub_notas": tiene_sub_notas,
+            },
+        )
+
+    def post(self, request, paralelo_id, evaluacion_id):
+        paralelo, redir = _verificar_paralelo_docente(request, paralelo_id)
+        if redir:
+            return redir
+        get_object_or_404(Evaluacion, pk=evaluacion_id, paralelo=paralelo)
+
+        service = SubNotaParcialAppService()
+        resultado = service.configurar_sub_notas(
+            evaluacion_id,
+            request.POST.getlist("nombre"),
+            pesos=request.POST.getlist("peso"),
+        )
+        if resultado["ok"]:
+            msg = "Sub-notas configuradas correctamente."
+            if resultado.get("sub_notas_eliminadas"):
+                msg += (
+                    f" Se eliminaron {resultado['sub_notas_eliminadas']} "
+                    "sub-notas registradas con la configuración anterior."
+                )
+            messages.success(request, msg)
+            return redirect("calificaciones:gestionar_evaluaciones", paralelo_id=paralelo_id)
+
+        messages.error(request, resultado["error"])
+        return redirect(
+            "calificaciones:configurar_sub_notas",
+            paralelo_id=paralelo_id,
+            evaluacion_id=evaluacion_id,
+        )
 
 
 class AuditoriaCalificacionesView(MultiRolRequeridoMixin, View):

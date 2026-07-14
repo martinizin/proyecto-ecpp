@@ -21,9 +21,12 @@ from apps.academico.infrastructure.models import (
 from apps.asistencia.infrastructure.models import Asistencia
 from apps.calificaciones.infrastructure.models import (
     Calificacion,
+    ConfiguracionSubNotas,
     Evaluacion,
     LogCalificacion,
     RegistroCalificacionParalelo,
+    SubNotaConfig,
+    SubNotaParcial,
 )
 from apps.notificaciones.infrastructure.models import Notificacion
 from apps.solicitudes.infrastructure.models import HistorialSolicitud, Solicitud
@@ -237,6 +240,39 @@ class RegistroCalificacionParaleloFactory(factory.django.DjangoModelFactory):
 
     paralelo = factory.SubFactory(ParaleloFactory)
     estado = RegistroCalificacionParalelo.Estado.BORRADOR
+
+
+class ConfiguracionSubNotasFactory(factory.django.DjangoModelFactory):
+    """Factory for ConfiguracionSubNotas model (HU32)."""
+
+    class Meta:
+        model = ConfiguracionSubNotas
+
+    evaluacion = factory.SubFactory(EvaluacionFactory)
+
+
+class SubNotaConfigFactory(factory.django.DjangoModelFactory):
+    """Factory for SubNotaConfig model (HU32)."""
+
+    class Meta:
+        model = SubNotaConfig
+
+    configuracion = factory.SubFactory(ConfiguracionSubNotasFactory)
+    nombre = factory.Sequence(lambda n: f"Actividad {n + 1}")
+    orden = factory.Sequence(lambda n: n + 1)
+
+
+class SubNotaParcialFactory(factory.django.DjangoModelFactory):
+    """Factory for SubNotaParcial model (HU32)."""
+
+    class Meta:
+        model = SubNotaParcial
+
+    evaluacion = factory.SubFactory(EvaluacionFactory)
+    matricula = factory.SubFactory(MatriculaFactory)
+    nombre = factory.Sequence(lambda n: f"Actividad {n + 1}")
+    nota = Decimal("15.00")
+    orden = factory.Sequence(lambda n: n + 1)
 
 
 class AsistenciaFactory(factory.django.DjangoModelFactory):

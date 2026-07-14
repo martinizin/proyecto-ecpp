@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -23,6 +25,13 @@ class Evaluacion(models.Model):
     fecha = models.DateField(null=True, blank=True)
     descripcion = models.TextField(blank=True)
 
+    TIPOS_PARCIAL = (
+        TipoEvaluacion.PARCIAL_1,
+        TipoEvaluacion.PARCIAL_2_10H,
+        TipoEvaluacion.PARCIAL_3,
+        TipoEvaluacion.PARCIAL_4_10H,
+    )
+
     class Meta:
         verbose_name = "Evaluacion"
         verbose_name_plural = "Evaluaciones"
@@ -30,6 +39,11 @@ class Evaluacion(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.paralelo}"
+
+    @property
+    def es_parcial(self) -> bool:
+        """Solo los parciales admiten sub-notas (HU32)."""
+        return self.tipo in self.TIPOS_PARCIAL
 
 
 class Calificacion(models.Model):
@@ -148,3 +162,113 @@ class LogCalificacion(models.Model):
             f"[{self.timestamp:%Y-%m-%d %H:%M}] "
             f"{self.get_accion_display()} — {self.estudiante_info}"
         )
+
+
+class ConfiguracionSubNotas(models.Model):
+    """Configuración de sub-notas definida por el docente para un parcial (HU32)."""
+
+    evaluacion = models.OneToOneField(
+        Evaluacion,
+        on_delete=models.CASCADE,
+        related_name="configuracion_sub_notas",
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Configuracion de Sub-Notas"
+        verbose_name_plural = "Configuraciones de Sub-Notas"
+
+    def __str__(self):
+        return f"Configuracion sub-notas — {self.evaluacion}"
+
+
+class SubNotaConfig(models.Model):
+    """Nombre y orden de cada sub-nota configurada dentro de un parcial (HU32)."""
+
+    configuracion = models.ForeignKey(
+        ConfiguracionSubNotas,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    nombre = models.CharField(
+        max_length=100,
+        help_text="Nombre de la sub-nota (ej. 'Tarea 1', 'Exposición')",
+    )
+    orden = models.PositiveSmallIntegerField()
+    peso = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Peso porcentual de la sub-nota; los pesos deben sumar 100",
+    )
+
+    class Meta:
+        verbose_name = "Item de Configuracion de Sub-Notas"
+        verbose_name_plural = "Items de Configuracion de Sub-Notas"
+        ordering = ["orden"]
+        unique_together = [("configuracion", "orden")]
+
+    def __str__(self):
+        return f"{self.orden}. {self.nombre}"
+
+
+class SubNotaParcial(models.Model):
+    """A sub-grade within a parcial. Each parcial allows 3-5 sub-grades (HU32)."""
+
+    evaluacion = models.ForeignKey(
+        Evaluacion,
+        on_delete=models.CASCADE,
+        related_name="sub_notas",
+    )
+    matricula = models.ForeignKey(
+        "academico.Matricula",
+        on_delete=models.CASCADE,
+        related_name="sub_notas",
+    )
+    nombre = models.CharField(
+        max_length=100,
+        help_text="Nombre de la sub-nota (ej. 'Tarea 1', 'Exposición')",
+    )
+    nota = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[
+            MinValueValidator(Decimal("0")),
+            MaxValueValidator(Decimal("20")),
+        ],
+    )
+    orden = models.PositiveSmallIntegerField()
+    peso = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Peso porcentual de la sub-nota al momento del registro",
+    )
+    nota_final_parcial_override = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Si difiere del promedio, override manual del docente",
+    )
+    justificacion_override = models.TextField(
+        blank=True,
+        help_text="Obligatoria si nota_final_parcial_override difiere del promedio",
+    )
+
+    class Meta:
+        verbose_name = "Sub-Nota de Parcial"
+        verbose_name_plural = "Sub-Notas de Parciales"
+        ordering = ["evaluacion", "orden"]
+        unique_together = [("evaluacion", "matricula", "orden")]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(nota__gte=0) & models.Q(nota__lte=20),
+                name="sub_nota_rango_0_20",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.matricula.estudiante} — {self.evaluacion} — {self.nombre}: {self.nota}"
