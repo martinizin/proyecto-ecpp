@@ -467,6 +467,96 @@ class TestDesgloseSubNotas:
         assert fila["override"] == Decimal("12.00")
         assert fila["justificacion"] == "Recuperacion aprobada"
 
+    def test_excel_sin_config_no_agrega_hoja_sub_notas(self, docente):
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+        assert len(wb.sheetnames) == 1
+        assert not any(name.startswith("Sub ") for name in wb.sheetnames)
+
+    def test_excel_agrega_hoja_sub_notas_con_desglose(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(
+            parcial1,
+            [
+                ("Tarea", Decimal("30.00")),
+                ("Taller", Decimal("30.00")),
+                ("Prueba", Decimal("40.00")),
+            ],
+        )
+        matricula = paralelo.matriculas.first()
+        for orden, nota in [(1, "14.00"), (2, "16.00"), (3, "15.00")]:
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal(nota),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+
+        assert len(wb.sheetnames) == 2
+        ws = wb[[n for n in wb.sheetnames if n.startswith("Sub ")][0]]
+        header = [ws.cell(row=5, column=c).value for c in range(1, 10)]
+        assert header == [
+            "Cédula",
+            "Nombres",
+            "Parcial",
+            "Sub-nota",
+            "Peso (%)",
+            "Nota",
+            "Nota Parcial",
+            "Override",
+            "Justificación",
+        ]
+        # 3 sub-notas → 3 filas de datos (rows 6-8)
+        filas = [[ws.cell(row=r, column=c).value for c in range(1, 10)] for r in range(6, 9)]
+        assert [f[3] for f in filas] == ["Tarea", "Taller", "Prueba"]
+        assert [f[4] for f in filas] == [30.0, 30.0, 40.0]
+        assert [f[5] for f in filas] == [14.0, 16.0, 15.0]
+        # Identificadores repetidos y nota parcial consolidada en cada fila
+        assert all(f[0] == matricula.estudiante.cedula for f in filas)
+        assert all(f[2] == "Parcial 1" for f in filas)
+        assert all(f[6] == 15.0 for f in filas)
+        assert ws.cell(row=9, column=1).value is None  # no hay filas extra
+
+    def test_excel_hoja_sub_notas_muestra_override(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("10.00"),
+                nota_final_parcial_override=Decimal("12.00"),
+                justificacion_override="Recuperacion aprobada",
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+        ws = wb[[n for n in wb.sheetnames if n.startswith("Sub ")][0]]
+        assert ws.cell(row=6, column=8).value == 12.0
+        assert ws.cell(row=6, column=9).value == "Recuperacion aprobada"
+        # Sin pesos configurados la columna Peso va vacía
+        assert ws.cell(row=6, column=5).value in ("", None)
+
     def test_estudiante_sin_sub_notas_registradas_sale_con_notas_none(self, docente):
         from apps.calificaciones.infrastructure.models import Evaluacion
 

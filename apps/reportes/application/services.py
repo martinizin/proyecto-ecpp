@@ -130,6 +130,11 @@ class ExportacionCalificacionesService:
                 sheet_title = f"{paralelo.asignatura.codigo}-{paralelo.nombre}"[:31]
                 ws = wb.create_sheet(title=sheet_title)
                 self._llenar_sheet_calificaciones(ws, paralelo, cuando)
+                desglose = self.obtener_desglose_sub_notas(paralelo)
+                if desglose:
+                    sub_title = f"Sub {paralelo.asignatura.codigo}-{paralelo.nombre}"[:31]
+                    ws_sub = wb.create_sheet(title=sub_title)
+                    self._llenar_sheet_sub_notas(ws_sub, paralelo, desglose, cuando)
         else:
             ws = wb.create_sheet(title="Sin resultados")
             ws.cell(row=1, column=1, value="ECPPP — Reporte de Calificaciones")
@@ -273,6 +278,52 @@ class ExportacionCalificacionesService:
         return data
 
     # ----- Desglose de sub-notas (HU34) ----------------------------------
+
+    def _llenar_sheet_sub_notas(self, ws, paralelo, desglose, cuando):
+        """Llena la hoja "Sub-notas" con una fila por sub-nota (formato largo).
+
+        Los valores identificadores (cédula, nombres, parcial) se repiten en
+        cada fila para que la hoja soporte filtros y pivots de Excel.
+        """
+        for i, line in enumerate(
+            _header_block_rows(paralelo.periodo, paralelo, self.usuario, cuando), start=1
+        ):
+            ws.cell(row=i, column=1, value=line)
+        ws.cell(row=4, column=1, value=None)  # spacer row
+
+        header = [
+            "Cédula",
+            "Nombres",
+            "Parcial",
+            "Sub-nota",
+            "Peso (%)",
+            "Nota",
+            "Nota Parcial",
+            "Override",
+            "Justificación",
+        ]
+        for col_idx, value in enumerate(header, start=1):
+            cell = ws.cell(row=5, column=col_idx, value=value)
+            cell.font = EXCEL_FONT_HEADER
+            cell.fill = EXCEL_FILL_HEADER
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        def _num(valor):
+            return float(valor) if valor is not None else ""
+
+        row_idx = 6
+        for fila in desglose:
+            for sub in fila["sub_notas"]:
+                ws.cell(row=row_idx, column=1, value=fila["cedula"])
+                ws.cell(row=row_idx, column=2, value=fila["nombres"])
+                ws.cell(row=row_idx, column=3, value=fila["parcial"])
+                ws.cell(row=row_idx, column=4, value=sub["nombre"])
+                ws.cell(row=row_idx, column=5, value=_num(sub["peso"]))
+                ws.cell(row=row_idx, column=6, value=_num(sub["nota"]))
+                ws.cell(row=row_idx, column=7, value=_num(fila["nota_parcial"]))
+                ws.cell(row=row_idx, column=8, value=_num(fila["override"]))
+                ws.cell(row=row_idx, column=9, value=fila["justificacion"])
+                row_idx += 1
 
     def obtener_desglose_sub_notas(self, paralelo) -> list[dict]:
         """Desglose de sub-notas por estudiante y parcial del paralelo (HU34).
