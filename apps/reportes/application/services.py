@@ -184,6 +184,18 @@ class ExportacionCalificacionesService:
                 t = Table(data, repeatRows=1)
                 t.setStyle(PDF_TABLE_STYLE)
                 elements.append(t)
+                desglose = self.obtener_desglose_sub_notas(paralelo)
+                if desglose:
+                    elements.append(Spacer(1, 0.5 * cm))
+                    elements.append(
+                        Paragraph(
+                            f"Desglose de sub-notas — Paralelo {paralelo.nombre}",
+                            styles["Heading3"],
+                        )
+                    )
+                    t_sub = Table(self._build_pdf_data_sub_notas(desglose), repeatRows=1)
+                    t_sub.setStyle(PDF_TABLE_STYLE)
+                    elements.append(t_sub)
                 if i < len(paralelos) - 1:
                     elements.append(PageBreak())
 
@@ -324,6 +336,48 @@ class ExportacionCalificacionesService:
                 ws.cell(row=row_idx, column=8, value=_num(fila["override"]))
                 ws.cell(row=row_idx, column=9, value=fila["justificacion"])
                 row_idx += 1
+
+    def _build_pdf_data_sub_notas(self, desglose) -> list:
+        """Matriz (header + filas) para la tabla PDF de desglose de sub-notas."""
+        styles = getSampleStyleSheet()
+
+        def _num(valor):
+            return f"{valor:.2f}" if valor is not None else ""
+
+        data = [
+            [
+                "Cédula",
+                "Nombres",
+                "Parcial",
+                "Sub-nota",
+                "Peso (%)",
+                "Nota",
+                "Nota Parcial",
+                "Override",
+                "Justificación",
+            ]
+        ]
+        for fila in desglose:
+            for sub in fila["sub_notas"]:
+                data.append(
+                    [
+                        fila["cedula"],
+                        fila["nombres"],
+                        fila["parcial"],
+                        sub["nombre"],
+                        _num(sub["peso"]),
+                        _num(sub["nota"]),
+                        _num(fila["nota_parcial"]),
+                        _num(fila["override"]),
+                        # Paragraph permite wrap del texto libre dentro de la celda
+                        (
+                            Paragraph(fila["justificacion"], styles["BodyText"])
+                            if fila["justificacion"]
+                            else ""
+                        ),
+                    ]
+                )
+        return data
 
     def obtener_desglose_sub_notas(self, paralelo) -> list[dict]:
         """Desglose de sub-notas por estudiante y parcial del paralelo (HU34).
