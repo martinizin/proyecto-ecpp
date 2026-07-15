@@ -151,14 +151,14 @@
     </form>
 </div>
 
-{# El componente vive DENTRO del bloque content: la navegación boosted swapea
+{% comment %} El componente vive DENTRO del bloque content: la navegación boosted swapea
    sólo #main-content, y extra_js queda fuera de ese nodo, así que nunca se
    re-ejecuta tras un swap. Al llegar acá por un link boosted,
    planillaAsistencia() quedaba indefinida y el checkbox "Todos" no marcaba a
    nadie (los individuales seguían marcándose por el comportamiento nativo del
    browser, que es por lo que el bug pasaba desapercibido). htmx sí re-evalúa
    los scripts del contenido swapeado. Sólo declaraciones `function`: un
-   const/let de nivel superior lanzaría "already declared" en la segunda visita. #}
+   const/let de nivel superior lanzaría "already declared" en la segunda visita. {% endcomment %}
 <script>
 function planillaAsistencia() {
     // Pre-fill with existing attendance data
