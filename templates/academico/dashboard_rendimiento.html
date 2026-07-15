@@ -9,7 +9,9 @@
 <script id="paralelos-data" type="application/json">{{ paralelos_json|safe }}</script>
 {% endif %}
 
-<div x-data="dashboardRendimiento()" x-init="init()">
+<div x-data="dashboardRendimiento()" x-init="init()"
+     @pageshow.window="submitting = false"
+     @htmx:history-restore.window="submitting = false">
 
   <!-- Breadcrumb -->
   <nav class="mb-4 text-sm" aria-label="Breadcrumb" hx-boost="true">
@@ -110,24 +112,9 @@
   </div>
 
   {% else %}
-  {# ══════════════════════════════════════════════════════════════════════════ #}
-  {#  MODO DASHBOARD — tabs + filtros + métricas                              #}
-  {# ══════════════════════════════════════════════════════════════════════════ #}
-
-  <!-- ── Tabs de tipo de licencia ──────────────────────────────────────── -->
-  <div class="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
-    {% for tl in tipos_licencia %}
-    <a href="?tipo_licencia={{ tl.id }}"
-       class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors
-         {% if tl.id == tipo_licencia_seleccionado.id %}
-           bg-white text-gray-800 shadow-sm
-         {% else %}
-           text-gray-500 hover:text-gray-700
-         {% endif %}">
-      Licencia {{ tl.codigo }}
-    </a>
-    {% endfor %}
-  </div>
+  {# MODO DASHBOARD — filtros + métricas de la licencia ya seleccionada. #}
+  {# El selector de tipo de licencia vive en el estado de bienvenida; para #}
+  {# cambiar de licencia se vuelve por el breadcrumb "Dashboard de Rendimiento". #}
 
   <!-- ── FILTROS ─────────────────────────────────────────────────────────── -->
   <form method="get" @submit="submitting = true"

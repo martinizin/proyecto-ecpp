@@ -35,7 +35,11 @@
         </div>
         {% endif %}
 
-        <form method="post" novalidate>
+        {% comment %} hx-boost="false": al cambiar la contraseña se cierra la sesión y se
+           redirige al login, que no tiene #main-content. Un swap boosted no
+           encontraría el target y dejaría la página en blanco; forzamos una
+           navegación nativa completa. {% endcomment %}
+        <form method="post" novalidate hx-boost="false">
             {% csrf_token %}
 
             <div class="mb-4">
