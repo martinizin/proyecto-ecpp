@@ -33,7 +33,7 @@ class TestEvaluacion:
         assert "parcial2_10h" in choices
         assert "parcial3" in choices
         assert "parcial4_10h" in choices
-        assert "proyecto" in choices
+        assert "parcial5" in choices
         assert "examen_final" in choices
         assert len(choices) == 6
 
@@ -93,21 +93,15 @@ class TestEvaluacionEsParcial:
             Evaluacion.TipoEvaluacion.PARCIAL_2_10H,
             Evaluacion.TipoEvaluacion.PARCIAL_3,
             Evaluacion.TipoEvaluacion.PARCIAL_4_10H,
+            Evaluacion.TipoEvaluacion.PARCIAL_5,
         ],
     )
     def test_parciales_admiten_sub_notas(self, tipo):
         evaluacion = EvaluacionFactory(tipo=tipo)
         assert evaluacion.es_parcial is True
 
-    @pytest.mark.parametrize(
-        "tipo",
-        [
-            Evaluacion.TipoEvaluacion.PROYECTO,
-            Evaluacion.TipoEvaluacion.EXAMEN_FINAL,
-        ],
-    )
-    def test_proyecto_y_examen_no_admiten_sub_notas(self, tipo):
-        evaluacion = EvaluacionFactory(tipo=tipo)
+    def test_examen_final_no_admite_sub_notas(self):
+        evaluacion = EvaluacionFactory(tipo=Evaluacion.TipoEvaluacion.EXAMEN_FINAL)
         assert evaluacion.es_parcial is False
 
 

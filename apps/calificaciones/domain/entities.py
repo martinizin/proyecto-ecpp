@@ -19,7 +19,7 @@ class TipoEvaluacion(str, Enum):
     PARCIAL_2_10H = "parcial2_10h"
     PARCIAL_3 = "parcial3"
     PARCIAL_4_10H = "parcial4_10h"
-    PROYECTO = "proyecto"
+    PARCIAL_5 = "parcial5"
     EXAMEN_FINAL = "examen_final"
 
 

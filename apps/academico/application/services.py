@@ -746,7 +746,7 @@ class DashboardRendimientoAppService:
             "parcial2_10h",
             "parcial3",
             "parcial4_10h",
-            "proyecto",
+            "parcial5",
             "examen_final",
         ]
 

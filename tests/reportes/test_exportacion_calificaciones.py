@@ -295,6 +295,87 @@ class TestExportarPdfCalificaciones:
 
 
 # ---------------------------------------------------------------------------
+# HU34: Parcial 5 (antes "Proyecto") en los exports
+# ---------------------------------------------------------------------------
+
+
+def _crear_paralelo_con_parcial5(num_estudiantes=1):
+    """Paralelo con parcial 4, parcial 5 y examen final (notas 15.00)."""
+    periodo = PeriodoFactory(nombre="2026-B")
+    paralelo = ParaleloFactory(periodo=periodo, nombre="A")
+    RegistroCalificacionParaleloFactory(paralelo=paralelo)
+    evaluaciones = []
+    for tipo, peso in [
+        ("parcial4_10h", Decimal("30.00")),
+        ("parcial5", Decimal("30.00")),
+        ("examen_final", Decimal("40.00")),
+    ]:
+        evaluaciones.append(EvaluacionFactory(paralelo=paralelo, tipo=tipo, peso=peso))
+    for _ in range(num_estudiantes):
+        matricula = MatriculaFactory(paralelo=paralelo)
+        for ev in evaluaciones:
+            CalificacionFactory(
+                evaluacion=ev,
+                estudiante=matricula.estudiante,
+                nota=Decimal("15.00"),
+            )
+    return paralelo
+
+
+class TestParcial5EnExport:
+    """HU34: el tipo ``parcial5`` sale como "Parcial 5" entre Parcial 4 y Examen Final."""
+
+    def test_excel_header_parcial5_entre_parcial4_y_examen(self, docente):
+        paralelo = _crear_paralelo_con_parcial5()
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        buffer = service.exportar_excel_calificaciones()
+        wb = load_workbook(buffer)
+        ws = wb.active
+        header = [ws.cell(row=5, column=c).value for c in range(1, 8)]
+        assert header == [
+            "Cédula",
+            "Nombres",
+            "Parcial 4",
+            "Parcial 5",
+            "Examen Final",
+            "Promedio",
+            "Estado",
+        ]
+        assert "Proyecto" not in header
+
+    def test_excel_promedio_no_cambia_con_parcial5(self, docente):
+        """Con notas 15.00 en los 3 componentes, el promedio sigue siendo 15.0."""
+        paralelo = _crear_paralelo_con_parcial5(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        buffer = service.exportar_excel_calificaciones()
+        wb = load_workbook(buffer)
+        ws = wb.active
+        promedio = ws.cell(row=6, column=6).value  # col 6 = Promedio
+        assert promedio == 15.0
+
+    def test_pdf_data_header_parcial5(self, docente):
+        paralelo = _crear_paralelo_con_parcial5()
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        data = service._build_pdf_data_calificaciones(paralelo, cuando=None)
+        assert data[0] == [
+            "Cédula",
+            "Nombres",
+            "Parcial 4",
+            "Parcial 5",
+            "Examen Final",
+            "Promedio",
+            "Estado",
+        ]
+        assert "Proyecto" not in data[0]
+
+
+# ---------------------------------------------------------------------------
 # Filtros
 # ---------------------------------------------------------------------------
 

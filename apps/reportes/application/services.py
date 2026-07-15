@@ -71,14 +71,14 @@ def _header_block_rows(periodo, paralelo, usuario, cuando):
 
 
 # Orden canónico de los tipos de evaluación, alineado con el flujo académico
-# (parcial 1, parcial 2, parcial 3, parcial 4, examen final). Usado por los
-# servicios de exportación para ordenar las columnas de notas.
+# (parciales 1-5, examen final). Usado por los servicios de exportación para
+# ordenar las columnas de notas.
 _TIPOS_EVALUACION_ORDEN = [
     "parcial1",
     "parcial2_10h",
     "parcial3",
     "parcial4_10h",
-    "proyecto",
+    "parcial5",
     "examen_final",
 ]
 
