@@ -715,12 +715,12 @@
 
 </div>
 
-{# El componente vive dentro del bloque content: extra_js queda fuera de
+{% comment %} El componente vive dentro del bloque content: extra_js queda fuera de
    #main-content y no se re-ejecuta en navegación boosted, así que al llegar
    por un link boosted dashboardRendimiento() quedaba indefinida y no se
    dibujaba ningún gráfico (ver tests/presentation/test_boosted_scripts.py).
    Chart.js se carga bajo demanda y se cachea en window: un <script src> dentro
-   del contenido swapeado se ejecuta async y correría carrera con el init. #}
+   del contenido swapeado se ejecuta async y correría carrera con el init. {% endcomment %}
 <script>
   function dashboardRendimiento() {
     return {

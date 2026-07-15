@@ -256,9 +256,9 @@
     {% endif %}
 </div>
 
-{# El componente vive dentro del bloque content: extra_js queda fuera de
+{% comment %} El componente vive dentro del bloque content: extra_js queda fuera de
    #main-content y no se re-ejecuta en navegación boosted (ver
-   tests/presentation/test_boosted_scripts.py). #}
+   tests/presentation/test_boosted_scripts.py). {% endcomment %}
 <script>
 function auditoriaBusqueda() {
     return {

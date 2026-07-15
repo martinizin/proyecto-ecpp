@@ -307,10 +307,10 @@
 
   </div>{# /x-data cierrePeriodo #}
 
-  {# Data + component script live INSIDE the content block: boosted navigation
+  {% comment %} Data + component script live INSIDE the content block: boosted navigation
      swaps only #main-content, so extra_js (outside the swap target) never runs
      after an htmx swap. htmx re-evaluates scripts found in swapped content —
-     same pattern as reportes/hub.html. #}
+     same pattern as reportes/hub.html. {% endcomment %}
   {{ asistencias_datos|json_script:"datos-asistencias" }}
   {{ calificaciones_por_paralelo|json_script:"datos-calificaciones" }}
   <script>
