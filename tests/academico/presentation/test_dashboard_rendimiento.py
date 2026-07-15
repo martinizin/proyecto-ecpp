@@ -438,6 +438,22 @@ class TestDashboardRendimientoViewFiltros:
         assert resp.status_code == 200
         assert resp.context["bienvenida"] is False
 
+    def test_dentro_de_una_licencia_no_hay_tabs_de_tipo_licencia(self, client):
+        """Issue 13a: ya adentro de una licencia, el selector de tipo de
+        licencia es redundante; solo quedan los demás filtros. Para cambiar
+        de licencia se vuelve por el breadcrumb."""
+        tl, periodo, paralelo, user = self._setup()
+        otra = TipoLicenciaFactory(activo=True)  # una segunda licencia
+        client.force_login(user)
+
+        resp = client.get(URL + f"?tipo_licencia={tl.id}")
+        contenido = resp.content.decode("utf-8")
+
+        # El breadcrumb de regreso al selector sí sigue presente.
+        assert "Dashboard de Rendimiento" in contenido
+        # Pero no hay tabs que enlacen a la otra licencia dentro del dashboard.
+        assert f"?tipo_licencia={otra.pk}" not in contenido
+
     def test_tipo_licencia_seleccionado_en_contexto(self, client):
         tl, periodo, paralelo, user = self._setup()
         client.force_login(user)
