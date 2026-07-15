@@ -398,7 +398,10 @@ class TestCambiarContrasenaView:
         self.client.force_login(self.user)
 
     def test_cambiar_contrasena_exitoso(self):
-        """POST old + new → password changed, redirects to perfil."""
+        """POST old + new → password changed, session closed, redirect to login.
+
+        Issue 14: cambiar la contraseña cierra la sesión y lleva al login con
+        ?password=changed; ya no re-loguea ni deja al usuario en el perfil."""
         new_password = "NewSecure456!"
         data = {
             "old_password": PASSWORD,
@@ -408,14 +411,24 @@ class TestCambiarContrasenaView:
 
         response = self.client.post(self.url, data)
 
-        # Redirects to perfil
+        # Redirects to login with the confirmation flag
         assert response.status_code == 302
-        assert response.url == reverse("usuarios:perfil")
+        assert response.url == f"{reverse('usuarios:login')}?password=changed"
+
+        # Session was closed: the request user is no longer authenticated
+        assert "_auth_user_id" not in self.client.session
 
         # Password actually changed in DB
         self.user.refresh_from_db()
         assert self.user.check_password(new_password) is True
         assert self.user.check_password(PASSWORD) is False
+
+    def test_login_muestra_confirmacion_de_cambio(self):
+        """El login renderiza el banner cuando llega ?password=changed."""
+        self.client.logout()
+        response = self.client.get(f"{reverse('usuarios:login')}?password=changed")
+        assert response.status_code == 200
+        assert b"Contrase\xc3\xb1a actualizada." in response.content
 
     def test_cambiar_contrasena_password_incorrecto(self):
         """POST wrong old password → stays on page with error."""
@@ -450,9 +463,9 @@ class TestCambiarContrasenaView:
 
         response = self.client.post(self.url, data)
 
-        # Redirects to perfil
+        # Redirects to login (session closed), not to perfil
         assert response.status_code == 302
-        assert response.url == reverse("usuarios:perfil")
+        assert response.url == f"{reverse('usuarios:login')}?password=changed"
 
         # Flag cleared
         self.user.refresh_from_db()

@@ -21,6 +21,7 @@ from django.contrib.auth.views import (
 )
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_http_methods
@@ -274,14 +275,13 @@ class CambiarContrasenaView(View):
             request.user.debe_cambiar_password = False
             request.user.save(update_fields=["debe_cambiar_password"])
 
-        # Re-login to update session hash
-        login(
-            request,
-            request.user,
-            backend=("apps.usuarios.infrastructure" ".auth_backend.ECPPPAuthBackend"),
-        )
-        messages.success(request, "Contraseña cambiada exitosamente.")
-        return redirect("usuarios:perfil")
+        # Changing the password ends the session: the user is logged out and
+        # sent to the login page to sign in again with the new credentials.
+        # The old flow re-logged the user in and redirected to the profile,
+        # but that redirect landed on a boosted swap that could not find its
+        # target once the session rotated, leaving a blank profile page.
+        logout(request)
+        return redirect(f"{reverse('usuarios:login')}?password=changed")
 
 
 # =============================================================================
