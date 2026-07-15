@@ -36,8 +36,12 @@ from reportlab.platypus import (
 
 from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.domain.services import AsistenciaCalculoService
-from apps.calificaciones.application.services import RegistroCalificacionAppService
+from apps.calificaciones.application.services import (
+    RegistroCalificacionAppService,
+    SubNotaParcialAppService,
+)
 from apps.calificaciones.domain.services import CalificacionValidationService
+from apps.calificaciones.infrastructure.models import SubNotaParcial
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +271,75 @@ class ExportacionCalificacionesService:
             row.append(estado)
             data.append(row)
         return data
+
+    # ----- Desglose de sub-notas (HU34) ----------------------------------
+
+    def obtener_desglose_sub_notas(self, paralelo) -> list[dict]:
+        """Desglose de sub-notas por estudiante y parcial del paralelo (HU34).
+
+        Retorna una fila por cada par (estudiante, parcial con sub-notas
+        configuradas), en el orden de la planilla y el orden canónico de
+        evaluaciones::
+
+            {
+                "cedula", "nombres", "parcial",
+                "sub_notas": [{"nombre", "peso", "nota"}, ...],
+                "nota_parcial", "override", "justificacion",
+            }
+
+        Si el paralelo no tiene sub-notas configuradas retorna ``[]`` (los
+        renderers de Excel/PDF omiten la sección en ese caso).
+        """
+        planilla = RegistroCalificacionAppService().obtener_planilla(paralelo.id)
+        sub_service = SubNotaParcialAppService()
+        config_por_ev = {}
+        for ev in _sort_evaluaciones(planilla["evaluaciones"]):
+            if ev.es_parcial:
+                items = sub_service.obtener_configuracion(ev.id)
+                if items:
+                    config_por_ev[ev.id] = items
+        if not config_por_ev:
+            return []
+
+        sub_lookup = {}
+        for sn in SubNotaParcial.objects.filter(evaluacion__paralelo_id=paralelo.id):
+            sub_lookup[(sn.matricula_id, sn.evaluacion_id, sn.orden)] = sn
+
+        filas_desglose = []
+        for fila in planilla["filas"]:
+            matricula = fila["matricula"]
+            estudiante = matricula.estudiante
+            for ev, cal in fila["celdas"]:
+                config = config_por_ev.get(ev.id)
+                if not config:
+                    continue
+                sub_notas = []
+                override = None
+                justificacion = ""
+                for item in config:
+                    sn = sub_lookup.get((matricula.id, ev.id, item.orden))
+                    sub_notas.append(
+                        {
+                            "nombre": item.nombre,
+                            "peso": item.peso,
+                            "nota": sn.nota if sn else None,
+                        }
+                    )
+                    if sn is not None and sn.nota_final_parcial_override is not None:
+                        override = sn.nota_final_parcial_override
+                        justificacion = sn.justificacion_override
+                filas_desglose.append(
+                    {
+                        "cedula": estudiante.cedula,
+                        "nombres": estudiante.get_full_name(),
+                        "parcial": ev.get_tipo_display(),
+                        "sub_notas": sub_notas,
+                        "nota_parcial": cal.nota if cal else None,
+                        "override": override,
+                        "justificacion": justificacion,
+                    }
+                )
+        return filas_desglose
 
     # ----- Preview (HU27b WU2) -------------------------------------------
 

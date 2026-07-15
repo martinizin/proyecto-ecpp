@@ -376,6 +376,113 @@ class TestParcial5EnExport:
 
 
 # ---------------------------------------------------------------------------
+# HU34: desglose de sub-notas para los exports
+# ---------------------------------------------------------------------------
+
+
+def _configurar_sub_notas(evaluacion, nombres_pesos):
+    """Crea la configuración de sub-notas [(nombre, peso), ...] para un parcial."""
+    from tests.factories import ConfiguracionSubNotasFactory, SubNotaConfigFactory
+
+    config = ConfiguracionSubNotasFactory(evaluacion=evaluacion)
+    for orden, (nombre, peso) in enumerate(nombres_pesos, start=1):
+        SubNotaConfigFactory(configuracion=config, nombre=nombre, orden=orden, peso=peso)
+    return config
+
+
+class TestDesgloseSubNotas:
+    """HU34: ``obtener_desglose_sub_notas`` arma las filas para Excel/PDF."""
+
+    def test_paralelo_sin_configuracion_retorna_vacio(self, docente):
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        assert service.obtener_desglose_sub_notas(paralelo) == []
+
+    def test_desglose_con_sub_notas_registradas(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(
+            parcial1,
+            [
+                ("Tarea", Decimal("30.00")),
+                ("Taller", Decimal("30.00")),
+                ("Prueba", Decimal("40.00")),
+            ],
+        )
+        matricula = paralelo.matriculas.first()
+        for orden, nota in [(1, "14.00"), (2, "16.00"), (3, "15.00")]:
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal(nota),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        desglose = service.obtener_desglose_sub_notas(paralelo)
+
+        assert len(desglose) == 1  # 1 estudiante × 1 parcial con config
+        fila = desglose[0]
+        assert fila["cedula"] == matricula.estudiante.cedula
+        assert fila["parcial"] == "Parcial 1"
+        assert [s["nombre"] for s in fila["sub_notas"]] == ["Tarea", "Taller", "Prueba"]
+        assert [s["nota"] for s in fila["sub_notas"]] == [
+            Decimal("14.00"),
+            Decimal("16.00"),
+            Decimal("15.00"),
+        ]
+        assert fila["nota_parcial"] == Decimal("15.00")  # Calificacion consolidada
+        assert fila["override"] is None
+        assert fila["justificacion"] == ""
+
+    def test_desglose_incluye_override_y_justificacion(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("10.00"),
+                nota_final_parcial_override=Decimal("12.00"),
+                justificacion_override="Recuperacion aprobada",
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        fila = service.obtener_desglose_sub_notas(paralelo)[0]
+        assert fila["override"] == Decimal("12.00")
+        assert fila["justificacion"] == "Recuperacion aprobada"
+
+    def test_estudiante_sin_sub_notas_registradas_sale_con_notas_none(self, docente):
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        desglose = service.obtener_desglose_sub_notas(paralelo)
+        assert len(desglose) == 1
+        assert all(s["nota"] is None for s in desglose[0]["sub_notas"])
+
+
+# ---------------------------------------------------------------------------
 # Filtros
 # ---------------------------------------------------------------------------
 
