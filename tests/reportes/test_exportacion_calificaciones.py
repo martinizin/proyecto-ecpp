@@ -295,6 +295,381 @@ class TestExportarPdfCalificaciones:
 
 
 # ---------------------------------------------------------------------------
+# HU34: Parcial 5 (antes "Proyecto") en los exports
+# ---------------------------------------------------------------------------
+
+
+def _crear_paralelo_con_parcial5(num_estudiantes=1):
+    """Paralelo con parcial 4, parcial 5 y examen final (notas 15.00)."""
+    periodo = PeriodoFactory(nombre="2026-B")
+    paralelo = ParaleloFactory(periodo=periodo, nombre="A")
+    RegistroCalificacionParaleloFactory(paralelo=paralelo)
+    evaluaciones = []
+    for tipo, peso in [
+        ("parcial4_10h", Decimal("30.00")),
+        ("parcial5", Decimal("30.00")),
+        ("examen_final", Decimal("40.00")),
+    ]:
+        evaluaciones.append(EvaluacionFactory(paralelo=paralelo, tipo=tipo, peso=peso))
+    for _ in range(num_estudiantes):
+        matricula = MatriculaFactory(paralelo=paralelo)
+        for ev in evaluaciones:
+            CalificacionFactory(
+                evaluacion=ev,
+                estudiante=matricula.estudiante,
+                nota=Decimal("15.00"),
+            )
+    return paralelo
+
+
+class TestParcial5EnExport:
+    """HU34: el tipo ``parcial5`` sale como "Parcial 5" entre Parcial 4 y Examen Final."""
+
+    def test_excel_header_parcial5_entre_parcial4_y_examen(self, docente):
+        paralelo = _crear_paralelo_con_parcial5()
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        buffer = service.exportar_excel_calificaciones()
+        wb = load_workbook(buffer)
+        ws = wb.active
+        header = [ws.cell(row=5, column=c).value for c in range(1, 8)]
+        assert header == [
+            "Cédula",
+            "Nombres",
+            "Parcial 4",
+            "Parcial 5",
+            "Examen Final",
+            "Promedio",
+            "Estado",
+        ]
+        assert "Proyecto" not in header
+
+    def test_excel_promedio_no_cambia_con_parcial5(self, docente):
+        """Con notas 15.00 en los 3 componentes, el promedio sigue siendo 15.0."""
+        paralelo = _crear_paralelo_con_parcial5(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        buffer = service.exportar_excel_calificaciones()
+        wb = load_workbook(buffer)
+        ws = wb.active
+        promedio = ws.cell(row=6, column=6).value  # col 6 = Promedio
+        assert promedio == 15.0
+
+    def test_pdf_data_header_parcial5(self, docente):
+        paralelo = _crear_paralelo_con_parcial5()
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        data = service._build_pdf_data_calificaciones(paralelo, cuando=None)
+        assert data[0] == [
+            "Cédula",
+            "Nombres",
+            "Parcial 4",
+            "Parcial 5",
+            "Examen Final",
+            "Promedio",
+            "Estado",
+        ]
+        assert "Proyecto" not in data[0]
+
+
+# ---------------------------------------------------------------------------
+# HU34: desglose de sub-notas para los exports
+# ---------------------------------------------------------------------------
+
+
+def _configurar_sub_notas(evaluacion, nombres_pesos):
+    """Crea la configuración de sub-notas [(nombre, peso), ...] para un parcial."""
+    from tests.factories import ConfiguracionSubNotasFactory, SubNotaConfigFactory
+
+    config = ConfiguracionSubNotasFactory(evaluacion=evaluacion)
+    for orden, (nombre, peso) in enumerate(nombres_pesos, start=1):
+        SubNotaConfigFactory(configuracion=config, nombre=nombre, orden=orden, peso=peso)
+    return config
+
+
+class TestDesgloseSubNotas:
+    """HU34: ``obtener_desglose_sub_notas`` arma las filas para Excel/PDF."""
+
+    def test_paralelo_sin_configuracion_retorna_vacio(self, docente):
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        assert service.obtener_desglose_sub_notas(paralelo) == []
+
+    def test_desglose_con_sub_notas_registradas(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(
+            parcial1,
+            [
+                ("Tarea", Decimal("30.00")),
+                ("Taller", Decimal("30.00")),
+                ("Prueba", Decimal("40.00")),
+            ],
+        )
+        matricula = paralelo.matriculas.first()
+        for orden, nota in [(1, "14.00"), (2, "16.00"), (3, "15.00")]:
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal(nota),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        desglose = service.obtener_desglose_sub_notas(paralelo)
+
+        assert len(desglose) == 1  # 1 estudiante × 1 parcial con config
+        fila = desglose[0]
+        assert fila["cedula"] == matricula.estudiante.cedula
+        assert fila["parcial"] == "Parcial 1"
+        assert [s["nombre"] for s in fila["sub_notas"]] == ["Tarea", "Taller", "Prueba"]
+        assert [s["nota"] for s in fila["sub_notas"]] == [
+            Decimal("14.00"),
+            Decimal("16.00"),
+            Decimal("15.00"),
+        ]
+        assert fila["nota_parcial"] == Decimal("15.00")  # Calificacion consolidada
+        assert fila["override"] is None
+        assert fila["justificacion"] == ""
+
+    def test_desglose_incluye_override_y_justificacion(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("10.00"),
+                nota_final_parcial_override=Decimal("12.00"),
+                justificacion_override="Recuperacion aprobada",
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        fila = service.obtener_desglose_sub_notas(paralelo)[0]
+        assert fila["override"] == Decimal("12.00")
+        assert fila["justificacion"] == "Recuperacion aprobada"
+
+    def test_excel_sin_config_no_agrega_hoja_sub_notas(self, docente):
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+        assert len(wb.sheetnames) == 1
+        assert not any(name.startswith("Sub ") for name in wb.sheetnames)
+
+    def test_excel_agrega_hoja_sub_notas_con_desglose(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(
+            parcial1,
+            [
+                ("Tarea", Decimal("30.00")),
+                ("Taller", Decimal("30.00")),
+                ("Prueba", Decimal("40.00")),
+            ],
+        )
+        matricula = paralelo.matriculas.first()
+        for orden, nota in [(1, "14.00"), (2, "16.00"), (3, "15.00")]:
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal(nota),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+
+        assert len(wb.sheetnames) == 2
+        ws = wb[[n for n in wb.sheetnames if n.startswith("Sub ")][0]]
+        header = [ws.cell(row=5, column=c).value for c in range(1, 10)]
+        assert header == [
+            "Cédula",
+            "Nombres",
+            "Parcial",
+            "Sub-nota",
+            "Peso (%)",
+            "Nota",
+            "Nota Parcial",
+            "Override",
+            "Justificación",
+        ]
+        # 3 sub-notas → 3 filas de datos (rows 6-8)
+        filas = [[ws.cell(row=r, column=c).value for c in range(1, 10)] for r in range(6, 9)]
+        assert [f[3] for f in filas] == ["Tarea", "Taller", "Prueba"]
+        assert [f[4] for f in filas] == [30.0, 30.0, 40.0]
+        assert [f[5] for f in filas] == [14.0, 16.0, 15.0]
+        # Identificadores repetidos y nota parcial consolidada en cada fila
+        assert all(f[0] == matricula.estudiante.cedula for f in filas)
+        assert all(f[2] == "Parcial 1" for f in filas)
+        assert all(f[6] == 15.0 for f in filas)
+        assert ws.cell(row=9, column=1).value is None  # no hay filas extra
+
+    def test_excel_hoja_sub_notas_muestra_override(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("10.00"),
+                nota_final_parcial_override=Decimal("12.00"),
+                justificacion_override="Recuperacion aprobada",
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        wb = load_workbook(service.exportar_excel_calificaciones())
+        ws = wb[[n for n in wb.sheetnames if n.startswith("Sub ")][0]]
+        assert ws.cell(row=6, column=8).value == 12.0
+        assert ws.cell(row=6, column=9).value == "Recuperacion aprobada"
+        # Sin pesos configurados la columna Peso va vacía
+        assert ws.cell(row=6, column=5).value in ("", None)
+
+    def test_pdf_data_sub_notas_matriz(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(
+            parcial1,
+            [
+                ("Tarea", Decimal("30.00")),
+                ("Taller", Decimal("30.00")),
+                ("Prueba", Decimal("40.00")),
+            ],
+        )
+        matricula = paralelo.matriculas.first()
+        for orden, nota in [(1, "14.00"), (2, "16.00"), (3, "15.00")]:
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal(nota),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        desglose = service.obtener_desglose_sub_notas(paralelo)
+        data = service._build_pdf_data_sub_notas(desglose)
+
+        assert data[0] == [
+            "Cédula",
+            "Nombres",
+            "Parcial",
+            "Sub-nota",
+            "Peso (%)",
+            "Nota",
+            "Nota Parcial",
+            "Override",
+            "Justificación",
+        ]
+        assert len(data) == 4  # header + 3 sub-notas
+        assert [row[3] for row in data[1:]] == ["Tarea", "Taller", "Prueba"]
+        assert [row[5] for row in data[1:]] == ["14.00", "16.00", "15.00"]
+        assert all(row[6] == "15.00" for row in data[1:])
+
+    def test_pdf_data_sub_notas_justificacion_como_paragraph(self, docente):
+        """La justificación va como Paragraph (permite wrap en la celda)."""
+        from reportlab.platypus import Paragraph
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("10.00"),
+                nota_final_parcial_override=Decimal("12.00"),
+                justificacion_override="Recuperacion aprobada",
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        data = service._build_pdf_data_sub_notas(service.obtener_desglose_sub_notas(paralelo))
+        celda_just = data[1][8]
+        assert isinstance(celda_just, Paragraph)
+        assert celda_just.getPlainText() == "Recuperacion aprobada"
+        assert data[1][7] == "12.00"  # override formateado
+
+    def test_pdf_con_sub_notas_es_archivo_valido(self, docente):
+        from tests.factories import SubNotaParcialFactory
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+        matricula = paralelo.matriculas.first()
+        for orden in (1, 2, 3):
+            SubNotaParcialFactory(
+                evaluacion=parcial1,
+                matricula=matricula,
+                orden=orden,
+                nota=Decimal("15.00"),
+            )
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        buffer = service.exportar_pdf_calificaciones()
+        assert buffer.getvalue()[:4] == b"%PDF"
+        assert b"%%EOF" in buffer.getvalue()[-1024:]
+
+    def test_estudiante_sin_sub_notas_registradas_sale_con_notas_none(self, docente):
+        from apps.calificaciones.infrastructure.models import Evaluacion
+
+        paralelo = _crear_paralelo_con_planilla(num_estudiantes=1)
+        parcial1 = Evaluacion.objects.get(paralelo=paralelo, tipo="parcial1")
+        _configurar_sub_notas(parcial1, [("Tarea", None), ("Taller", None), ("Prueba", None)])
+
+        service = ExportacionCalificacionesService(
+            filtros={"periodo_id": paralelo.periodo_id}, usuario=docente
+        )
+        desglose = service.obtener_desglose_sub_notas(paralelo)
+        assert len(desglose) == 1
+        assert all(s["nota"] is None for s in desglose[0]["sub_notas"])
+
+
+# ---------------------------------------------------------------------------
 # Filtros
 # ---------------------------------------------------------------------------
 

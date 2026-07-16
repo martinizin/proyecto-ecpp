@@ -12,7 +12,7 @@ class Evaluacion(models.Model):
         PARCIAL_2_10H = "parcial2_10h", "Parcial 2"
         PARCIAL_3 = "parcial3", "Parcial 3"
         PARCIAL_4_10H = "parcial4_10h", "Parcial 4"
-        PROYECTO = "proyecto", "Proyecto"
+        PARCIAL_5 = "parcial5", "Parcial 5"
         EXAMEN_FINAL = "examen_final", "Examen Final"
 
     paralelo = models.ForeignKey(
@@ -30,6 +30,7 @@ class Evaluacion(models.Model):
         TipoEvaluacion.PARCIAL_2_10H,
         TipoEvaluacion.PARCIAL_3,
         TipoEvaluacion.PARCIAL_4_10H,
+        TipoEvaluacion.PARCIAL_5,
     )
 
     class Meta:

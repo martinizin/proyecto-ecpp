@@ -341,6 +341,35 @@ class TestDashboardRendimientoAppServiceTendencia:
         svc = DashboardRendimientoAppService()
         assert svc.obtener_tendencia_parciales(paralelo.id) == []
 
+    def test_tendencia_parcial5_label_y_orden(self):
+        """HU34: parcial5 (antes proyecto) sale como "Parcial 5" antes del examen."""
+        from apps.academico.application.services import DashboardRendimientoAppService
+
+        paralelo = ParaleloFactory()
+        e = EstudianteFactory()
+        _matricular(e, paralelo)
+        ev5 = EvaluacionFactory(
+            paralelo=paralelo,
+            tipo=Evaluacion.TipoEvaluacion.PARCIAL_5,
+            peso=Decimal("50.00"),
+        )
+        ev_final = EvaluacionFactory(
+            paralelo=paralelo,
+            tipo=Evaluacion.TipoEvaluacion.EXAMEN_FINAL,
+            peso=Decimal("50.00"),
+        )
+        _calificar(ev5, e, "12.00")
+        _calificar(ev_final, e, "18.00")
+
+        svc = DashboardRendimientoAppService()
+        tendencia = svc.obtener_tendencia_parciales(paralelo.id)
+
+        tipos = [t["tipo"] for t in tendencia]
+        assert tipos.index("parcial5") < tipos.index("examen_final")
+        etiquetas = [t["evaluacion"] for t in tendencia]
+        assert "Parcial 5" in etiquetas
+        assert "Proyecto" not in etiquetas
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. DashboardRendimientoView — control de acceso

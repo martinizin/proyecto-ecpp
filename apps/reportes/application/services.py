@@ -36,8 +36,12 @@ from reportlab.platypus import (
 
 from apps.academico.infrastructure.models import Paralelo
 from apps.asistencia.domain.services import AsistenciaCalculoService
-from apps.calificaciones.application.services import RegistroCalificacionAppService
+from apps.calificaciones.application.services import (
+    RegistroCalificacionAppService,
+    SubNotaParcialAppService,
+)
 from apps.calificaciones.domain.services import CalificacionValidationService
+from apps.calificaciones.infrastructure.models import SubNotaParcial
 
 
 # ---------------------------------------------------------------------------
@@ -71,14 +75,14 @@ def _header_block_rows(periodo, paralelo, usuario, cuando):
 
 
 # Orden canónico de los tipos de evaluación, alineado con el flujo académico
-# (parcial 1, parcial 2, parcial 3, parcial 4, examen final). Usado por los
-# servicios de exportación para ordenar las columnas de notas.
+# (parciales 1-5, examen final). Usado por los servicios de exportación para
+# ordenar las columnas de notas.
 _TIPOS_EVALUACION_ORDEN = [
     "parcial1",
     "parcial2_10h",
     "parcial3",
     "parcial4_10h",
-    "proyecto",
+    "parcial5",
     "examen_final",
 ]
 
@@ -126,6 +130,11 @@ class ExportacionCalificacionesService:
                 sheet_title = f"{paralelo.asignatura.codigo}-{paralelo.nombre}"[:31]
                 ws = wb.create_sheet(title=sheet_title)
                 self._llenar_sheet_calificaciones(ws, paralelo, cuando)
+                desglose = self.obtener_desglose_sub_notas(paralelo)
+                if desglose:
+                    sub_title = f"Sub {paralelo.asignatura.codigo}-{paralelo.nombre}"[:31]
+                    ws_sub = wb.create_sheet(title=sub_title)
+                    self._llenar_sheet_sub_notas(ws_sub, paralelo, desglose, cuando)
         else:
             ws = wb.create_sheet(title="Sin resultados")
             ws.cell(row=1, column=1, value="ECPPP — Reporte de Calificaciones")
@@ -175,6 +184,18 @@ class ExportacionCalificacionesService:
                 t = Table(data, repeatRows=1)
                 t.setStyle(PDF_TABLE_STYLE)
                 elements.append(t)
+                desglose = self.obtener_desglose_sub_notas(paralelo)
+                if desglose:
+                    elements.append(Spacer(1, 0.5 * cm))
+                    elements.append(
+                        Paragraph(
+                            f"Desglose de sub-notas — Paralelo {paralelo.nombre}",
+                            styles["Heading3"],
+                        )
+                    )
+                    t_sub = Table(self._build_pdf_data_sub_notas(desglose), repeatRows=1)
+                    t_sub.setStyle(PDF_TABLE_STYLE)
+                    elements.append(t_sub)
                 if i < len(paralelos) - 1:
                     elements.append(PageBreak())
 
@@ -267,6 +288,163 @@ class ExportacionCalificacionesService:
             row.append(estado)
             data.append(row)
         return data
+
+    # ----- Desglose de sub-notas (HU34) ----------------------------------
+
+    def _llenar_sheet_sub_notas(self, ws, paralelo, desglose, cuando):
+        """Llena la hoja "Sub-notas" con una fila por sub-nota (formato largo).
+
+        Los valores identificadores (cédula, nombres, parcial) se repiten en
+        cada fila para que la hoja soporte filtros y pivots de Excel.
+        """
+        for i, line in enumerate(
+            _header_block_rows(paralelo.periodo, paralelo, self.usuario, cuando), start=1
+        ):
+            ws.cell(row=i, column=1, value=line)
+        ws.cell(row=4, column=1, value=None)  # spacer row
+
+        header = [
+            "Cédula",
+            "Nombres",
+            "Parcial",
+            "Sub-nota",
+            "Peso (%)",
+            "Nota",
+            "Nota Parcial",
+            "Override",
+            "Justificación",
+        ]
+        for col_idx, value in enumerate(header, start=1):
+            cell = ws.cell(row=5, column=col_idx, value=value)
+            cell.font = EXCEL_FONT_HEADER
+            cell.fill = EXCEL_FILL_HEADER
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        def _num(valor):
+            return float(valor) if valor is not None else ""
+
+        row_idx = 6
+        for fila in desglose:
+            for sub in fila["sub_notas"]:
+                ws.cell(row=row_idx, column=1, value=fila["cedula"])
+                ws.cell(row=row_idx, column=2, value=fila["nombres"])
+                ws.cell(row=row_idx, column=3, value=fila["parcial"])
+                ws.cell(row=row_idx, column=4, value=sub["nombre"])
+                ws.cell(row=row_idx, column=5, value=_num(sub["peso"]))
+                ws.cell(row=row_idx, column=6, value=_num(sub["nota"]))
+                ws.cell(row=row_idx, column=7, value=_num(fila["nota_parcial"]))
+                ws.cell(row=row_idx, column=8, value=_num(fila["override"]))
+                ws.cell(row=row_idx, column=9, value=fila["justificacion"])
+                row_idx += 1
+
+    def _build_pdf_data_sub_notas(self, desglose) -> list:
+        """Matriz (header + filas) para la tabla PDF de desglose de sub-notas."""
+        styles = getSampleStyleSheet()
+
+        def _num(valor):
+            return f"{valor:.2f}" if valor is not None else ""
+
+        data = [
+            [
+                "Cédula",
+                "Nombres",
+                "Parcial",
+                "Sub-nota",
+                "Peso (%)",
+                "Nota",
+                "Nota Parcial",
+                "Override",
+                "Justificación",
+            ]
+        ]
+        for fila in desglose:
+            for sub in fila["sub_notas"]:
+                data.append(
+                    [
+                        fila["cedula"],
+                        fila["nombres"],
+                        fila["parcial"],
+                        sub["nombre"],
+                        _num(sub["peso"]),
+                        _num(sub["nota"]),
+                        _num(fila["nota_parcial"]),
+                        _num(fila["override"]),
+                        # Paragraph permite wrap del texto libre dentro de la celda
+                        (
+                            Paragraph(fila["justificacion"], styles["BodyText"])
+                            if fila["justificacion"]
+                            else ""
+                        ),
+                    ]
+                )
+        return data
+
+    def obtener_desglose_sub_notas(self, paralelo) -> list[dict]:
+        """Desglose de sub-notas por estudiante y parcial del paralelo (HU34).
+
+        Retorna una fila por cada par (estudiante, parcial con sub-notas
+        configuradas), en el orden de la planilla y el orden canónico de
+        evaluaciones::
+
+            {
+                "cedula", "nombres", "parcial",
+                "sub_notas": [{"nombre", "peso", "nota"}, ...],
+                "nota_parcial", "override", "justificacion",
+            }
+
+        Si el paralelo no tiene sub-notas configuradas retorna ``[]`` (los
+        renderers de Excel/PDF omiten la sección en ese caso).
+        """
+        planilla = RegistroCalificacionAppService().obtener_planilla(paralelo.id)
+        sub_service = SubNotaParcialAppService()
+        config_por_ev = {}
+        for ev in _sort_evaluaciones(planilla["evaluaciones"]):
+            if ev.es_parcial:
+                items = sub_service.obtener_configuracion(ev.id)
+                if items:
+                    config_por_ev[ev.id] = items
+        if not config_por_ev:
+            return []
+
+        sub_lookup = {}
+        for sn in SubNotaParcial.objects.filter(evaluacion__paralelo_id=paralelo.id):
+            sub_lookup[(sn.matricula_id, sn.evaluacion_id, sn.orden)] = sn
+
+        filas_desglose = []
+        for fila in planilla["filas"]:
+            matricula = fila["matricula"]
+            estudiante = matricula.estudiante
+            for ev, cal in fila["celdas"]:
+                config = config_por_ev.get(ev.id)
+                if not config:
+                    continue
+                sub_notas = []
+                override = None
+                justificacion = ""
+                for item in config:
+                    sn = sub_lookup.get((matricula.id, ev.id, item.orden))
+                    sub_notas.append(
+                        {
+                            "nombre": item.nombre,
+                            "peso": item.peso,
+                            "nota": sn.nota if sn else None,
+                        }
+                    )
+                    if sn is not None and sn.nota_final_parcial_override is not None:
+                        override = sn.nota_final_parcial_override
+                        justificacion = sn.justificacion_override
+                filas_desglose.append(
+                    {
+                        "cedula": estudiante.cedula,
+                        "nombres": estudiante.get_full_name(),
+                        "parcial": ev.get_tipo_display(),
+                        "sub_notas": sub_notas,
+                        "nota_parcial": cal.nota if cal else None,
+                        "override": override,
+                        "justificacion": justificacion,
+                    }
+                )
+        return filas_desglose
 
     # ----- Preview (HU27b WU2) -------------------------------------------
 
