@@ -41,8 +41,11 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings.development
       # Dummy key so the OpenAI SDK instantiates; mocked tests never call out.
       OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-python-env
         with:
@@ -62,6 +65,16 @@ jobs:
 
       - name: Check coverage threshold
         run: coverage report --fail-under=${{ env.COVERAGE_MIN }}
+
+      - name: Generate coverage XML
+        run: coverage xml
+
+      - name: SonarCloud scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   bandit:
     runs-on: ubuntu-latest

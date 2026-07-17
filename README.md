@@ -1,5 +1,8 @@
 # ECPPP — Plataforma Académica
 
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=martinizin_proyecto-ecpp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=martinizin_proyecto-ecpp)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=martinizin_proyecto-ecpp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=martinizin_proyecto-ecpp)
+
 Sistema de gestión académica para el control de calificaciones, asistencia y solicitudes estudiantiles.
 
 ## Requisitos previos
