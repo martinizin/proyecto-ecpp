@@ -1,7 +1,8 @@
 name: DAST (OWASP ZAP)
 
-# Dynamic scan against an ephemeral instance of the app, spun up entirely inside
-# the runner. Manual trigger: it produces the ZAP report as evidence on demand.
+# Dynamic scan against the live deployment. The baseline is passive (it does not
+# attack the app), so running it against production is safe: it validates the real
+# attack surface an outsider sees (TLS, security headers, HTTP->HTTPS redirects).
 # The app is almost fully session-gated, so the baseline reaches the public
 # surface (/health/, /usuarios/login/, static); an authenticated scan is future
 # work.
@@ -9,68 +10,26 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.12"
-  TARGET_URL: http://localhost:8000
+  TARGET_URL: https://escuelaecppp.duckdns.org
 
 jobs:
   zap-baseline:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_DB: ecppp_test
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_pass
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_NAME: ecppp_test
-      DATABASE_USER: test_user
-      DATABASE_PASSWORD: test_pass
-      DATABASE_HOST: localhost
-      DATABASE_PORT: 5432
-      DJANGO_SECRET_KEY: dast-secret-key-ci-only
-      DJANGO_SETTINGS_MODULE: config.settings.development
-      OPENAI_API_KEY: sk-test-dummy-key-not-used-for-real-calls
     steps:
       - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-python-env
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Apply migrations
-        run: python manage.py migrate --noinput
-
-      - name: Start the app in the background
-        run: |
-          nohup python manage.py runserver 0.0.0.0:8000 > runserver.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -sf "${{ env.TARGET_URL }}/health/" >/dev/null; then
-              echo "App is up."; exit 0
-            fi
-            sleep 2
-          done
-          echo "App never became ready. runserver log:"; cat runserver.log; exit 1
 
       # World-writable output dir: the ZAP container runs as a non-root user and
       # cannot write reports into the workspace otherwise.
       - name: Prepare ZAP output directory
         run: mkdir -p zap-out && chmod 777 zap-out
 
-      # Host network so ZAP reaches the app on localhost. exit code ignored: a
-      # baseline returns non-zero on warnings, and the report is the deliverable.
+      # exit code ignored: a baseline returns non-zero on warnings, and the
+      # report is the deliverable.
       - name: OWASP ZAP baseline scan
         run: |
-          docker run --network host -v "${{ github.workspace }}/zap-out:/zap/wrk/:rw" \
+          docker run -v "${{ github.workspace }}/zap-out:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t "${{ env.TARGET_URL }}" -r zap-report.html -w zap-report.md -a \
             || true
