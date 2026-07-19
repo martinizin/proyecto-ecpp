@@ -476,6 +476,96 @@ class TestParaleloCreateLoteViewConflictoDocente:
 
 
 # ---------------------------------------------------------------------------
+# SonarCloud S6680 — user-submitted block counts clamped before loop use
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestBloquesCountClamp:
+    """Counts fuera de rango (negativos o > MAX_BLOQUES_HORARIO) se tratan como 0:
+    el paralelo se crea, pero ningún bloque se procesa (sin loop dirigido por input)."""
+
+    def _base_create_data(self, tl, periodo, docente, asig):
+        return {
+            "periodo": periodo.pk,
+            "tipo_licencia": tl.pk,
+            "asignatura": asig.pk,
+            "nombre": "S1",
+            "docente": docente.pk,
+            "capacidad_maxima": 30,
+            "bloque_dia_0": "lunes",
+            "bloque_inicio_0": "08:00",
+            "bloque_fin_0": "10:00",
+        }
+
+    def test_create_bloques_count_excesivo_se_ignora(self):
+        """POST con bloques_count enorme → paralelo creado sin bloques."""
+        tl = _make_tipo_licencia("C")
+        periodo = _make_periodo(tl)
+        docente = _make_docente("clamp_hi")
+        inspector = _make_inspector("clamp_hi")
+        asig = _make_asignatura("V5S-HI", tl)
+
+        client = Client()
+        client.force_login(inspector)
+        data = self._base_create_data(tl, periodo, docente, asig)
+        data["bloques_count"] = "999999999"
+        response = client.post(reverse("academico:paralelo_create"), data=data)
+
+        assert response.status_code == 302
+        paralelo = Paralelo.objects.get(asignatura=asig)
+        assert paralelo.bloques_horario.count() == 0
+
+    def test_create_bloques_count_negativo_se_ignora(self):
+        """POST con bloques_count negativo → paralelo creado sin bloques."""
+        tl = _make_tipo_licencia("C")
+        periodo = _make_periodo(tl)
+        docente = _make_docente("clamp_neg")
+        inspector = _make_inspector("clamp_neg")
+        asig = _make_asignatura("V5S-NEG", tl)
+
+        client = Client()
+        client.force_login(inspector)
+        data = self._base_create_data(tl, periodo, docente, asig)
+        data["bloques_count"] = "-3"
+        response = client.post(reverse("academico:paralelo_create"), data=data)
+
+        assert response.status_code == 302
+        paralelo = Paralelo.objects.get(asignatura=asig)
+        assert paralelo.bloques_horario.count() == 0
+
+    def test_lote_horario_count_excesivo_se_ignora(self):
+        """POST lote con horario_{id}_count enorme → paralelo creado sin bloques."""
+        tl = _make_tipo_licencia("C")
+        periodo = _make_periodo(tl)
+        docente = _make_docente("clamp_lote")
+        inspector = _make_inspector("clamp_lote")
+        asig = _make_asignatura("V5S-LOTE", tl)
+
+        client = Client()
+        client.force_login(inspector)
+        response = client.post(
+            reverse("academico:paralelo_create_lote"),
+            data={
+                "periodo": periodo.pk,
+                "tipo_licencia": tl.pk,
+                "asignaturas": [asig.pk],
+                "nombre": "L9",
+                "docente": docente.pk,
+                "capacidad_maxima": 30,
+                f"horario_{asig.pk}_count": "999999999",
+                f"horario_{asig.pk}_dia_0": "lunes",
+                f"horario_{asig.pk}_inicio_0": "08:00",
+                f"horario_{asig.pk}_fin_0": "10:00",
+            },
+        )
+
+        assert response.status_code == 302
+        paralelo = Paralelo.objects.get(asignatura=asig, nombre="L9")
+        assert paralelo.bloques_horario.count() == 0
+
+
+# ---------------------------------------------------------------------------
 # Task 3.8 — Smoke tests: full request cycle renders partial markup
 # ---------------------------------------------------------------------------
 

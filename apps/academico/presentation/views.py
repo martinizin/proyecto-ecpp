@@ -45,6 +45,10 @@ from .forms import (
     PeriodoForm,
 )
 
+# Upper bound for user-submitted schedule block counts, so request data can
+# never drive an unbounded loop (SonarCloud S6680).
+MAX_BLOQUES_HORARIO = 20
+
 
 # =============================================================================
 # Período Views
@@ -525,6 +529,8 @@ class ParaleloCreateView(MultiRolRequeridoMixin, ListView):
             bloques_count = int(bloques_count_str)
         except ValueError:
             bloques_count = 0
+        if bloques_count < 0 or bloques_count > MAX_BLOQUES_HORARIO:
+            bloques_count = 0
 
         bloques_propuestos: list[tuple[str, time, time]] = []
         for idx in range(bloques_count):
@@ -708,6 +714,8 @@ class ParaleloCreateLoteView(MultiRolRequeridoMixin, View):
                 try:
                     count = int(count_str)
                 except ValueError:
+                    count = 0
+                if count < 0 or count > MAX_BLOQUES_HORARIO:
                     count = 0
 
                 if count == 0:
