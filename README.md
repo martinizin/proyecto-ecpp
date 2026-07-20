@@ -5,6 +5,18 @@
 
 Sistema de gestión académica para el control de calificaciones, asistencia y solicitudes estudiantiles.
 
+
+## DESPLIEGUE
+https://escuelaecppp.duckdns.org/usuarios/login/
+
+## Documentación 
+
+- [Manual de Arquitectura](docs/manuales/architecture-manual.md)
+- [Manual de Base de Datos](docs/manuales/database-manual.md)
+- [Manual de Usuario](docs/manuales/user-manual.md)
+- [Guía de recursos de documentación](docs/manuales/assets/README.md)
+
+
 ## Requisitos previos
 
 - Python 3.12.x
@@ -107,12 +119,6 @@ El proyecto usa GitHub Actions (`.github/workflows/ci.yml`) que ejecuta en cada 
 4. `coverage run -m pytest` — pruebas con cobertura
 5. `coverage report --fail-under=70` — umbral de cobertura
 
-## Documentación
-
-- [Manual de Arquitectura](docs/manuales/architecture-manual.md)
-- [Manual de Base de Datos](docs/manuales/database-manual.md)
-- [Manual de Usuario](docs/manuales/user-manual.md)
-- [Guía de recursos de documentación](docs/manuales/assets/README.md)
 
 ## Estructura del proyecto
 
